@@ -1,0 +1,178 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flash-whatsapp-service
+  namespace: flash-production
+  labels:
+    app: flash-whatsapp-service
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: flash-whatsapp-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: flash-whatsapp-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: flash-whatsapp-service
+        image: flashapp/whatsapp-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+          name: http
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3000"
+        - name: REDIS_HOST
+          valueFrom:
+            secretKeyRef:
+              name: flash-whatsapp-redis
+              key: host
+        - name: REDIS_PORT
+          valueFrom:
+            secretKeyRef:
+              name: flash-whatsapp-redis
+              key: port
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: flash-whatsapp-redis
+              key: password
+        - name: RABBITMQ_URL
+          valueFrom:
+            secretKeyRef:
+              name: flash-whatsapp-rabbitmq
+              key: url
+        - name: FLASH_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: flash-whatsapp-config
+              key: flash_api_url
+        - name: FLASH_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: flash-whatsapp-api
+              key: api_key
+        - name: TWILIO_ACCOUNT_SID
+          valueFrom:
+            secretKeyRef:
+              name: flash-whatsapp-twilio
+              key: account_sid
+        - name: TWILIO_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: flash-whatsapp-twilio
+              key: auth_token
+        - name: MAPLE_AI_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: flash-whatsapp-config
+              key: maple_ai_url
+        - name: MAPLE_AI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: flash-whatsapp-maple
+              key: api_key
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: flash-whatsapp-jwt
+              key: secret
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - flash-whatsapp-service
+              topologyKey: "kubernetes.io/hostname"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flash-whatsapp-service
+  namespace: flash-production
+  labels:
+    app: flash-whatsapp-service
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3000"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  selector:
+    app: flash-whatsapp-service
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: flash-whatsapp-service
+  namespace: flash-production
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+spec:
+  tls:
+  - hosts:
+    - whatsapp-api.flash.com
+    secretName: whatsapp-api-tls
+  rules:
+  - host: whatsapp-api.flash.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: flash-whatsapp-service
+            port:
+              number: 80

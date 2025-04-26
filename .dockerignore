@@ -1,0 +1,33 @@
+# Git
+.git
+.gitignore
+
+# Node
+node_modules
+npm-debug.log
+
+# Build
+dist
+coverage
+
+# Environment
+.env
+.env.*
+
+# IDEs
+.idea
+.vscode
+
+# Docs
+docs
+*.md
+LICENSE
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+.dockerignore
+docker-compose*
+Dockerfile*

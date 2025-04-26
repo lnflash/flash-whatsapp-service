@@ -1,0 +1,210 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment for deployment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.set-outputs.outputs.image_tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Determine environment and version
+        id: set-outputs
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            # If we're on a tag, use the tag name as the version
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            # Otherwise, use the commit SHA
+            VERSION=${GITHUB_SHA::8}
+          fi
+          
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            ENV=${{ github.event.inputs.environment }}
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            ENV=production
+          else
+            ENV=staging
+          fi
+          
+          IMAGE_TAG=${VERSION}-${ENV}
+          
+          echo "Building for environment: ${ENV}"
+          echo "Version: ${VERSION}"
+          echo "Image tag: ${IMAGE_TAG}"
+          
+          echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "environment=${ENV}" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: flashapp/whatsapp-service:${{ steps.set-outputs.outputs.image_tag }}
+          cache-from: type=registry,ref=flashapp/whatsapp-service:latest
+          cache-to: type=inline
+          build-args: |
+            NODE_ENV=${{ steps.set-outputs.outputs.environment }}
+
+  deploy-staging:
+    needs: build-and-push
+    if: |
+      success() && (
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging') ||
+        (github.ref == 'refs/heads/main')
+      )
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.26.0'
+
+      - name: Set up kubeconfig
+        run: |
+          echo "${{ secrets.KUBECONFIG_STAGING }}" > kubeconfig
+          echo "KUBECONFIG=$(pwd)/kubeconfig" >> $GITHUB_ENV
+
+      - name: Update Kubernetes resources
+        run: |
+          IMAGE_TAG=${{ needs.build-and-push.outputs.image_tag }}
+          
+          # Update image in Kubernetes deployment
+          kubectl set image deployment/flash-whatsapp-service \
+            flash-whatsapp-service=flashapp/whatsapp-service:${IMAGE_TAG} \
+            --namespace=flash-staging
+          
+          # Wait for deployment to complete
+          kubectl rollout status deployment/flash-whatsapp-service \
+            --namespace=flash-staging \
+            --timeout=5m
+
+      - name: Run post-deployment tests
+        run: |
+          # Wait for service to be ready
+          sleep 30
+          
+          # Run smoke tests against staging environment
+          curl -s https://staging-whatsapp-api.flash.com/health | grep -q 'ok'
+
+  deploy-production:
+    needs: [build-and-push, deploy-staging]
+    if: |
+      success() && (
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production') ||
+        startsWith(github.ref, 'refs/tags/v')
+      )
+    runs-on: ubuntu-latest
+    environment: 
+      name: production
+      url: https://whatsapp-api.flash.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.26.0'
+
+      - name: Set up kubeconfig
+        run: |
+          echo "${{ secrets.KUBECONFIG_PRODUCTION }}" > kubeconfig
+          echo "KUBECONFIG=$(pwd)/kubeconfig" >> $GITHUB_ENV
+
+      - name: Deploy with blue-green strategy
+        run: |
+          IMAGE_TAG=${{ needs.build-and-push.outputs.image_tag }}
+          
+          # Clone the current deployment to create a new one with updated image
+          kubectl get deployment flash-whatsapp-service -o yaml \
+            --namespace=flash-production | \
+            sed "s|image: flashapp/whatsapp-service:.*|image: flashapp/whatsapp-service:${IMAGE_TAG}|g" | \
+            sed "s|name: flash-whatsapp-service|name: flash-whatsapp-service-new|g" | \
+            kubectl apply -f - --namespace=flash-production
+          
+          # Wait for new deployment to be ready
+          kubectl rollout status deployment/flash-whatsapp-service-new \
+            --namespace=flash-production \
+            --timeout=5m
+          
+          # Update service to point to new deployment
+          kubectl patch service flash-whatsapp-service \
+            --namespace=flash-production \
+            -p '{"spec":{"selector":{"app":"flash-whatsapp-service-new"}}}'
+          
+          # Wait to ensure everything is working
+          sleep 30
+          
+          # Run verification check
+          if curl -s https://whatsapp-api.flash.com/health | grep -q 'ok'; then
+            echo "Deployment successful, cleaning up old deployment"
+            # If successful, delete the old deployment
+            kubectl delete deployment flash-whatsapp-service \
+              --namespace=flash-production
+            
+            # Rename the new deployment to the standard name
+            kubectl get deployment flash-whatsapp-service-new -o yaml \
+              --namespace=flash-production | \
+              sed "s|name: flash-whatsapp-service-new|name: flash-whatsapp-service|g" | \
+              kubectl apply -f - --namespace=flash-production
+            
+            # Update service to point to renamed deployment
+            kubectl patch service flash-whatsapp-service \
+              --namespace=flash-production \
+              -p '{"spec":{"selector":{"app":"flash-whatsapp-service"}}}'
+            
+            # Delete the transitional deployment
+            kubectl delete deployment flash-whatsapp-service-new \
+              --namespace=flash-production
+          else
+            echo "Deployment verification failed, rolling back"
+            # If failed, keep original deployment and delete the new one
+            kubectl delete deployment flash-whatsapp-service-new \
+              --namespace=flash-production
+            exit 1
+          fi
+
+      - name: Post-deployment notification
+        if: success()
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          channel-id: 'C01234ABCDEF'
+          slack-message: |
+            :rocket: Flash WhatsApp Bot Service has been deployed to production
+            
+            Version: ${{ needs.build-and-push.outputs.image_tag }}
+            Deployment: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
