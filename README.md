@@ -112,7 +112,7 @@ This project uses GitHub Actions for continuous integration and deployment:
   - Builds and pushes Docker images
   - Deploys to staging environment for main branch commits
   - Deploys to production environment for tagged releases
-  - Implements blue-green deployment strategy
+  - Implements Docker Compose deployment strategy
 
 - **Security Scan**: Runs weekly and on-demand
   - Performs dependency vulnerability scanning
@@ -128,7 +128,7 @@ See the [GitHub Actions Setup](docs/GITHUB_ACTIONS_SETUP.md) documentation and t
 
 ### Deployment
 
-Refer to the [Kubernetes Deployment Guide](kubernetes/README.md) for detailed deployment instructions.
+Refer to the [Docker Compose Deployment Guide](kubernetes/README.md) for detailed deployment instructions.
 
 ## API Endpoints
 
@@ -148,7 +148,7 @@ Refer to the [Kubernetes Deployment Guide](kubernetes/README.md) for detailed de
 - [Security Assessment Plan](test/security/security-assessment-plan.md) - Comprehensive security assessment methodology
 - [Penetration Testing Guide](test/security/penetration-testing-guide.md) - Guide for security testing
 - [Regression Test Plan](test/regression/regression-test-plan.md) - Framework for regression testing
-- [Kubernetes Deployment Guide](kubernetes/README.md) - Guide for deploying to Kubernetes
+- [Docker Compose Deployment Guide](kubernetes/README.md) - Guide for deploying with Docker Compose
 
 ## License
 

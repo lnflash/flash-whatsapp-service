@@ -1,113 +1,80 @@
-# Kubernetes Deployment Guide
+# Docker Compose Deployment Guide
 
-This directory contains Kubernetes manifests for deploying the Flash WhatsApp Bot Service to production and staging environments.
+This directory contains deployment configurations for the Flash WhatsApp Bot Service using Docker Compose.
 
 ## Files
 
-- `deployment.yaml`: Production environment deployment configuration
-- `staging.yaml`: Staging environment deployment configuration
-- `config.yaml`: ConfigMaps for both environments
-- `secrets-example.yaml`: Example of how to create the required secrets
+- `docker-compose.yml`: Local development configuration
+- `docker-compose.production.yml`: Production environment configuration
+- `docker-compose.staging.yml`: Staging environment configuration
+- `.env.example`: Example environment variables file
 
-## Setting up Secrets
+## Environment Setup
 
-The service requires several secrets to be configured in each environment. Here's how to create them:
+The service requires several environment variables to be configured. Create environment files for each environment:
 
 ### Production Environment
 
-```bash
-# Redis credentials
-kubectl create secret generic flash-whatsapp-redis \
-  --namespace=flash-production \
-  --from-literal=host=redis.production.svc.cluster.local \
-  --from-literal=port=6379 \
-  --from-literal=password=<redis-password>
+Create a `.env.production` file with the following variables:
 
-# RabbitMQ credentials
-kubectl create secret generic flash-whatsapp-rabbitmq \
-  --namespace=flash-production \
-  --from-literal=url=amqp://user:password@rabbitmq.production.svc.cluster.local:5672
+```
+# Redis configuration
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_PASSWORD=<redis-password>
+
+# RabbitMQ configuration
+RABBITMQ_URL=amqp://user:password@rabbitmq:5672
 
 # Flash API credentials
-kubectl create secret generic flash-whatsapp-api \
-  --namespace=flash-production \
-  --from-literal=api_key=<flash-api-key>
+FLASH_API_KEY=<flash-api-key>
 
 # Twilio credentials
-kubectl create secret generic flash-whatsapp-twilio \
-  --namespace=flash-production \
-  --from-literal=account_sid=<twilio-account-sid> \
-  --from-literal=auth_token=<twilio-auth-token>
+TWILIO_ACCOUNT_SID=<twilio-account-sid>
+TWILIO_AUTH_TOKEN=<twilio-auth-token>
 
 # Maple AI credentials
-kubectl create secret generic flash-whatsapp-maple \
-  --namespace=flash-production \
-  --from-literal=api_key=<maple-ai-api-key>
+MAPLE_AI_API_KEY=<maple-ai-api-key>
 
 # JWT Secret
-kubectl create secret generic flash-whatsapp-jwt \
-  --namespace=flash-production \
-  --from-literal=secret=<jwt-secret>
+JWT_SECRET=<jwt-secret>
+
+# Service configuration
+NODE_ENV=production
+PORT=3000
 ```
 
 ### Staging Environment
 
-```bash
-# Redis credentials
-kubectl create secret generic flash-whatsapp-redis-staging \
-  --namespace=flash-staging \
-  --from-literal=host=redis.staging.svc.cluster.local \
-  --from-literal=port=6379 \
-  --from-literal=password=<redis-password>
-
-# RabbitMQ credentials
-kubectl create secret generic flash-whatsapp-rabbitmq-staging \
-  --namespace=flash-staging \
-  --from-literal=url=amqp://user:password@rabbitmq.staging.svc.cluster.local:5672
-
-# Flash API credentials
-kubectl create secret generic flash-whatsapp-api-staging \
-  --namespace=flash-staging \
-  --from-literal=api_key=<flash-api-key>
-
-# Twilio credentials
-kubectl create secret generic flash-whatsapp-twilio-staging \
-  --namespace=flash-staging \
-  --from-literal=account_sid=<twilio-account-sid> \
-  --from-literal=auth_token=<twilio-auth-token>
-
-# Maple AI credentials
-kubectl create secret generic flash-whatsapp-maple-staging \
-  --namespace=flash-staging \
-  --from-literal=api_key=<maple-ai-api-key>
-
-# JWT Secret
-kubectl create secret generic flash-whatsapp-jwt-staging \
-  --namespace=flash-staging \
-  --from-literal=secret=<jwt-secret>
-```
+Create a `.env.staging` file with similar variables but appropriate for staging.
 
 ## Deployment
 
-To deploy to the staging environment:
+### Staging Deployment
 
 ```bash
-kubectl apply -f kubernetes/config.yaml
-kubectl apply -f kubernetes/staging.yaml
+# Deploy to staging
+docker-compose -f docker-compose.yml -f docker-compose.staging.yml --env-file .env.staging up -d
+
+# View logs
+docker-compose -f docker-compose.yml -f docker-compose.staging.yml logs -f
 ```
 
-To deploy to the production environment:
+### Production Deployment
 
 ```bash
-kubectl apply -f kubernetes/config.yaml
-kubectl apply -f kubernetes/deployment.yaml
+# Deploy to production
+docker-compose -f docker-compose.yml -f docker-compose.production.yml --env-file .env.production up -d
+
+# View logs
+docker-compose -f docker-compose.yml -f docker-compose.production.yml logs -f
 ```
 
-However, it's recommended to use the CI/CD pipeline for automated deployments rather than manual kubectl commands.
+However, it's recommended to use the CI/CD pipeline for automated deployments rather than manual commands.
 
 ## Monitoring
 
-The deployment includes Prometheus annotations for metrics scraping. The following metrics are exposed:
+The service exposes various metrics for monitoring:
 
 - HTTP request count, latency, and error rates
 - Memory and CPU usage
@@ -118,34 +85,67 @@ Metrics are available at the `/metrics` endpoint.
 
 ## Health Checks
 
-The service exposes a `/health` endpoint that reports the status of all dependencies (Redis, RabbitMQ, Flash API, etc.). This endpoint is used by Kubernetes liveness and readiness probes.
+The service exposes a `/health` endpoint that reports the status of all dependencies (Redis, RabbitMQ, Flash API, etc.). Docker Compose uses this endpoint for health checks.
 
 ## Scaling
 
-The service can be scaled horizontally by adjusting the `replicas` value in the deployment manifest. The recommended approach is to use the Horizontal Pod Autoscaler (HPA):
+For scaling in production, you can:
 
-```yaml
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: flash-whatsapp-service
-  namespace: flash-production
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: flash-whatsapp-service
-  minReplicas: 3
-  maxReplicas: 10
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
+1. Use Docker Compose's `--scale` option:
+
+```bash
+docker-compose -f docker-compose.yml -f docker-compose.production.yml --env-file .env.production up -d --scale app=3
 ```
 
-## Blue-Green Deployments
+2. For more advanced scaling, consider using Docker Swarm mode:
 
-The CD pipeline implements a blue-green deployment strategy. See the GitHub Actions workflow files for details on how this is implemented.
+```bash
+# Initialize swarm
+docker swarm init
+
+# Deploy as a stack
+docker stack deploy -c docker-compose.yml -c docker-compose.production.yml flash-whatsapp
+
+# Scale the service
+docker service scale flash-whatsapp_app=3
+```
+
+## Backup and Restore
+
+### Redis Data Backup
+
+```bash
+# Connect to Redis container
+docker-compose exec redis redis-cli
+
+# Trigger a backup
+SAVE
+
+# Exit
+exit
+
+# Copy backup file to host
+docker cp flash-whatsapp-redis:/data/dump.rdb ./redis-backup.rdb
+```
+
+### RabbitMQ Backup
+
+```bash
+# Export RabbitMQ definitions
+docker-compose exec rabbitmq rabbitmqctl export_definitions /tmp/rabbitmq-definitions.json
+
+# Copy to host
+docker cp flash-whatsapp-rabbitmq:/tmp/rabbitmq-definitions.json ./rabbitmq-backup.json
+```
+
+## Rolling Updates
+
+For minimal downtime updates:
+
+```bash
+# Pull new images
+docker-compose -f docker-compose.yml -f docker-compose.production.yml pull
+
+# Update one service at a time
+docker-compose -f docker-compose.yml -f docker-compose.production.yml up -d --no-deps --scale app=3 app
+```

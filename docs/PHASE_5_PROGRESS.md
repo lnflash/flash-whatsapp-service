@@ -37,26 +37,26 @@ We have successfully implemented a comprehensive CI/CD pipeline using GitHub Act
    - Error log analysis
    - Alert notifications for detected issues
 
-### Kubernetes Deployment
+### Docker Compose Deployment
 
-We have created Kubernetes manifests for both staging and production environments:
+We have created Docker Compose configurations for both staging and production environments:
 
 1. **Deployment Configuration**
-   - High availability setup (3 replicas for production)
-   - Resource limits and requests
-   - Health and readiness probes
-   - Container security context
-   - Pod anti-affinity for resilience
+   - Multi-container architecture with service dependencies
+   - Resource limits configuration
+   - Health checks for all services
+   - Container security settings
+   - Volume mounts for data persistence
 
 2. **Service Configuration**
-   - ClusterIP service for internal communication
-   - Prometheus annotations for metrics scraping
-   - Ingress configuration with TLS
+   - Internal network for service communication
+   - Reverse proxy integration for TLS termination
+   - Environment-specific port configurations
 
 3. **Environment Configuration**
-   - ConfigMaps for environment-specific settings
-   - Secret management guidelines
-   - Separate resources for staging and production
+   - Environment files for configuration settings
+   - Secret management through environment variables
+   - Separate configurations for staging and production
 
 ### Application Enhancements
 

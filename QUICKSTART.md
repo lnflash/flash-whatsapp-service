@@ -23,7 +23,7 @@ The project has completed the following phases:
   - `config/`: Application configuration
 - `test/`: Test files including integration, security, and regression tests
 - `docs/`: Project documentation
-- `kubernetes/`: Kubernetes deployment manifests
+- `kubernetes/`: Docker Compose deployment configurations
 - `.github/workflows/`: GitHub Actions CI/CD configuration
 - `scripts/`: Utility scripts
 
@@ -34,7 +34,7 @@ The project has completed the following phases:
 - `docs/PHASE_5_PLAN.md`: Comprehensive plan for the current phase
 - `docs/PHASE_5_PROGRESS.md`: Current progress on Phase 5
 - `docs/GITHUB_ACTIONS_SETUP.md`: CI/CD pipeline documentation
-- `kubernetes/README.md`: Kubernetes deployment guide
+- `kubernetes/README.md`: Docker Compose deployment guide
 
 ## Core Technologies
 
@@ -44,7 +44,7 @@ The project has completed the following phases:
 - **Message Queue**: RabbitMQ for event handling
 - **AI Integration**: Maple AI for customer support
 - **CI/CD**: GitHub Actions
-- **Deployment**: Kubernetes
+- **Deployment**: Docker Compose
 - **Monitoring**: Prometheus & custom metrics
 
 ## Current Focus: Phase 5
@@ -52,7 +52,7 @@ The project has completed the following phases:
 The current focus is on Phase 5 (Production Deployment & Operational Excellence), including:
 
 1. CI/CD pipeline implementation with GitHub Actions (completed)
-2. Kubernetes deployment configuration (completed)
+2. Docker Compose deployment configuration (completed)
 3. Monitoring and observability setup (partially completed)
 4. Operational documentation (in progress)
 5. Infrastructure provisioning (in progress)
@@ -140,4 +140,4 @@ For more details, refer to:
 - `docs/PHASE_5_PLAN.md`: Phase 5 planning document
 - `docs/PHASE_5_PROGRESS.md`: Current progress report
 - `docs/GITHUB_ACTIONS_SETUP.md`: CI/CD pipeline documentation
-- `kubernetes/README.md`: Kubernetes deployment guide
+- `kubernetes/README.md`: Docker Compose deployment guide

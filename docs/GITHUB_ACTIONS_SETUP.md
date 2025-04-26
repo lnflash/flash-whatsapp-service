@@ -37,7 +37,7 @@ Key features:
 - Builds Docker images with proper tagging
 - Implements a staging environment for main branch commits
 - Deploys to production only for tagged releases or manual approval
-- Uses blue-green deployment strategy for zero-downtime deployments
+- Uses Docker Compose for deployment with minimal downtime
 - Includes automated rollback on failure
 - Sends Slack notifications on successful deployments
 
@@ -75,27 +75,28 @@ To properly use these workflows, the following secrets must be configured in the
 |--------|-------------|
 | `DOCKER_USERNAME` | Docker Hub username for image publishing |
 | `DOCKER_PASSWORD` | Docker Hub password or token |
-| `KUBECONFIG_STAGING` | Base64 encoded kubeconfig for staging environment |
-| `KUBECONFIG_PRODUCTION` | Base64 encoded kubeconfig for production environment |
+| `SSH_PRIVATE_KEY_STAGING` | SSH private key for staging server deployment |
+| `SSH_PRIVATE_KEY_PRODUCTION` | SSH private key for production server deployment |
+| `SERVER_HOST_STAGING` | Hostname/IP for staging server |
+| `SERVER_HOST_PRODUCTION` | Hostname/IP for production server |
 | `SLACK_BOT_TOKEN` | Slack bot token for notifications |
 | `SONAR_TOKEN` | SonarCloud token for code quality analysis |
 | `SNYK_TOKEN` | Snyk token for security scanning |
 | `GCP_SA_KEY` | Google Cloud service account key for log access |
 
-## Kubernetes Configuration
+## Docker Compose Configuration
 
-The deployment uses Kubernetes manifests located in the `kubernetes/` directory:
+The deployment uses Docker Compose files:
 
-- `deployment.yaml` - Production environment configuration
-- `staging.yaml` - Staging environment configuration
-- `config.yaml` - ConfigMaps for both environments
+- `docker-compose.yml` - Local development configuration
+- `docker-compose.production.yml` - Production environment configuration
+- `docker-compose.staging.yml` - Staging environment configuration
 
-The Kubernetes deployment includes:
-- 3 replicas for production, 2 for staging
-- Health and readiness probes
-- Resource limits and requests
-- Anti-affinity rules for high availability
-- Ingress configuration with SSL
+The Docker Compose deployment includes:
+- Health checks for all services
+- Resource limits configuration
+- Volume mounts for persistent data
+- Environment-specific configurations
 
 ## Metrics and Monitoring
 
