@@ -2,8 +2,8 @@ version: '3.8'
 
 services:
   app:
-    image: flashapp/whatsapp-service:test
-    container_name: flash-whatsapp-service-test
+    image: flashapp/flash-connect:test
+    container_name: flash-connect-test
     restart: unless-stopped
     ports:
       - "3001:3000"
@@ -30,7 +30,7 @@ services:
 
   redis:
     image: redis:alpine
-    container_name: flash-whatsapp-redis-test
+    container_name: flash-connect-redis-test
     restart: unless-stopped
     ports:
       - "6380:6379"
@@ -52,7 +52,7 @@ services:
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
-    container_name: flash-whatsapp-rabbitmq-test
+    container_name: flash-connect-rabbitmq-test
     restart: unless-stopped
     ports:
       - "5673:5672"

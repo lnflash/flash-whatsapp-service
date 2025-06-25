@@ -2,7 +2,7 @@
 
 ## v0.0.1 - Initial Tag (April 25, 2025)
 
-This initial tag represents the Flash WhatsApp Bot Service with the following progress:
+This initial tag represents the Flash Connect with the following progress:
 
 ### Completed Phases
 - ✅ Phase 1: Foundation & Infrastructure

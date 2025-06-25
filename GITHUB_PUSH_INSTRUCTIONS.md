@@ -5,16 +5,16 @@ To push this repository to GitHub and include the v0.0.1 tag, follow these steps
 1. Create a new repository on GitHub (if not already created)
 
    - Go to https://github.com/new
-   - Name it "flash-whatsapp-service"
+   - Name it "flash-connect"
    - Choose the appropriate visibility (private is recommended for this type of project)
    - Do not initialize with a README, .gitignore, or license as we already have those
 
 2. Add the GitHub repository as a remote
 
    ```bash
-   git remote add origin https://github.com/lnflash/flash-whatsapp-service.git
+   git remote add origin https://github.com/lnflash/flash-connect.git
    # OR if using SSH
-   git remote add origin git@github.com:lnflash/flash-whatsapp-service.git
+   git remote add origin git@github.com:lnflash/flash-connect.git
    ```
 
 3. Push the main branch
@@ -64,7 +64,7 @@ To use the GitHub Actions workflows, you'll need to set up the following secrets
 
 2. Set up Docker Hub repository
 
-   - Create a repository named "flashapp/whatsapp-service" on Docker Hub
+   - Create a repository named "flashapp/flash-connect" on Docker Hub
 
 3. Continue implementation of Phase 5
    - Follow the tasks in docs/PHASE_5_CHECKLIST.md

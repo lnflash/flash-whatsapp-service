@@ -32,7 +32,7 @@ jobs:
         with:
           channel-id: 'C01234ABCDEF'
           slack-message: |
-            :red_circle: Flash WhatsApp Bot Service is DOWN in ${{ matrix.environment }}
+            :red_circle: Flash Connect is DOWN in ${{ matrix.environment }}
             
             Environment: ${{ matrix.environment }}
             Time: ${{ steps.health_check.outputs.time }}
@@ -82,7 +82,7 @@ jobs:
         with:
           channel-id: 'C01234ABCDEF'
           slack-message: |
-            :warning: Flash WhatsApp Bot Service is running slow in ${{ matrix.environment }}
+            :warning: Flash Connect is running slow in ${{ matrix.environment }}
             
             Environment: ${{ matrix.environment }}
             Response Time: ${{ steps.perf_check.outputs.response_time }} seconds
@@ -110,7 +110,7 @@ jobs:
           THIRTY_MINS_AGO=$(date -u -d '30 minutes ago' +"%Y-%m-%dT%H:%M:%SZ")
           
           # Count errors in logs
-          ERROR_COUNT=$(gcloud logging read "resource.type=k8s_container AND resource.labels.namespace_name=flash-production AND resource.labels.container_name=flash-whatsapp-service AND severity>=ERROR AND timestamp>=\"$THIRTY_MINS_AGO\"" --limit=1000 --format="value(textPayload)" | wc -l)
+          ERROR_COUNT=$(gcloud logging read "resource.type=k8s_container AND resource.labels.namespace_name=flash-production AND resource.labels.container_name=flash-connect AND severity>=ERROR AND timestamp>=\"$THIRTY_MINS_AGO\"" --limit=1000 --format="value(textPayload)" | wc -l)
           
           echo "Error count in the last 30 minutes: $ERROR_COUNT"
           
@@ -128,7 +128,7 @@ jobs:
         with:
           channel-id: 'C01234ABCDEF'
           slack-message: |
-            :warning: Flash WhatsApp Bot Service has a high error rate
+            :warning: Flash Connect has a high error rate
             
             Environment: Production
             Error Count: ${{ steps.error_check.outputs.error_count }} in the last 30 minutes

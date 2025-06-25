@@ -4,7 +4,7 @@
 
 ## Overview
 
-This document tracks progress on Phase 5 (Production Deployment & Operational Excellence) of the Flash WhatsApp Bot Service implementation.
+This document tracks progress on Phase 5 (Production Deployment & Operational Excellence) of the Flash Connect implementation.
 
 ## Accomplishments
 

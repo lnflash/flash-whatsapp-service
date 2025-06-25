@@ -1,6 +1,6 @@
 # GitHub Actions Setup for CI/CD
 
-This document provides an overview of the GitHub Actions workflows set up for the Flash WhatsApp Bot Service as part of Phase 5 (Production Deployment & Operational Excellence).
+This document provides an overview of the GitHub Actions workflows set up for the Flash Connect as part of Phase 5 (Production Deployment & Operational Excellence).
 
 ## Workflows Overview
 

@@ -1,10 +1,10 @@
-# Flash WhatsApp Bot Service: Quick Start Guide
+# Flash Connect: Quick Start Guide
 
-This document provides guidance for LLMs (Large Language Models) to quickly understand and continue work on the Flash WhatsApp Bot Service.
+This document provides guidance for LLMs (Large Language Models) to quickly understand and continue work on Flash Connect.
 
 ## Project Overview
 
-The Flash WhatsApp Bot Service enables secure communication between Flash users and the Flash platform via WhatsApp, providing account management, notifications, and AI-powered customer support. It's built using NestJS, integrates with Twilio for WhatsApp messaging, and leverages various other services like Redis and RabbitMQ.
+Flash Connect enables secure communication between Flash users and the Flash platform via WhatsApp, providing account management, notifications, and AI-powered customer support. It's built using NestJS, integrates with Twilio for WhatsApp messaging, and leverages various other services like Redis and RabbitMQ.
 
 ## Current Status
 

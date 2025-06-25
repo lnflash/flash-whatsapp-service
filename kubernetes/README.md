@@ -1,6 +1,6 @@
 # Docker Compose Deployment Guide
 
-This directory contains deployment configurations for the Flash WhatsApp Bot Service using Docker Compose.
+This directory contains deployment configurations for the Flash Connect using Docker Compose.
 
 ## Files
 
@@ -104,10 +104,10 @@ docker-compose -f docker-compose.yml -f docker-compose.production.yml --env-file
 docker swarm init
 
 # Deploy as a stack
-docker stack deploy -c docker-compose.yml -c docker-compose.production.yml flash-whatsapp
+docker stack deploy -c docker-compose.yml -c docker-compose.production.yml flash-connect
 
 # Scale the service
-docker service scale flash-whatsapp_app=3
+docker service scale flash-connect_app=3
 ```
 
 ## Backup and Restore
@@ -125,7 +125,7 @@ SAVE
 exit
 
 # Copy backup file to host
-docker cp flash-whatsapp-redis:/data/dump.rdb ./redis-backup.rdb
+docker cp flash-connect-redis:/data/dump.rdb ./redis-backup.rdb
 ```
 
 ### RabbitMQ Backup
@@ -135,7 +135,7 @@ docker cp flash-whatsapp-redis:/data/dump.rdb ./redis-backup.rdb
 docker-compose exec rabbitmq rabbitmqctl export_definitions /tmp/rabbitmq-definitions.json
 
 # Copy to host
-docker cp flash-whatsapp-rabbitmq:/tmp/rabbitmq-definitions.json ./rabbitmq-backup.json
+docker cp flash-connect-rabbitmq:/tmp/rabbitmq-definitions.json ./rabbitmq-backup.json
 ```
 
 ## Rolling Updates

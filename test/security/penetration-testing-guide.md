@@ -1,6 +1,6 @@
-# Flash WhatsApp Bot Service - Penetration Testing Guide
+# Flash Connect - Penetration Testing Guide
 
-This document provides detailed guidance for conducting penetration testing against the Flash WhatsApp Bot Service to identify security vulnerabilities before they can be exploited by malicious actors.
+This document provides detailed guidance for conducting penetration testing against the Flash Connect to identify security vulnerabilities before they can be exploited by malicious actors.
 
 ## Penetration Testing Scope
 

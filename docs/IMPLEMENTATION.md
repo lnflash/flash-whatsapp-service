@@ -1,6 +1,6 @@
-# Flash WhatsApp Bot Service - Implementation Plan
+# Flash Connect - Implementation Plan
 
-This document outlines the step-by-step implementation plan for building the Flash WhatsApp Bot Service as specified in [FIP-02](https://github.com/lnflash/fips/blob/main/FIP-02.md).
+This document outlines the step-by-step implementation plan for building the Flash Connect as specified in [FIP-02](https://github.com/lnflash/fips/blob/main/FIP-02.md).
 
 ## Current Implementation Status
 

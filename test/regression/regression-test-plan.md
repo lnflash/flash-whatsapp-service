@@ -1,6 +1,6 @@
-# Flash WhatsApp Bot Service - Regression Test Plan
+# Flash Connect - Regression Test Plan
 
-This document outlines the regression testing strategy for the Flash WhatsApp Bot Service to ensure that existing functionality remains intact as new features are added.
+This document outlines the regression testing strategy for the Flash Connect to ensure that existing functionality remains intact as new features are added.
 
 ## Regression Testing Approach
 

@@ -1,10 +1,10 @@
-# Flash WhatsApp Bot Service
+# Flash Connect
 
 This service enables secure communication between Flash users and the Flash platform via WhatsApp, providing account management, notifications, and AI-powered customer support.
 
 ## Overview
 
-The Flash WhatsApp Bot Service is a NestJS microservice that integrates with:
+Flash Connect is a NestJS microservice that integrates with:
 
 - Twilio WhatsApp Business API for messaging
 - Flash GraphQL API for business logic
@@ -45,8 +45,8 @@ The Flash WhatsApp Bot Service is a NestJS microservice that integrates with:
 
 1. Clone the repository:
    ```
-   git clone https://github.com/flashapp/flash-whatsapp-service.git
-   cd flash-whatsapp-service
+   git clone https://github.com/flashapp/flash-connect.git
+   cd flash-connect
    ```
 
 2. Install dependencies:

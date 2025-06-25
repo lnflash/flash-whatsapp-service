@@ -1,7 +1,7 @@
 {
-  "name": "flash-whatsapp-service",
+  "name": "flash-connect",
   "version": "0.1.0",
-  "description": "Flash WhatsApp Bot Service for secure Bitcoin and digital payments",
+  "description": "Flash Connect - Secure WhatsApp integration for Bitcoin and digital payments",
   "main": "dist/main.js",
   "directories": {
     "doc": "docs"

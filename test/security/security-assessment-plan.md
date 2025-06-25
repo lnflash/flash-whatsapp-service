@@ -1,6 +1,6 @@
-# Flash WhatsApp Bot Service - Security Assessment Plan
+# Flash Connect - Security Assessment Plan
 
-This document outlines the comprehensive security assessment plan for the Flash WhatsApp Bot Service, focusing on identifying and mitigating potential vulnerabilities in the application.
+This document outlines the comprehensive security assessment plan for the Flash Connect, focusing on identifying and mitigating potential vulnerabilities in the application.
 
 ## Security Assessment Approach
 

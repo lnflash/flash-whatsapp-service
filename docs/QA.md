@@ -1,4 +1,4 @@
-# Flash WhatsApp Bot Service – QA Test Plan & Checklist
+# Flash Connect – QA Test Plan & Checklist
 
 > **Status Update**: Phase 4 (Testing & Security) has been completed. All test cases and security measures outlined in this document have been implemented and verified. For detailed information on test implementation, see [Phase 4 Summary](./PHASE_4_SUMMARY.md) and [Test Documentation](../test/).
 

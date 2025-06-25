@@ -53,7 +53,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
-            -Dsonar.projectKey=flash-whatsapp-service
+            -Dsonar.projectKey=flash-connect
             -Dsonar.organization=flashapp
             -Dsonar.sources=src
             -Dsonar.tests=test
