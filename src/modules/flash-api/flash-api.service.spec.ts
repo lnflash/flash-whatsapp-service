@@ -19,7 +19,7 @@ describe('FlashApiService', () => {
             get: jest.fn((key: string) => {
               switch (key) {
                 case 'flashApi.url':
-                  return 'https://api.flashapp.io/graphql';
+                  return 'https://api.flashapp.me/graphql';
                 case 'flashApi.apiKey':
                   return 'test-api-key';
                 case 'flashApi.apiSecret':

@@ -35,7 +35,7 @@ The CD workflow is triggered on:
 
 Key features:
 - Builds Docker images with proper tagging
-- Implements a staging environment for main branch commits
+- Implements a test environment for main branch commits
 - Deploys to production only for tagged releases or manual approval
 - Uses Docker Compose for deployment with minimal downtime
 - Includes automated rollback on failure
@@ -62,7 +62,7 @@ The Monitoring workflow runs:
 - On manual dispatch for on-demand checks
 
 Key features:
-- Performs health checks on staging and production environments
+- Performs health checks on test and production environments
 - Monitors for performance degradation
 - Checks error logs for anomalies
 - Sends alerts on detected issues
@@ -75,9 +75,9 @@ To properly use these workflows, the following secrets must be configured in the
 |--------|-------------|
 | `DOCKER_USERNAME` | Docker Hub username for image publishing |
 | `DOCKER_PASSWORD` | Docker Hub password or token |
-| `SSH_PRIVATE_KEY_STAGING` | SSH private key for staging server deployment |
+| `SSH_PRIVATE_KEY_TEST` | SSH private key for test server deployment |
 | `SSH_PRIVATE_KEY_PRODUCTION` | SSH private key for production server deployment |
-| `SERVER_HOST_STAGING` | Hostname/IP for staging server |
+| `SERVER_HOST_TEST` | Hostname/IP for test server |
 | `SERVER_HOST_PRODUCTION` | Hostname/IP for production server |
 | `SLACK_BOT_TOKEN` | Slack bot token for notifications |
 | `SONAR_TOKEN` | SonarCloud token for code quality analysis |
@@ -90,7 +90,7 @@ The deployment uses Docker Compose files:
 
 - `docker-compose.yml` - Local development configuration
 - `docker-compose.production.yml` - Production environment configuration
-- `docker-compose.staging.yml` - Staging environment configuration
+- `docker-compose.test.yml` - Test environment configuration
 
 The Docker Compose deployment includes:
 - Health checks for all services

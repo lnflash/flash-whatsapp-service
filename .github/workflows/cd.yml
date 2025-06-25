@@ -10,10 +10,10 @@ on:
       environment:
         description: 'Target environment for deployment'
         required: true
-        default: 'staging'
+        default: 'test'
         type: choice
         options:
-          - staging
+          - test
           - production
 
 jobs:
@@ -50,7 +50,7 @@ jobs:
           elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             ENV=production
           else
-            ENV=staging
+            ENV=test
           fi
           
           IMAGE_TAG=${VERSION}-${ENV}
@@ -73,15 +73,15 @@ jobs:
           build-args: |
             NODE_ENV=${{ steps.set-outputs.outputs.environment }}
 
-  deploy-staging:
+  deploy-test:
     needs: build-and-push
     if: |
       success() && (
-        (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging') ||
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'test') ||
         (github.ref == 'refs/heads/main')
       )
     runs-on: ubuntu-latest
-    environment: staging
+    environment: test
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -93,7 +93,7 @@ jobs:
 
       - name: Set up kubeconfig
         run: |
-          echo "${{ secrets.KUBECONFIG_STAGING }}" > kubeconfig
+          echo "${{ secrets.KUBECONFIG_TEST }}" > kubeconfig
           echo "KUBECONFIG=$(pwd)/kubeconfig" >> $GITHUB_ENV
 
       - name: Update Kubernetes resources
@@ -103,11 +103,11 @@ jobs:
           # Update image in Kubernetes deployment
           kubectl set image deployment/flash-whatsapp-service \
             flash-whatsapp-service=flashapp/whatsapp-service:${IMAGE_TAG} \
-            --namespace=flash-staging
+            --namespace=flash-test
           
           # Wait for deployment to complete
           kubectl rollout status deployment/flash-whatsapp-service \
-            --namespace=flash-staging \
+            --namespace=flash-test \
             --timeout=5m
 
       - name: Run post-deployment tests
@@ -115,11 +115,11 @@ jobs:
           # Wait for service to be ready
           sleep 30
           
-          # Run smoke tests against staging environment
-          curl -s https://staging-whatsapp-api.flash.com/health | grep -q 'ok'
+          # Run smoke tests against test environment
+          curl -s https://test.whatsapp.flashapp.me/health | grep -q 'ok'
 
   deploy-production:
-    needs: [build-and-push, deploy-staging]
+    needs: [build-and-push, deploy-test]
     if: |
       success() && (
         (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production') ||
@@ -128,7 +128,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: 
       name: production
-      url: https://whatsapp-api.flash.com
+      url: https://whatsapp.flashapp.me
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -168,7 +168,7 @@ jobs:
           sleep 30
           
           # Run verification check
-          if curl -s https://whatsapp-api.flash.com/health | grep -q 'ok'; then
+          if curl -s https://whatsapp.flashapp.me/health | grep -q 'ok'; then
             echo "Deployment successful, cleaning up old deployment"
             # If successful, delete the old deployment
             kubectl delete deployment flash-whatsapp-service \

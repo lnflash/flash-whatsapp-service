@@ -118,7 +118,7 @@ npm run test:e2e
 The project uses GitHub Actions for CI/CD with the following workflows:
 
 - `ci.yml`: Builds, tests, and scans the code
-- `cd.yml`: Deploys to staging and production environments
+- `cd.yml`: Deploys to test and production environments
 - `security-scan.yml`: Runs comprehensive security scans
 - `monitoring.yml`: Monitors service health and performance
 

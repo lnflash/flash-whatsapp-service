@@ -155,7 +155,7 @@ export class MapleAiService {
         'How do I make a payment?': 'Currently, you need to use the Flash app to make payments. We\'re working on adding payment functionality to WhatsApp in the future.',
         'Is my money safe?': 'Yes, Flash uses industry-standard security measures to protect your funds. All sensitive operations require multi-factor authentication.',
         'What currencies are supported?': 'Flash supports Bitcoin (BTC) and Jamaican Dollars (JMD).',
-        'How do I contact support?': 'You can contact Flash support by email at support@flashapp.io or through the "Help" section in the Flash app.',
+        'How do I contact support?': 'You can contact Flash support by email at support@flashapp.me or through the "Help" section in the Flash app.',
         'Is Flash available in my country?': 'Flash is currently available in Jamaica, with plans to expand to other Caribbean countries soon.',
         'What are the fees?': 'Flash has competitive fees that vary by transaction type. Please check the Flash app for current fee details.',
       };

@@ -20,7 +20,7 @@ This document outlines the step-by-step implementation plan for building the Fla
 
 ### Environment & Configuration
 - ✅ Implement secure environment variable management using dotenv/Vault
-- ✅ Configure different environments (dev, staging, production)
+- ✅ Configure different environments (dev, test, production)
 - ✅ Set up CI/CD pipeline with proper security checks
 - ✅ Implement logging framework with proper redaction of sensitive information
 

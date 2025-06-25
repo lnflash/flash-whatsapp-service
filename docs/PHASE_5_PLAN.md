@@ -269,7 +269,7 @@ Phase 5 builds on the solid foundation of testing and security established in Ph
 ### Release Management
 - Two-week sprint cycles
 - Feature branches to development branch
-- Staging deployment for UAT
+- Test deployment for UAT
 - Production deployment with approval gate
 - Automated rollback capability
 

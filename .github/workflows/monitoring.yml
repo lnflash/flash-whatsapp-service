@@ -10,12 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        environment: [staging, production]
+        environment: [test, production]
     steps:
       - name: Health check - ${{ matrix.environment }}
         id: health_check
         run: |
-          URL="${{ matrix.environment == 'production' && 'https://whatsapp-api.flash.com/health' || 'https://staging-whatsapp-api.flash.com/health' }}"
+          URL="${{ matrix.environment == 'production' && 'https://whatsapp.flashapp.me/health' || 'https://test.whatsapp.flashapp.me/health' }}"
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" $URL)
           
           echo "HTTP Status: $STATUS"
@@ -45,12 +45,12 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        environment: [staging, production]
+        environment: [test, production]
     steps:
       - name: Performance check - ${{ matrix.environment }}
         id: perf_check
         run: |
-          URL="${{ matrix.environment == 'production' && 'https://whatsapp-api.flash.com/health' || 'https://staging-whatsapp-api.flash.com/health' }}"
+          URL="${{ matrix.environment == 'production' && 'https://whatsapp.flashapp.me/health' || 'https://test.whatsapp.flashapp.me/health' }}"
           
           # Run 3 requests and measure time
           TIMES=()

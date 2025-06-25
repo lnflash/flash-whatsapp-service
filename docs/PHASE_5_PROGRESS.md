@@ -22,7 +22,7 @@ We have successfully implemented a comprehensive CI/CD pipeline using GitHub Act
    - Docker image building and publishing
    - Kubernetes deployment automation
    - Blue-green deployment strategy for zero downtime
-   - Environment separation (staging vs. production)
+   - Environment separation (test vs. production)
    - Automatic rollback on failure
 
 3. **Security Scanning Workflow**
@@ -39,7 +39,7 @@ We have successfully implemented a comprehensive CI/CD pipeline using GitHub Act
 
 ### Docker Compose Deployment
 
-We have created Docker Compose configurations for both staging and production environments:
+We have created Docker Compose configurations for both test and production environments:
 
 1. **Deployment Configuration**
    - Multi-container architecture with service dependencies
@@ -56,7 +56,7 @@ We have created Docker Compose configurations for both staging and production en
 3. **Environment Configuration**
    - Environment files for configuration settings
    - Secret management through environment variables
-   - Separate configurations for staging and production
+   - Separate configurations for test and production
 
 ### Application Enhancements
 

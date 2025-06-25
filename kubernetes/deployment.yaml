@@ -163,10 +163,10 @@ metadata:
 spec:
   tls:
   - hosts:
-    - whatsapp-api.flash.com
-    secretName: whatsapp-api-tls
+    - whatsapp.flashapp.me
+    secretName: whatsapp-flashapp-me-tls
   rules:
-  - host: whatsapp-api.flash.com
+  - host: whatsapp.flashapp.me
     http:
       paths:
       - path: /

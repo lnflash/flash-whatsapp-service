@@ -44,9 +44,9 @@ To use the GitHub Actions workflows, you'll need to set up the following secrets
 
 - `DOCKER_USERNAME`: Your Docker Hub username
 - `DOCKER_PASSWORD`: Your Docker Hub password or token
-- `SSH_PRIVATE_KEY_STAGING`: SSH private key for staging server deployment
+- `SSH_PRIVATE_KEY_TEST`: SSH private key for test server deployment
 - `SSH_PRIVATE_KEY_PRODUCTION`: SSH private key for production server deployment
-- `SERVER_HOST_STAGING`: Hostname/IP for staging server
+- `SERVER_HOST_TEST`: Hostname/IP for test server
 - `SERVER_HOST_PRODUCTION`: Hostname/IP for production server
 - `SLACK_BOT_TOKEN`: Slack bot token for notifications
 - `SONAR_TOKEN`: SonarCloud token for code quality analysis

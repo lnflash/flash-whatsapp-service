@@ -14,7 +14,7 @@ export class BalanceTemplate {
   private readonly appUrl: string;
   
   constructor(private readonly configService: ConfigService) {
-    this.appUrl = this.configService.get<string>('app_url') || 'https://flashapp.io';
+    this.appUrl = this.configService.get<string>('app_url') || 'https://flashapp.me';
   }
 
   /**

@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: flash-whatsapp-service
-  namespace: flash-staging
+  namespace: flash-test
   labels:
     app: flash-whatsapp-service
 spec:
@@ -33,63 +33,63 @@ spec:
           name: http
         env:
         - name: NODE_ENV
-          value: "staging"
+          value: "test"
         - name: PORT
           value: "3000"
         - name: REDIS_HOST
           valueFrom:
             secretKeyRef:
-              name: flash-whatsapp-redis-staging
+              name: flash-whatsapp-redis-test
               key: host
         - name: REDIS_PORT
           valueFrom:
             secretKeyRef:
-              name: flash-whatsapp-redis-staging
+              name: flash-whatsapp-redis-test
               key: port
         - name: REDIS_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: flash-whatsapp-redis-staging
+              name: flash-whatsapp-redis-test
               key: password
         - name: RABBITMQ_URL
           valueFrom:
             secretKeyRef:
-              name: flash-whatsapp-rabbitmq-staging
+              name: flash-whatsapp-rabbitmq-test
               key: url
         - name: FLASH_API_URL
           valueFrom:
             configMapKeyRef:
-              name: flash-whatsapp-config-staging
+              name: flash-whatsapp-config-test
               key: flash_api_url
         - name: FLASH_API_KEY
           valueFrom:
             secretKeyRef:
-              name: flash-whatsapp-api-staging
+              name: flash-whatsapp-api-test
               key: api_key
         - name: TWILIO_ACCOUNT_SID
           valueFrom:
             secretKeyRef:
-              name: flash-whatsapp-twilio-staging
+              name: flash-whatsapp-twilio-test
               key: account_sid
         - name: TWILIO_AUTH_TOKEN
           valueFrom:
             secretKeyRef:
-              name: flash-whatsapp-twilio-staging
+              name: flash-whatsapp-twilio-test
               key: auth_token
         - name: MAPLE_AI_API_URL
           valueFrom:
             configMapKeyRef:
-              name: flash-whatsapp-config-staging
+              name: flash-whatsapp-config-test
               key: maple_ai_url
         - name: MAPLE_AI_API_KEY
           valueFrom:
             secretKeyRef:
-              name: flash-whatsapp-maple-staging
+              name: flash-whatsapp-maple-test
               key: api_key
         - name: JWT_SECRET
           valueFrom:
             secretKeyRef:
-              name: flash-whatsapp-jwt-staging
+              name: flash-whatsapp-jwt-test
               key: secret
         resources:
           requests:
@@ -119,7 +119,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: flash-whatsapp-service
-  namespace: flash-staging
+  namespace: flash-test
   labels:
     app: flash-whatsapp-service
   annotations:
@@ -140,7 +140,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: flash-whatsapp-service
-  namespace: flash-staging
+  namespace: flash-test
   annotations:
     kubernetes.io/ingress.class: "nginx"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
@@ -151,10 +151,10 @@ metadata:
 spec:
   tls:
   - hosts:
-    - staging-whatsapp-api.flash.com
-    secretName: staging-whatsapp-api-tls
+    - test.whatsapp.flashapp.me
+    secretName: test-whatsapp-flashapp-me-tls
   rules:
-  - host: staging-whatsapp-api.flash.com
+  - host: test.whatsapp.flashapp.me
     http:
       paths:
       - path: /

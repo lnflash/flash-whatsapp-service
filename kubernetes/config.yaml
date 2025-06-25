@@ -4,7 +4,7 @@ metadata:
   name: flash-whatsapp-config
   namespace: flash-production
 data:
-  flash_api_url: "https://api.flash.com/graphql"
+  flash_api_url: "https://api.flashapp.me/graphql"
   maple_ai_url: "https://api.trymaple.ai/v1"
   logging_level: "info"
   # Add other non-sensitive configuration values here
@@ -12,10 +12,10 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: flash-whatsapp-config-staging
-  namespace: flash-staging
+  name: flash-whatsapp-config-test
+  namespace: flash-test
 data:
-  flash_api_url: "https://staging-api.flash.com/graphql"
-  maple_ai_url: "https://staging-api.trymaple.ai/v1"
+  flash_api_url: "https://test.api.flashapp.me/graphql"
+  maple_ai_url: "https://test-api.trymaple.ai/v1"
   logging_level: "debug"
   # Add other non-sensitive configuration values here

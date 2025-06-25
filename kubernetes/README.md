@@ -6,7 +6,7 @@ This directory contains deployment configurations for the Flash WhatsApp Bot Ser
 
 - `docker-compose.yml`: Local development configuration
 - `docker-compose.production.yml`: Production environment configuration
-- `docker-compose.staging.yml`: Staging environment configuration
+- `docker-compose.test.yml`: Test environment configuration
 - `.env.example`: Example environment variables file
 
 ## Environment Setup
@@ -44,20 +44,20 @@ NODE_ENV=production
 PORT=3000
 ```
 
-### Staging Environment
+### Test Environment
 
-Create a `.env.staging` file with similar variables but appropriate for staging.
+Create a `.env.test` file with similar variables but appropriate for test.
 
 ## Deployment
 
-### Staging Deployment
+### Test Deployment
 
 ```bash
-# Deploy to staging
-docker-compose -f docker-compose.yml -f docker-compose.staging.yml --env-file .env.staging up -d
+# Deploy to test
+docker-compose -f docker-compose.yml -f docker-compose.test.yml --env-file .env.test up -d
 
 # View logs
-docker-compose -f docker-compose.yml -f docker-compose.staging.yml logs -f
+docker-compose -f docker-compose.yml -f docker-compose.test.yml logs -f
 ```
 
 ### Production Deployment

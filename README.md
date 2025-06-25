@@ -110,7 +110,7 @@ This project uses GitHub Actions for continuous integration and deployment:
 
 - **CD Workflow**: Runs on main branch pushes and tags
   - Builds and pushes Docker images
-  - Deploys to staging environment for main branch commits
+  - Deploys to test environment for main branch commits
   - Deploys to production environment for tagged releases
   - Implements Docker Compose deployment strategy
 
