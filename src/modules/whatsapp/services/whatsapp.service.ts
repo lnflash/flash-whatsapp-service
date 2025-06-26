@@ -1,13 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Twilio } from 'twilio';
-import { IncomingMessageDto } from '../dto/incoming-message.dto';
 import { RedisService } from '../../redis/redis.service';
 import { AuthService } from '../../auth/services/auth.service';
 import { SessionService } from '../../auth/services/session.service';
 import { FlashApiService } from '../../flash-api/flash-api.service';
 import { BalanceService } from '../../flash-api/services/balance.service';
-import { MapleAiService } from '../../maple-ai/maple-ai.service';
+import { GeminiAiService } from '../../gemini-ai/gemini-ai.service';
 import { CommandParserService, CommandType, ParsedCommand } from './command-parser.service';
 import { BalanceTemplate } from '../templates/balance-template';
 import { AccountLinkRequestDto } from '../../auth/dto/account-link-request.dto';
@@ -16,7 +14,6 @@ import { UserSession } from '../../auth/interfaces/user-session.interface';
 
 @Injectable()
 export class WhatsappService {
-  private twilioClient: Twilio | null = null;
   private readonly logger = new Logger(WhatsappService.name);
 
   constructor(
@@ -26,47 +23,32 @@ export class WhatsappService {
     private readonly sessionService: SessionService,
     private readonly flashApiService: FlashApiService,
     private readonly balanceService: BalanceService,
-    private readonly mapleAiService: MapleAiService,
+    private readonly geminiAiService: GeminiAiService,
     private readonly commandParserService: CommandParserService,
     private readonly balanceTemplate: BalanceTemplate,
-  ) {
-    this.initializeTwilioClient();
-  }
+  ) {}
 
   /**
-   * Initialize Twilio client
+   * Process incoming message from WhatsApp Cloud API
    */
-  private initializeTwilioClient(): void {
+  async processCloudMessage(messageData: {
+    from: string;
+    text: string;
+    messageId: string;
+    timestamp: string;
+    name?: string;
+  }): Promise<string> {
     try {
-      const accountSid = this.configService.get<string>('twilio.accountSid');
-      const authToken = this.configService.get<string>('twilio.authToken');
+      const whatsappId = this.extractWhatsappId(messageData.from);
+      const phoneNumber = this.normalizePhoneNumber(messageData.from);
       
-      if (!accountSid || !authToken) {
-        this.logger.warn('Twilio credentials not configured properly');
-        return;
-      }
+      this.logger.log(`Processing Cloud API message from ${whatsappId}: ${messageData.text}`);
       
-      this.twilioClient = new Twilio(accountSid, authToken);
-    } catch (error) {
-      this.logger.error(`Failed to initialize Twilio client: ${error.message}`, error.stack);
-    }
-  }
-
-  /**
-   * Process incoming WhatsApp message
-   */
-  async processIncomingMessage(messageData: IncomingMessageDto): Promise<string> {
-    try {
-      const whatsappId = this.extractWhatsappId(messageData.From);
-      const phoneNumber = this.normalizePhoneNumber(messageData.From);
-      
-      this.logger.log(`Processing incoming message from ${whatsappId}: ${messageData.Body}`);
-      
-      // Store the incoming message in Redis for traceability
-      await this.storeIncomingMessage(messageData);
+      // Store the incoming message for traceability
+      await this.storeCloudMessage(messageData);
       
       // Parse command from message
-      const command = this.commandParserService.parseCommand(messageData.Body);
+      const command = this.commandParserService.parseCommand(messageData.text);
       
       // Get session if it exists
       let session = await this.sessionService.getSessionByWhatsappId(whatsappId);
@@ -74,7 +56,7 @@ export class WhatsappService {
       // Handle the command
       return this.handleCommand(command, whatsappId, phoneNumber, session);
     } catch (error) {
-      this.logger.error(`Error processing incoming message: ${error.message}`, error.stack);
+      this.logger.error(`Error processing cloud message: ${error.message}`, error.stack);
       return "I'm sorry, something went wrong. Please try again later.";
     }
   }
@@ -271,7 +253,7 @@ export class WhatsappService {
         consentGiven: session.consentGiven,
       };
       
-      const response = await this.mapleAiService.processQuery(query, context);
+      const response = await this.geminiAiService.processQuery(query, context);
       return response;
     } catch (error) {
       this.logger.error(`Error handling AI query: ${error.message}`, error.stack);
@@ -315,9 +297,18 @@ export class WhatsappService {
   /**
    * Store incoming message in Redis for traceability
    */
-  private async storeIncomingMessage(messageData: IncomingMessageDto): Promise<void> {
-    const key = `whatsapp:message:${messageData.MessageSid}`;
-    const value = JSON.stringify(messageData);
+  private async storeCloudMessage(messageData: {
+    from: string;
+    text: string;
+    messageId: string;
+    timestamp: string;
+    name?: string;
+  }): Promise<void> {
+    const key = `whatsapp:message:${messageData.messageId}`;
+    const value = JSON.stringify({
+      ...messageData,
+      storedAt: new Date().toISOString(),
+    });
     const expiryInSeconds = 60 * 60 * 24 * 7; // 7 days
     
     await this.redisService.set(key, value, expiryInSeconds);

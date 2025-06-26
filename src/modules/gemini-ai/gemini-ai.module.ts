@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { MapleAiService } from './maple-ai.service';
+import { GeminiAiService } from './gemini-ai.service';
 import { RedisModule } from '../redis/redis.module';
 
 @Module({
@@ -8,7 +8,7 @@ import { RedisModule } from '../redis/redis.module';
     ConfigModule,
     RedisModule,
   ],
-  providers: [MapleAiService],
-  exports: [MapleAiService],
+  providers: [GeminiAiService],
+  exports: [GeminiAiService],
 })
-export class MapleAiModule {}
+export class GeminiAiModule {}

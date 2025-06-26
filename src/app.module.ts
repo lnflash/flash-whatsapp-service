@@ -4,7 +4,7 @@ import configuration from './config/configuration';
 import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { FlashApiModule } from './modules/flash-api/flash-api.module';
-import { MapleAiModule } from './modules/maple-ai/maple-ai.module';
+import { GeminiAiModule } from './modules/gemini-ai/gemini-ai.module';
 import { EventsModule } from './modules/events/events.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -23,7 +23,7 @@ import { MetricsMiddleware } from './common/middleware/metrics.middleware';
     WhatsappModule,
     RedisModule,
     FlashApiModule,
-    MapleAiModule,
+    GeminiAiModule,
     EventsModule,
     AuthModule,
     NotificationsModule,

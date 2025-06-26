@@ -64,7 +64,7 @@ describe('FlashApiService', () => {
 
       // Verify fetch was called with correct params
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://api.flashapp.io/graphql',
+        'https://api.flashapp.me/graphql',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
