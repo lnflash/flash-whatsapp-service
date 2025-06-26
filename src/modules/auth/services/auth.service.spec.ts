@@ -40,7 +40,9 @@ describe('AuthService', () => {
         {
           provide: FlashApiService,
           useValue: {
-            verifyUserAccount: jest.fn(),
+            initiatePhoneVerification: jest.fn(),
+            validatePhoneVerification: jest.fn(),
+            getUserDetails: jest.fn(),
             executeQuery: jest.fn(),
           },
         },
@@ -64,8 +66,8 @@ describe('AuthService', () => {
         phoneNumber: '+18765551234',
       };
       
-      // Mock Flash API verifyUserAccount to return true
-      jest.spyOn(flashApiService, 'verifyUserAccount').mockResolvedValue(true);
+      // Mock Flash API initiatePhoneVerification to return success
+      jest.spyOn(flashApiService, 'initiatePhoneVerification').mockResolvedValue({ success: true });
       
       // Mock sessionService to return null (no existing session)
       jest.spyOn(sessionService, 'getSessionByWhatsappId').mockResolvedValue(null);
@@ -84,9 +86,6 @@ describe('AuthService', () => {
       };
       jest.spyOn(sessionService, 'createSession').mockResolvedValue(mockSession);
       
-      // Mock OTP generation
-      jest.spyOn(otpService, 'generateOtp').mockResolvedValue('123456');
-      
       const result = await service.initiateAccountLinking(linkRequest);
       
       expect(result).toEqual({
@@ -95,20 +94,39 @@ describe('AuthService', () => {
       });
       
       // Verify the correct services were called
-      expect(flashApiService.verifyUserAccount).toHaveBeenCalledWith(linkRequest.phoneNumber);
+      expect(flashApiService.initiatePhoneVerification).toHaveBeenCalledWith(linkRequest.phoneNumber);
       expect(sessionService.getSessionByWhatsappId).toHaveBeenCalledWith(linkRequest.whatsappId);
       expect(sessionService.createSession).toHaveBeenCalledWith(linkRequest.whatsappId, linkRequest.phoneNumber);
-      expect(otpService.generateOtp).toHaveBeenCalledWith(linkRequest.phoneNumber, mockSession.sessionId);
     });
 
-    it('should reject linking if no Flash account exists', async () => {
+    it('should reject linking if Flash API fails to send verification code', async () => {
       const linkRequest: AccountLinkRequestDto = {
         whatsappId: '18765551234',
         phoneNumber: '+18765551234',
       };
       
-      // Mock Flash API verifyUserAccount to return false
-      jest.spyOn(flashApiService, 'verifyUserAccount').mockResolvedValue(false);
+      // Mock Flash API initiatePhoneVerification to return failure
+      jest.spyOn(flashApiService, 'initiatePhoneVerification').mockResolvedValue({ 
+        success: false, 
+        errors: [{ message: 'Failed to send verification code' }] 
+      });
+      
+      // Mock sessionService to return null (no existing session)
+      jest.spyOn(sessionService, 'getSessionByWhatsappId').mockResolvedValue(null);
+      
+      // Mock session creation
+      const mockSession: UserSession = {
+        sessionId: 'test_session_id',
+        whatsappId: linkRequest.whatsappId,
+        phoneNumber: linkRequest.phoneNumber,
+        isVerified: false,
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 86400000),
+        lastActivity: new Date(),
+        mfaVerified: false,
+        consentGiven: false,
+      };
+      jest.spyOn(sessionService, 'createSession').mockResolvedValue(mockSession);
       
       await expect(service.initiateAccountLinking(linkRequest)).rejects.toThrow(BadRequestException);
     });
@@ -118,9 +136,6 @@ describe('AuthService', () => {
         whatsappId: '18765551234',
         phoneNumber: '+18765551234',
       };
-      
-      // Mock Flash API verifyUserAccount to return true
-      jest.spyOn(flashApiService, 'verifyUserAccount').mockResolvedValue(true);
       
       // Mock sessionService to return existing verified session
       const existingSession: UserSession = {
@@ -167,13 +182,23 @@ describe('AuthService', () => {
       };
       jest.spyOn(sessionService, 'getSession').mockResolvedValue(mockSession);
       
-      // Mock OTP verification
-      jest.spyOn(otpService, 'verifyOtp').mockResolvedValue(true);
+      // Mock Flash API validatePhoneVerification to return auth token
+      jest.spyOn(flashApiService, 'validatePhoneVerification').mockResolvedValue({ 
+        authToken: 'test_auth_token' 
+      });
+      
+      // Mock Flash API getUserDetails
+      jest.spyOn(flashApiService, 'getUserDetails').mockResolvedValue({
+        id: 'flash_123',
+        phone: mockSession.phoneNumber,
+        username: 'testuser'
+      });
       
       // Mock session update
       const updatedSession: UserSession = {
         ...mockSession,
         flashUserId: 'flash_123',
+        flashAuthToken: 'test_auth_token',
         isVerified: true,
         mfaVerified: true,
         mfaExpiresAt: new Date(Date.now() + 300000),
@@ -186,10 +211,13 @@ describe('AuthService', () => {
       
       // Verify the correct services were called
       expect(sessionService.getSession).toHaveBeenCalledWith(verifyDto.sessionId);
-      expect(otpService.verifyOtp).toHaveBeenCalledWith(verifyDto.sessionId, verifyDto.otpCode);
+      expect(flashApiService.validatePhoneVerification).toHaveBeenCalledWith(mockSession.phoneNumber, verifyDto.otpCode);
+      expect(flashApiService.getUserDetails).toHaveBeenCalledWith('test_auth_token');
       expect(sessionService.updateSession).toHaveBeenCalledWith(
         verifyDto.sessionId,
         expect.objectContaining({
+          flashUserId: 'flash_123',
+          flashAuthToken: 'test_auth_token',
           isVerified: true,
           mfaVerified: true,
         }),
@@ -216,8 +244,10 @@ describe('AuthService', () => {
       };
       jest.spyOn(sessionService, 'getSession').mockResolvedValue(mockSession);
       
-      // Mock OTP verification to fail
-      jest.spyOn(otpService, 'verifyOtp').mockResolvedValue(false);
+      // Mock Flash API validatePhoneVerification to return error
+      jest.spyOn(flashApiService, 'validatePhoneVerification').mockResolvedValue({ 
+        errors: [{ message: 'Invalid or expired verification code' }] 
+      });
       
       await expect(service.verifyAccountLinking(verifyDto)).rejects.toThrow(UnauthorizedException);
     });

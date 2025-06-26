@@ -1,0 +1,13 @@
+2025/06/26-19:40:26.876 1b703 Reusing MANIFEST /Users/dread/Documents/Island-Bitcoin/Flash/flash-whatsapp-service/whatsapp-sessions/session/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2025/06/26-19:40:26.877 1b703 Recovering log #619
+2025/06/26-19:40:26.882 1b703 Reusing old log /Users/dread/Documents/Island-Bitcoin/Flash/flash-whatsapp-service/whatsapp-sessions/session/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/000619.log 
+2025/06/26-19:40:28.475 27f03 Level-0 table #624: started
+2025/06/26-19:40:28.486 27f03 Level-0 table #624: 110970 bytes OK
+2025/06/26-19:40:28.497 27f03 Delete type=0 #619
+2025/06/26-19:40:28.498 27f03 Manual compaction at level-0 from '\x00\xc2\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\xc3\x00\x00\x00' @ 0 : 0; will stop at (end)
+2025/06/26-19:40:29.900 22f03 Compacting 1@1 + 1@2 files
+2025/06/26-19:40:29.955 22f03 Generated table #625@1: 59550 keys, 1802910 bytes
+2025/06/26-19:40:29.955 22f03 Compacted 1@1 + 1@2 files => 1802910 bytes
+2025/06/26-19:40:29.965 22f03 compacted to: files[ 0 0 1 0 0 0 0 ]
+2025/06/26-19:40:29.965 22f03 Delete type=2 #624
+2025/06/26-19:40:29.965 22f03 Delete type=2 #621

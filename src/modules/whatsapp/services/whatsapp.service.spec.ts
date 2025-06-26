@@ -6,10 +6,10 @@ import { AuthService } from '../../auth/services/auth.service';
 import { SessionService } from '../../auth/services/session.service';
 import { FlashApiService } from '../../flash-api/flash-api.service';
 import { BalanceService } from '../../flash-api/services/balance.service';
-import { MapleAiService } from '../../maple-ai/maple-ai.service';
+import { GeminiAiService } from '../../gemini-ai/gemini-ai.service';
 import { CommandParserService, CommandType } from './command-parser.service';
 import { BalanceTemplate } from '../templates/balance-template';
-import { IncomingMessageDto } from '../dto/incoming-message.dto';
+import { WhatsAppCloudService } from './whatsapp-cloud.service';
 
 describe('WhatsappService', () => {
   let service: WhatsappService;
@@ -17,7 +17,7 @@ describe('WhatsappService', () => {
   let redisService: RedisService;
   let commandParserService: CommandParserService;
   let sessionService: SessionService;
-  let mapleAiService: MapleAiService;
+  let geminiAiService: GeminiAiService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -72,7 +72,7 @@ describe('WhatsappService', () => {
           },
         },
         {
-          provide: MapleAiService,
+          provide: GeminiAiService,
           useValue: {
             processQuery: jest.fn().mockResolvedValue('AI response'),
           },
@@ -93,6 +93,12 @@ describe('WhatsappService', () => {
             formatBalance: jest.fn().mockReturnValue('Your balance is: 0.0001 BTC'),
           },
         },
+        {
+          provide: WhatsAppCloudService,
+          useValue: {
+            sendTextMessage: jest.fn().mockResolvedValue({}),
+          },
+        },
       ],
     }).compile();
 
@@ -101,15 +107,15 @@ describe('WhatsappService', () => {
     redisService = module.get<RedisService>(RedisService);
     commandParserService = module.get<CommandParserService>(CommandParserService);
     sessionService = module.get<SessionService>(SessionService);
-    mapleAiService = module.get<MapleAiService>(MapleAiService);
+    geminiAiService = module.get<GeminiAiService>(GeminiAiService);
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
 
-  describe('processIncomingMessage', () => {
-    it('should process an incoming message and return a response', async () => {
+  describe('processCloudMessage', () => {
+    it('should process a cloud message and return a response', async () => {
       // Mock Redis set
       jest.spyOn(redisService, 'set').mockResolvedValue();
       
@@ -136,22 +142,22 @@ describe('WhatsappService', () => {
         rawText: 'help',
       });
       
-      // Mock Maple AI service to return a help message
-      jest.spyOn(mapleAiService, 'processQuery').mockResolvedValue(
+      // Mock Gemini AI service to return a help message
+      jest.spyOn(geminiAiService, 'processQuery').mockResolvedValue(
         'Here are the available commands: help, balance, link, verify, etc.'
       );
 
       // Create test message
-      const testMessage: IncomingMessageDto = {
-        MessageSid: 'SM123456789',
-        From: 'whatsapp:+18765551234',
-        Body: 'help',
-        ProfileName: 'Test User',
-        WaId: '18765551234',
+      const testMessage = {
+        from: '18765551234',
+        text: 'help',
+        messageId: 'msg123',
+        timestamp: '1234567890',
+        name: 'Test User',
       };
 
       // Call the service method
-      const result = await service.processIncomingMessage(testMessage);
+      const result = await service.processCloudMessage(testMessage);
 
       // Verify it returns a string
       expect(typeof result).toBe('string');

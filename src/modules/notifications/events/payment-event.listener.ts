@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { EventsService } from '../../events/events.service';
 import { NotificationService } from '../services/notification.service';
 import { BalanceService } from '../../flash-api/services/balance.service';
+import { SessionService } from '../../auth/services/session.service';
 import { 
   NotificationDto, 
   NotificationType, 
@@ -19,6 +20,7 @@ export class PaymentEventListener implements OnModuleInit {
     private readonly eventsService: EventsService,
     private readonly notificationService: NotificationService,
     private readonly balanceService: BalanceService,
+    private readonly sessionService: SessionService,
   ) {}
 
   async onModuleInit() {
@@ -59,7 +61,19 @@ export class PaymentEventListener implements OnModuleInit {
    */
   private async handlePaymentReceived(data: any): Promise<void> {
     try {
-      const { userId, transactionId, amount, senderName, memo, timestamp } = data;
+      const { userId, transactionId, amount, senderName, memo, timestamp, whatsappId } = data;
+      
+      // Get auth token from session
+      let authToken: string | null = null;
+      if (whatsappId) {
+        const session = await this.sessionService.getSessionByWhatsappId(whatsappId);
+        authToken = session?.flashAuthToken || null;
+      }
+      
+      if (!authToken) {
+        this.logger.warn(`No auth token found for user ${userId}, skipping balance update notification`);
+        return;
+      }
       
       // Construct payment data
       const paymentData: PaymentData = {
@@ -72,7 +86,7 @@ export class PaymentEventListener implements OnModuleInit {
       };
       
       // Get updated balance
-      const balanceInfo = await this.balanceService.getUserBalance(userId);
+      const balanceInfo = await this.balanceService.getUserBalance(userId, authToken);
       
       // Create notification
       const notification: NotificationDto = {
@@ -100,7 +114,19 @@ export class PaymentEventListener implements OnModuleInit {
    */
   private async handlePaymentSent(data: any): Promise<void> {
     try {
-      const { userId, transactionId, amount, receiverName, memo, timestamp } = data;
+      const { userId, transactionId, amount, receiverName, memo, timestamp, whatsappId } = data;
+      
+      // Get auth token from session
+      let authToken: string | null = null;
+      if (whatsappId) {
+        const session = await this.sessionService.getSessionByWhatsappId(whatsappId);
+        authToken = session?.flashAuthToken || null;
+      }
+      
+      if (!authToken) {
+        this.logger.warn(`No auth token found for user ${userId}, skipping balance update notification`);
+        return;
+      }
       
       // Construct payment data
       const paymentData: PaymentData = {
@@ -113,7 +139,7 @@ export class PaymentEventListener implements OnModuleInit {
       };
       
       // Get updated balance
-      const balanceInfo = await this.balanceService.getUserBalance(userId);
+      const balanceInfo = await this.balanceService.getUserBalance(userId, authToken);
       
       // Create notification
       const notification: NotificationDto = {
@@ -141,7 +167,7 @@ export class PaymentEventListener implements OnModuleInit {
    */
   private async handleBalanceUpdated(data: any): Promise<void> {
     try {
-      const { userId, oldBalance, newBalance, reason } = data;
+      const { userId, oldBalance, newBalance, reason, whatsappId } = data;
       
       // Skip if no significant change
       if (Math.abs(newBalance - oldBalance) < 0.00000001) {

@@ -16,7 +16,7 @@ import { MetricsMiddleware } from './common/middleware/metrics.middleware';
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration],
-      envFilePath: `.env.${process.env.NODE_ENV || 'development'}`,
+      envFilePath: ['.env', `.env.${process.env.NODE_ENV || 'development'}`],
     }),
     
     // Core modules

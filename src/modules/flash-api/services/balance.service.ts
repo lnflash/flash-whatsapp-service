@@ -8,12 +8,18 @@ interface BalanceInfo {
   fiatBalance: number;
   fiatCurrency: string;
   lastUpdated: Date;
+  exchangeRate?: {
+    usdCentPrice: {
+      base: number;
+      offset: number;
+    };
+  };
 }
 
 @Injectable()
 export class BalanceService {
   private readonly logger = new Logger(BalanceService.name);
-  private readonly cacheTtl: number = 300; // 5 minutes in seconds
+  private readonly cacheTtl: number = 30; // 30 seconds - short cache for rate limiting only
   private readonly maxRetries: number = 3;
   private readonly retryDelay: number = 1000; // 1 second in ms
 
@@ -32,16 +38,18 @@ export class BalanceService {
   /**
    * Get user balance from Flash API with caching
    */
-  async getUserBalance(userId: string): Promise<BalanceInfo> {
+  async getUserBalance(userId: string, authToken: string, skipCache: boolean = false): Promise<BalanceInfo> {
     try {
-      // Try to get from cache first
-      const cachedBalance = await this.getCachedBalance(userId);
-      if (cachedBalance) {
-        return cachedBalance;
+      // Try to get from cache first (unless skipCache is true)
+      if (!skipCache) {
+        const cachedBalance = await this.getCachedBalance(userId);
+        if (cachedBalance) {
+          return cachedBalance;
+        }
       }
 
-      // Not in cache, fetch from API
-      const balance = await this.fetchBalanceFromApi(userId);
+      // Not in cache or skipping cache, fetch from API
+      const balance = await this.fetchBalanceFromApi(userId, authToken);
       
       // Store in cache for future requests
       await this.cacheBalance(userId, balance);
@@ -50,6 +58,19 @@ export class BalanceService {
     } catch (error) {
       this.logger.error(`Error getting user balance: ${error.message}`, error.stack);
       throw new BadRequestException('Failed to retrieve balance information');
+    }
+  }
+
+  /**
+   * Clear balance cache for a specific user
+   */
+  async clearBalanceCache(userId: string): Promise<void> {
+    try {
+      const cacheKey = `balance:${userId}`;
+      await this.redisService.del(cacheKey);
+      this.logger.debug(`Cleared balance cache for user ${userId}`);
+    } catch (error) {
+      this.logger.warn(`Error clearing balance cache: ${error.message}`);
     }
   }
 
@@ -88,36 +109,90 @@ export class BalanceService {
   /**
    * Fetch balance data from Flash API with retries
    */
-  private async fetchBalanceFromApi(userId: string, attempt: number = 1): Promise<BalanceInfo> {
+  private async fetchBalanceFromApi(userId: string, authToken: string, attempt: number = 1): Promise<BalanceInfo> {
     try {
-      // GraphQL query for user balance
+      // GraphQL query for user balance using 'me' query with exchange rates
       const query = `
-        query GetUserBalance($userId: ID!) {
-          userBalance(userId: $userId) {
-            btcBalance
-            fiatBalance
-            fiatCurrency
+        query me {
+          me {
+            defaultAccount {
+              displayCurrency
+              realtimePrice {
+                btcSatPrice {
+                  base
+                  offset
+                }
+                usdCentPrice {
+                  base
+                  offset
+                }
+              }
+              wallets {
+                id
+                balance
+                walletCurrency
+              }
+            }
           }
         }
       `;
       
-      const variables = { userId };
+      const variables = {};
       
-      // Execute the query
+      // Execute the query with auth token
       const result = await this.flashApiService.executeQuery<{
-        userBalance: {
-          btcBalance: string; // API returns stringified numbers for precision
-          fiatBalance: string;
-          fiatCurrency: string;
-        }
-      }>(query, variables);
+        me: {
+          defaultAccount: {
+            displayCurrency: string;
+            realtimePrice: {
+              btcSatPrice: {
+                base: number;
+                offset: number;
+              };
+              usdCentPrice: {
+                base: number;
+                offset: number;
+              };
+            };
+            wallets: Array<{
+              id: string;
+              balance: number;
+              walletCurrency: string;
+            }>;
+          };
+        };
+      }>(query, variables, authToken);
       
-      // Format the response
+      // Extract wallets and display currency
+      const account = result.me.defaultAccount;
+      const wallets = account.wallets;
+      const btcWallet = wallets.find(w => w.walletCurrency === 'BTC');
+      const usdWallet = wallets.find(w => w.walletCurrency === 'USD');
+      
+      // Log wallet data for debugging
+      this.logger.debug(`Wallets found: ${JSON.stringify(wallets)}`);
+      this.logger.debug(`Display currency: ${account.displayCurrency}`);
+      this.logger.debug(`BTC wallet balance: ${btcWallet?.balance || 'Not found'}`);
+      this.logger.debug(`USD wallet balance: ${usdWallet?.balance || 'Not found'}`);
+      
+      // Log exchange rate if available
+      if (account.realtimePrice) {
+        this.logger.debug(`Exchange rate - USD cent price: base=${account.realtimePrice.usdCentPrice.base}, offset=${account.realtimePrice.usdCentPrice.offset}`);
+      }
+      
+      // Log the exact response for debugging
+      this.logger.log(`Balance API Response - USD: ${usdWallet?.balance}, Display Currency: ${account.displayCurrency}`);
+      
+      // Format the response - always use USD wallet balance with user's display currency
+      // Note: The API returns balance in cents, so we need to convert to dollars
       return {
-        btcBalance: parseFloat(result.userBalance.btcBalance),
-        fiatBalance: parseFloat(result.userBalance.fiatBalance),
-        fiatCurrency: result.userBalance.fiatCurrency,
+        btcBalance: btcWallet?.balance || 0,
+        fiatBalance: (usdWallet?.balance || 0) / 100, // Convert cents to dollars
+        fiatCurrency: account.displayCurrency || 'USD',
         lastUpdated: new Date(),
+        exchangeRate: account.displayCurrency !== 'USD' ? {
+          usdCentPrice: account.realtimePrice.usdCentPrice
+        } : undefined,
       };
     } catch (error) {
       if (attempt < this.maxRetries) {
@@ -126,7 +201,7 @@ export class BalanceService {
         // Wait before retry with exponential backoff
         await new Promise(resolve => setTimeout(resolve, this.retryDelay * Math.pow(2, attempt - 1)));
         
-        return this.fetchBalanceFromApi(userId, attempt + 1);
+        return this.fetchBalanceFromApi(userId, authToken, attempt + 1);
       }
       
       this.logger.error(`Failed to fetch balance after ${this.maxRetries} attempts: ${error.message}`);

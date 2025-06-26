@@ -43,3 +43,24 @@ lerna-debug.log*
 .npm
 .eslintcache
 .yarn-integrity
+
+# WhatsApp Web.js
+.wwebjs_auth
+.wwebjs_cache
+
+# Sensitive data
+*.pem
+*.key
+*.cert
+private/
+secrets/
+
+# Backup files
+*.backup
+*.bak
+*.tmp
+
+# OS files
+Thumbs.db
+*.swp
+*.swo

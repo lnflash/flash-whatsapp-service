@@ -1,131 +1,151 @@
-# Flash Connect – QA Test Plan & Checklist
+# Quality Assurance Guide
 
-> **Status Update**: Phase 4 (Testing & Security) has been completed. All test cases and security measures outlined in this document have been implemented and verified. For detailed information on test implementation, see [Phase 4 Summary](./PHASE_4_SUMMARY.md) and [Test Documentation](../test/).
+## Testing Strategy
 
----
+### Unit Testing
+- Test individual services and components
+- Mock external dependencies (Redis, Flash API)
+- Achieve >80% code coverage
+- Run with: `yarn test`
 
-## 🔒 Flow 1: Secure Account Linking
+### Integration Testing
+- Test service interactions
+- Use test Redis instance
+- Mock WhatsApp Web.js client
+- Run with: `yarn test:e2e`
 
-### ✅ Test Cases
+### Manual Testing Checklist
 
-| Test Case | Description                                       | Expected Result                                                  |
-| --------- | ------------------------------------------------- | ---------------------------------------------------------------- |
-| TC-1.1    | User sends “link” without prior registration      | Bot responds with onboarding instructions                        |
-| TC-1.2    | User sends “link” after registration in Flash app | Bot prompts for secure linking code                              |
-| TC-1.3    | User enters correct OTP                           | Account is linked and confirmed                                  |
-| TC-1.4    | User enters incorrect OTP                         | Error shown, retries limited                                     |
-| TC-1.5    | Repeated OTP failures                             | User blocked temporarily, alert raised                           |
-| TC-1.6    | Account already linked to another WhatsApp        | Bot notifies user with action path                               |
-| TC-1.7    | Unlinked user attempts a command (e.g. "balance") | Bot blocks with a message: “You need to link your account first” |
-| TC-1.8    | Re-link after unlink                              | Previous session invalidated, new link works                     |
-| TC-1.9    | Replay attack attempt using expired OTP           | OTP rejected with error                                          |
-| TC-1.10   | User sends “unlink”                               | Bot confirms unlinking and invalidates session                   |
+#### Account Linking Flow
+- [ ] Send "link" command
+- [ ] Receive OTP via Flash app
+- [ ] Enter correct OTP - verify success
+- [ ] Enter incorrect OTP - verify error
+- [ ] Try expired OTP - verify rejection
+- [ ] Check session persistence
 
-### 🔍 QA Checklist
+#### Balance Checking
+- [ ] Send "balance" when linked
+- [ ] Verify correct currency display
+- [ ] Send "balance" when unlinked - verify error
+- [ ] Send "refresh" to update balance
+- [ ] Verify 2 decimal precision
+- [ ] Test multiple currencies (USD, JMD, EUR)
 
-- [ ] OTPs expire after defined TTL (e.g. 5 minutes)
-- [ ] Rate-limiting enabled for OTP attempts
-- [ ] All linking attempts logged with metadata
-- [ ] Only one active WhatsApp link per account
-- [ ] Session cache is encrypted and access-controlled
-- [ ] OTP generation and delivery are secure (via app)
+#### Error Handling
+- [ ] Send unknown command
+- [ ] Test with Flash API down
+- [ ] Test with Redis down
+- [ ] Test network timeouts
+- [ ] Verify graceful error messages
 
----
+#### Performance Testing
+- [ ] Send rapid commands
+- [ ] Verify rate limiting
+- [ ] Check cache effectiveness
+- [ ] Monitor memory usage
+- [ ] Test concurrent users
 
-## 💰 Flow 2: Balance Check
+## Test Data
 
-### ✅ Test Cases
+### Test Phone Numbers
+```
++1234567890 - Test account with USD
++8769876543 - Test account with JMD
++441234567890 - Test account with EUR
+```
 
-| Test Case | Description                    | Expected Result                                |
-| --------- | ------------------------------ | ---------------------------------------------- |
-| TC-2.1    | Linked user sends “balance”    | Bot replies with correct balance               |
-| TC-2.2    | Unlinked user sends “balance”  | Bot blocks and asks to link                    |
-| TC-2.3    | Bot fails to reach API         | Graceful error with retry suggestion           |
-| TC-2.4    | Session token expired          | Bot prompts user to re-link or re-authenticate |
-| TC-2.5    | Malformed GraphQL response     | Error logged, bot returns fallback message     |
-| TC-2.6    | Response includes zero balance | Bot clearly states balance is 0                |
+### Test Commands
+```
+help - Show available commands
+link - Start account linking
+verify 123456 - Complete verification
+balance - Check wallet balance
+refresh - Force balance update
+```
 
-### 🔍 QA Checklist
+## Automated Testing
 
-- [ ] Balance response is sanitized and formatted properly
-- [ ] Only minimal account info is shown (never account number or full name)
-- [ ] Errors don’t expose system behavior (generic fallback)
-- [ ] No cache leaks or race conditions
+### CI/CD Pipeline
+- Runs on every pull request
+- Executes unit and integration tests
+- Performs linting and type checking
+- Generates coverage reports
 
----
+### Test Coverage Requirements
+- Minimum 80% overall coverage
+- 100% coverage for critical paths:
+  - Authentication flow
+  - Balance calculation
+  - Currency conversion
 
-## 📨 Flow 3: Payment Notification
+## Security Testing
 
-### ✅ Test Cases
+### Authentication
+- [ ] OTP expires after 5 minutes
+- [ ] Rate limiting on verification attempts
+- [ ] Session tokens properly encrypted
+- [ ] No sensitive data in logs
 
-| Test Case | Description                           | Expected Result                             |
-| --------- | ------------------------------------- | ------------------------------------------- |
-| TC-3.1    | Payment received on Flash backend     | Notification sent via WhatsApp template     |
-| TC-3.2    | Notification template not approved    | Bot logs and skips sending                  |
-| TC-3.3    | User has opted out of notifications   | No message sent                             |
-| TC-3.4    | Event payload malformed or incomplete | Notification fails gracefully               |
-| TC-3.5    | Twilio returns delivery failure       | Retry logic engaged (max 3)                 |
-| TC-3.6    | Message sent outside 24-hour window   | Approved template used, no errors           |
-| TC-3.7    | Notification replay attempt           | Duplicate suppressed with idempotency logic |
+### API Security
+- [ ] Auth tokens never exposed
+- [ ] GraphQL queries parameterized
+- [ ] Input validation on all commands
+- [ ] XSS prevention in responses
 
-### 🔍 QA Checklist
+### Data Protection
+- [ ] Redis data encrypted
+- [ ] Environment variables secured
+- [ ] No hardcoded credentials
+- [ ] Audit logs maintained
 
-- [ ] Templates submitted and approved by Meta
-- [ ] Every notification has message_id traceability
-- [ ] Opt-out logic enforced and testable
-- [ ] Error retries logged and observable
-- [ ] Notifications never expose sensitive financial data
+## Performance Benchmarks
 
----
+### Response Times
+- Command parsing: <10ms
+- Balance query (cached): <50ms
+- Balance query (fresh): <500ms
+- AI response: <2s
 
-## 🤖 Flow 4: AI-Powered Help via Maple AI
+### Throughput
+- 100+ concurrent users
+- 1000+ messages/minute
+- 99.9% uptime target
 
-### ✅ Test Cases
+## Bug Reporting
 
-| Test Case | Description                                 | Expected Result                                       |
-| --------- | ------------------------------------------- | ----------------------------------------------------- |
-| TC-4.1    | User sends “help” or “how do I send money?” | Maple AI returns relevant, secure guidance            |
-| TC-4.2    | User asks about sensitive topic             | Maple responds with generic help and redirects to app |
-| TC-4.3    | Bot fails to reach Maple API                | Bot returns graceful fallback                         |
-| TC-4.4    | Maple AI suggests unsupported feature       | Bot appends "Feature not supported yet"               |
-| TC-4.5    | Bot forwards message to human support       | Confirmation message sent                             |
-| TC-4.6    | Help response includes link                 | Link is shortened, verified, and safe                 |
+### Template
+```markdown
+**Description**: Brief description of the issue
+**Steps to Reproduce**:
+1. Send command X
+2. Wait for response
+3. See error
 
-### 🔍 QA Checklist
+**Expected**: What should happen
+**Actual**: What actually happened
+**Environment**: Development/Production
+**Screenshots**: If applicable
+```
 
-- [ ] No PII or financial data ever passed to Maple
-- [ ] Maple is context-aware but privacy-scoped
-- [ ] Help responses are culturally and linguistically appropriate
-- [ ] AI cannot trigger irreversible actions
-- [ ] Escalation to human support is always available
+### Severity Levels
+- **Critical**: Service down, data loss
+- **High**: Feature broken, security issue
+- **Medium**: Performance degradation
+- **Low**: UI/UX issues, typos
 
----
+## Release Checklist
 
-## 🧪 General QA Checklist (Cross-cutting)
+### Pre-Release
+- [ ] All tests passing
+- [ ] Security scan completed
+- [ ] Documentation updated
+- [ ] Environment variables documented
+- [ ] Docker image builds successfully
 
-### Functional
-
-- [ ] All command triggers tested with variants (“Balance”, “bal”, “my balance”)
-- [ ] Non-supported commands return clear fallback
-- [ ] Responses are mobile-optimized and WhatsApp-friendly
-
-### Security
-
-- [ ] Webhook signatures (Twilio) validated
-- [ ] All API calls require token-based auth
-- [ ] Sensitive flows require MFA or app-side approval
-- [ ] Audit logs generated for all key user actions
-
-### Performance
-
-- [ ] Responses return in < 2 seconds under load
-- [ ] Load testing for 10K concurrent messages
-- [ ] Bot gracefully throttles on rate limits
-
-### Reliability
-
-- [ ] Service handles dropped messages and retries
-- [ ] Idempotent handling for duplicate messages/events
-- [ ] Downtime fallback message configured (“Our bot is currently down…”)
-
----
+### Post-Release
+- [ ] Monitor error rates
+- [ ] Check performance metrics
+- [ ] Verify all features working
+- [ ] Update version numbers
+- [ ] Tag release in Git

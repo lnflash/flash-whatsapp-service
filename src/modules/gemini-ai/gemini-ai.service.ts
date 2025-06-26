@@ -126,6 +126,7 @@ Available Flash Connect commands:
 - link: Connect Flash account to WhatsApp
 - verify [code]: Complete OTP verification
 - balance: Check Bitcoin and fiat balances (requires authentication)
+- refresh: Refresh balance by clearing cache
 - help: Display available commands
 
 Common FAQs:

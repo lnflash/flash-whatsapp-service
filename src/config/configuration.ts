@@ -24,7 +24,7 @@ export default () => ({
   // Flash API Configuration
   flashApi: {
     url: process.env.FLASH_API_URL || 'https://api.flashapp.me/graphql',
-    apiKey: process.env.FLASH_API_KEY,
+    apiKey: process.env.FLASH_AUTH_TOKEN || process.env.FLASH_API_KEY,
     apiSecret: process.env.FLASH_API_SECRET,
   },
 

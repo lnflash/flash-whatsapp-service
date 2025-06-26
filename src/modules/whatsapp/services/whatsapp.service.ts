@@ -11,6 +11,7 @@ import { BalanceTemplate } from '../templates/balance-template';
 import { AccountLinkRequestDto } from '../../auth/dto/account-link-request.dto';
 import { VerifyOtpDto } from '../../auth/dto/verify-otp.dto';
 import { UserSession } from '../../auth/interfaces/user-session.interface';
+// import { WhatsAppCloudService } from './whatsapp-cloud.service'; // Disabled for prototype branch
 
 @Injectable()
 export class WhatsappService {
@@ -26,6 +27,7 @@ export class WhatsappService {
     private readonly geminiAiService: GeminiAiService,
     private readonly commandParserService: CommandParserService,
     private readonly balanceTemplate: BalanceTemplate,
+    // private readonly whatsAppCloudService: WhatsAppCloudService, // Disabled for prototype branch
   ) {}
 
   /**
@@ -84,6 +86,9 @@ export class WhatsappService {
         case CommandType.BALANCE:
           return this.handleBalanceCommand(whatsappId, session);
           
+        case CommandType.REFRESH:
+          return this.handleRefreshCommand(whatsappId, session);
+          
         case CommandType.CONSENT:
           return this.handleConsentCommand(command, whatsappId, session);
           
@@ -115,12 +120,16 @@ export class WhatsappService {
       const result = await this.authService.initiateAccountLinking(linkRequest);
       
       if (result.otpSent) {
-        return 'To link your Flash account, please enter the verification code sent to your Flash app. Type "verify" followed by the 6-digit code (e.g., "verify 123456").';
+        return 'To link your Flash account, please enter the verification code sent to your WhatsApp. Type "verify" followed by the 6-digit code (e.g., "verify 123456").';
       } else {
         return 'Your Flash account is already linked! You can check your balance or use other commands.';
       }
     } catch (error) {
       this.logger.error(`Error handling link command: ${error.message}`, error.stack);
+      
+      if (error.message.includes('Please open the Flash mobile app')) {
+        return error.message;
+      }
       
       if (error.message.includes('No Flash account found')) {
         return "We couldn't find a Flash account with your phone number. Please make sure you're using the same number registered with Flash.";
@@ -174,28 +183,61 @@ export class WhatsappService {
         return 'Please link your Flash account first by typing "link".';
       }
       
-      if (!session.isVerified || !session.flashUserId) {
+      if (!session.isVerified || !session.flashUserId || !session.flashAuthToken) {
         return 'Your account is not fully verified. Please complete the linking process first.';
       }
       
-      // Check if MFA is required
-      const mfaValidated = await this.sessionService.isMfaValidated(session.sessionId);
+      // Skip MFA for WhatsApp since the user already authenticated
+      // The initial WhatsApp verification is sufficient for security
+      this.logger.log(`Skipping MFA for balance check - user already authenticated via WhatsApp`);
       
-      if (!mfaValidated) {
-        // Request MFA verification
-        await this.authService.requestMfaVerification(session.sessionId);
-        
-        return 'For security, we need to verify your identity. Please check your Flash app for a verification code and enter it by typing "verify" followed by the code (e.g., "verify 123456").';
+      // Get balance from Flash API using the auth token
+      const balanceInfo = await this.balanceService.getUserBalance(session.flashUserId, session.flashAuthToken);
+      
+      // If display currency is not USD, convert using exchange rate from API
+      let displayBalance = balanceInfo.fiatBalance;
+      let displayCurrency = balanceInfo.fiatCurrency;
+      
+      if (balanceInfo.fiatCurrency !== 'USD') {
+        if (balanceInfo.exchangeRate) {
+          try {
+            // Convert USD to display currency using the same logic as mobile app
+            const { base, offset } = balanceInfo.exchangeRate.usdCentPrice;
+            
+            // Log the raw values for debugging
+            this.logger.debug(`Exchange rate raw values - base: ${base}, offset: ${offset}`);
+            
+            // Calculate display currency per USD cent
+            // This gives us how much of the display currency's SMALLEST UNIT (e.g., euro cents) per USD cent
+            const displayCurrencyPerCent = base / Math.pow(10, offset);
+            
+            // Convert USD dollars to display currency's major unit
+            // 1. Convert USD dollars to cents: fiatBalance * 100
+            // 2. Multiply by exchange rate: * displayCurrencyPerCent (gives us display currency's minor unit)
+            // 3. Convert back to major unit: / 100
+            const usdCents = balanceInfo.fiatBalance * 100;
+            const displayCurrencyMinorUnits = usdCents * displayCurrencyPerCent;
+            displayBalance = displayCurrencyMinorUnits / 100;
+            
+            // Round to 2 decimal places for consistent display
+            displayBalance = Math.round(displayBalance * 100) / 100;
+            
+            this.logger.log(`Conversion: $${balanceInfo.fiatBalance} USD = ${usdCents} cents * ${displayCurrencyPerCent} rate = ${displayCurrencyMinorUnits} ${balanceInfo.fiatCurrency} cents = ${displayBalance.toFixed(2)} ${balanceInfo.fiatCurrency}`);
+          } catch (error) {
+            this.logger.error(`Currency conversion error: ${error.message}`);
+            displayCurrency = 'USD';
+          }
+        } else {
+          this.logger.warn(`No exchange rate available for ${balanceInfo.fiatCurrency}, showing USD amount`);
+          displayCurrency = 'USD';
+        }
       }
-      
-      // Get balance from Flash API
-      const balanceInfo = await this.balanceService.getUserBalance(session.flashUserId);
       
       // Format and return the balance message using the template
       return this.balanceTemplate.generateBalanceMessage({
         btcBalance: balanceInfo.btcBalance,
-        fiatBalance: balanceInfo.fiatBalance,
-        fiatCurrency: balanceInfo.fiatCurrency,
+        fiatBalance: displayBalance,
+        fiatCurrency: displayCurrency,
         lastUpdated: balanceInfo.lastUpdated,
         userName: session.profileName,
       });
@@ -207,6 +249,78 @@ export class WhatsappService {
       }
       
       return "We're having trouble retrieving your balance. Please try again later or contact support.";
+    }
+  }
+
+  /**
+   * Handle refresh command to clear balance cache
+   */
+  private async handleRefreshCommand(whatsappId: string, session: UserSession | null): Promise<string> {
+    try {
+      if (!session) {
+        return 'Please link your Flash account first by typing "link".';
+      }
+      
+      if (!session.isVerified || !session.flashUserId || !session.flashAuthToken) {
+        return 'Your account is not fully verified. Please complete the linking process first.';
+      }
+      
+      // Clear the balance cache
+      await this.balanceService.clearBalanceCache(session.flashUserId);
+      
+      // Fetch fresh balance data
+      const balanceInfo = await this.balanceService.getUserBalance(session.flashUserId, session.flashAuthToken, true);
+      
+      // If display currency is not USD, convert using exchange rate from API
+      let displayBalance = balanceInfo.fiatBalance;
+      let displayCurrency = balanceInfo.fiatCurrency;
+      
+      if (balanceInfo.fiatCurrency !== 'USD') {
+        if (balanceInfo.exchangeRate) {
+          try {
+            // Convert USD to display currency using the same logic as mobile app
+            const { base, offset } = balanceInfo.exchangeRate.usdCentPrice;
+            
+            // Log the raw values for debugging
+            this.logger.debug(`Exchange rate raw values - base: ${base}, offset: ${offset}`);
+            
+            // Calculate display currency per USD cent
+            // This gives us how much of the display currency's SMALLEST UNIT (e.g., euro cents) per USD cent
+            const displayCurrencyPerCent = base / Math.pow(10, offset);
+            
+            // Convert USD dollars to display currency's major unit
+            // 1. Convert USD dollars to cents: fiatBalance * 100
+            // 2. Multiply by exchange rate: * displayCurrencyPerCent (gives us display currency's minor unit)
+            // 3. Convert back to major unit: / 100
+            const usdCents = balanceInfo.fiatBalance * 100;
+            const displayCurrencyMinorUnits = usdCents * displayCurrencyPerCent;
+            displayBalance = displayCurrencyMinorUnits / 100;
+            
+            // Round to 2 decimal places for consistent display
+            displayBalance = Math.round(displayBalance * 100) / 100;
+            
+            this.logger.log(`Conversion: $${balanceInfo.fiatBalance} USD = ${usdCents} cents * ${displayCurrencyPerCent} rate = ${displayCurrencyMinorUnits} ${balanceInfo.fiatCurrency} cents = ${displayBalance.toFixed(2)} ${balanceInfo.fiatCurrency}`);
+          } catch (error) {
+            this.logger.error(`Currency conversion error: ${error.message}`);
+            displayCurrency = 'USD';
+          }
+        } else {
+          this.logger.warn(`No exchange rate available for ${balanceInfo.fiatCurrency}, showing USD amount`);
+          displayCurrency = 'USD';
+        }
+      }
+      
+      // Format and return the balance message using the template
+      return this.balanceTemplate.generateBalanceMessage({
+        btcBalance: balanceInfo.btcBalance,
+        fiatBalance: displayBalance,
+        fiatCurrency: displayCurrency,
+        lastUpdated: balanceInfo.lastUpdated,
+        userName: session.profileName,
+      });
+    } catch (error) {
+      this.logger.error(`Error handling refresh command: ${error.message}`, error.stack);
+      return "We're having trouble refreshing your balance. Please try again later or contact support.";
     }
   }
 
@@ -265,33 +379,9 @@ export class WhatsappService {
    * Send WhatsApp message
    */
   async sendMessage(to: string, body: string): Promise<any> {
-    try {
-      if (!this.twilioClient) {
-        throw new Error('Twilio client not initialized');
-      }
-      
-      const from = this.configService.get<string>('twilio.whatsappNumber');
-      
-      if (!from) {
-        throw new Error('WhatsApp number not configured');
-      }
-      
-      // Ensure 'to' has whatsapp: prefix if not already present
-      const formattedTo = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
-      const formattedFrom = from.startsWith('whatsapp:') ? from : `whatsapp:${from}`;
-      
-      const result = await this.twilioClient.messages.create({
-        from: formattedFrom,
-        to: formattedTo,
-        body,
-      });
-      
-      this.logger.log(`Message sent to ${to}, SID: ${result.sid}`);
-      return result;
-    } catch (error) {
-      this.logger.error(`Error sending WhatsApp message: ${error.message}`, error.stack);
-      throw error;
-    }
+    // In prototype branch, messaging is handled by WhatsAppWebService
+    this.logger.warn('sendMessage called in prototype branch - messaging should be handled by WhatsAppWebService');
+    throw new Error('Direct messaging not available in prototype branch. Use WhatsAppWebService instead.');
   }
 
   /**
@@ -350,7 +440,7 @@ export class WhatsappService {
       return 'Here are the available commands:\n\n• link - Connect your Flash account\n• verify [code] - Enter verification code\n• help - Show available commands\n\nPlease complete the account linking process to access more features.';
     }
     
-    return 'Here are the available commands for Flash:\n\n• balance - Check your Bitcoin and fiat balance\n• link - Manage your account connection\n• consent [yes/no] - Manage your AI support consent\n• help - Show available commands\n\nYou can also ask me questions about Flash services and I\'ll do my best to assist you!';
+    return 'Here are the available commands for Flash:\n\n• balance - Check your Bitcoin and fiat balance\n• refresh - Refresh your balance (clear cache)\n• link - Manage your account connection\n• consent [yes/no] - Manage your AI support consent\n• help - Show available commands\n\nYou can also ask me questions about Flash services and I\'ll do my best to assist you!';
   }
 
   /**
@@ -358,7 +448,7 @@ export class WhatsappService {
    */
   private getUnknownCommandMessage(session: UserSession | null): string {
     if (!session || !session.isVerified) {
-      return "I don't understand that command. Type 'help' to see available commands. Please link your Flash account to access all features.";
+      return "Welcome to Flash Connect! To get started, type 'link' to connect your Flash account. Type 'help' to see available commands.";
     }
     
     return "I'm not sure what you're asking. You can type 'help' to see available commands, or ask me questions about Flash services.";

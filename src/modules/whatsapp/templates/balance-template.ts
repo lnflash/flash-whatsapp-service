@@ -27,8 +27,7 @@ export class BalanceTemplate {
     const lastUpdated = this.formatDateTime(data.lastUpdated);
     
     return `${greeting}*Your Flash Balance*\n\n` +
-           `• ${btcFormatted} BTC\n` +
-           `• ${fiatFormatted}\n\n` +
+           `${fiatFormatted}\n\n` +
            `Last updated: ${lastUpdated}\n\n` +
            `Need to add funds or make a payment? Visit ${this.appUrl}/wallet`;
   }
@@ -43,11 +42,14 @@ export class BalanceTemplate {
     const transactionVerb = isReceived ? 'received' : 'sent';
     const emoji = isReceived ? '🔵' : '🟠';
     
+    // Convert BTC change to approximate fiat for display
+    const fiatChangeApprox = changeAmount * (data.fiatBalance / data.btcBalance);
+    const fiatChangeFormatted = this.formatFiatAmount(Math.abs(fiatChangeApprox), data.fiatCurrency);
+    
     return `${emoji} *Flash ${txType.charAt(0).toUpperCase() + txType.slice(1)} Transaction*\n\n` +
-           `You have ${transactionVerb} *${btcFormatted} BTC*\n\n` +
+           `You have ${transactionVerb} ${fiatChangeFormatted}\n\n` +
            `Your new balance is:\n` +
-           `• ${this.formatBitcoinAmount(data.btcBalance)} BTC\n` + 
-           `• ${this.formatFiatAmount(data.fiatBalance, data.fiatCurrency)}\n\n` +
+           `${this.formatFiatAmount(data.fiatBalance, data.fiatCurrency)}\n\n` +
            `View transaction details at ${this.appUrl}/transactions`;
   }
 
@@ -71,10 +73,11 @@ export class BalanceTemplate {
     const currencyFormatters: Record<string, (n: number) => string> = {
       'JMD': (n) => `JMD $${n.toLocaleString('en-JM', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       'USD': (n) => `USD $${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      'EUR': (n) => `EUR €${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       // Add more currencies as needed
     };
     
-    const formatter = currencyFormatters[currency] || ((n) => `${currency} ${n.toLocaleString()}`);
+    const formatter = currencyFormatters[currency] || ((n) => `${currency} ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
     return formatter(amount);
   }
 
