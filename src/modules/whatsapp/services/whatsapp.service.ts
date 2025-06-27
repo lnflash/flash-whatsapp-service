@@ -618,7 +618,7 @@ export class WhatsappService {
       return 'Here are the available commands:\n\n• price - Check current Bitcoin price\n• link - Connect your Flash account\n• verify [code] - Enter verification code\n• help - Show available commands\n\nPlease complete the account linking process to access more features.';
     }
 
-    return "Here are the available commands for Flash:\n\n• balance - Check your Bitcoin and fiat balance\n• refresh - Refresh your balance (clear cache)\n• receive [amount] [memo] - Create Lightning invoice\n• price - Check current Bitcoin price\n• username - View or set your username\n• link - Connect your Flash account\n• unlink - Disconnect your Flash account\n• consent [yes/no] - Manage your AI support consent\n• help - Show available commands\n\nYou can also ask me questions about Flash services and I'll do my best to assist you!";
+    return "Here are the available commands for Flash:\n\n• balance - Check your Bitcoin and fiat balance\n• refresh - Refresh your balance (clear cache)\n• receive [amount] [memo] - Create USD Lightning invoice\n• price - Check current Bitcoin price\n• username - View or set your username\n• link - Connect your Flash account\n• unlink - Disconnect your Flash account\n• consent [yes/no] - Manage your AI support consent\n• help - Show available commands\n\nYou can also ask me questions about Flash services and I'll do my best to assist you!";
   }
 
   /**
@@ -642,31 +642,28 @@ export class WhatsappService {
       const memo = command.args.memo || undefined;
 
       let amount: number | undefined;
-      let currency: 'USD' | 'BTC' = 'USD'; // Default to USD
+      const currency: 'USD' | 'BTC' = 'USD'; // Only USD supported
 
       if (amountStr) {
-        // Check if amount contains currency indicator
+        // Check if amount contains BTC indicator
         if (amountStr.toLowerCase().includes('btc') || amountStr.includes('₿')) {
-          // Bitcoin amount
-          currency = 'BTC';
-          amount = parseFloat(amountStr.replace(/[^0-9.]/g, ''));
-        } else {
-          // USD amount (default)
-          amount = parseFloat(amountStr.replace(/[^0-9.]/g, ''));
+          return {
+            text: 'BTC invoices are not currently supported. Please specify amount in USD, e.g., "receive 10" for $10',
+          };
         }
+        
+        // Parse USD amount
+        amount = parseFloat(amountStr.replace(/[^0-9.]/g, ''));
 
         if (isNaN(amount) || amount <= 0) {
           return {
-            text: 'Invalid amount. Please specify a positive number, e.g., "receive 10" or "receive 0.001btc"',
+            text: 'Invalid amount. Please specify a positive number, e.g., "receive 10" for $10',
           };
         }
 
         // Validate reasonable amounts
-        if (currency === 'USD' && amount > 10000) {
-          return { text: 'Amount too large. Maximum USD amount is $10,000.' };
-        }
-        if (currency === 'BTC' && amount > 1) {
-          return { text: 'Amount too large. Maximum BTC amount is 1 BTC.' };
+        if (amount > 10000) {
+          return { text: 'Amount too large. Maximum amount is $10,000.' };
         }
       }
 

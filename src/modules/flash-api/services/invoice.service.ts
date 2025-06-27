@@ -22,7 +22,7 @@ export class InvoiceService {
   ) {}
 
   /**
-   * Create a Lightning invoice
+   * Create a Lightning invoice (USD only)
    */
   async createInvoice(
     authToken: string,
@@ -31,13 +31,16 @@ export class InvoiceService {
     currency: 'BTC' | 'USD' = 'USD',
   ): Promise<InvoiceInfo> {
     try {
-      // Determine which mutation to use based on parameters
+      // Only USD invoices are supported
+      if (currency === 'BTC') {
+        throw new BadRequestException('BTC invoices are not currently supported');
+      }
+
+      // Determine which mutation to use based on amount
       if (!amount) {
         return await this.createNoAmountInvoice(authToken, memo);
-      } else if (currency === 'USD') {
-        return await this.createUsdInvoice(authToken, amount, memo);
       } else {
-        return await this.createBtcInvoice(authToken, amount, memo);
+        return await this.createUsdInvoice(authToken, amount, memo);
       }
     } catch (error) {
       this.logger.error(`Error creating invoice: ${error.message}`, error.stack);
@@ -172,6 +175,7 @@ export class InvoiceService {
 
   /**
    * Create a BTC-denominated Lightning invoice
+   * @deprecated BTC invoices are not currently supported
    */
   private async createBtcInvoice(
     authToken: string,
@@ -312,10 +316,8 @@ export class InvoiceService {
   formatInvoiceMessage(invoice: InvoiceInfo): string {
     const timeLeft = this.getTimeLeft(invoice.expiresAt);
     const amountText = invoice.amount
-      ? invoice.walletCurrency === 'USD'
-        ? `$${invoice.amount.toFixed(2)}`
-        : `${invoice.amount} BTC`
-      : 'Any amount';
+      ? `$${invoice.amount.toFixed(2)} USD`
+      : 'Any amount (USD)';
 
     return (
       `*Lightning Invoice*\n\n` +

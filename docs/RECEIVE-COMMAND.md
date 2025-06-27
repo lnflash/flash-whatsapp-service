@@ -4,12 +4,12 @@ The `receive` command allows users to create Lightning invoices to receive payme
 
 ## Features
 
-- **Lightning Invoice Generation**: Create BOLT11 invoices for receiving payments
+- **Lightning Invoice Generation**: Create BOLT11 invoices for receiving USD payments
 - **QR Code Generation**: Automatically generates QR codes for easy scanning
-- **Flexible Amount Options**: Support for both USD and BTC amounts, or no-amount invoices
+- **Flexible Amount Options**: Support for USD amounts or no-amount invoices
 - **Custom Memos**: Add descriptions to your payment requests
 - **Expiration Tracking**: Shows remaining validity time for invoices
-- **Multi-Wallet Support**: Works with both USD and BTC wallets
+- **USD Wallet Support**: Works with USD wallet for stable value payments
 
 ## Usage
 
@@ -26,17 +26,13 @@ The `receive` command allows users to create Lightning invoices to receive payme
    receive 25.50
    ```
 
-3. **Receive specific BTC amount**:
-   ```
-   receive 0.001btc
-   receive 0.00025btc
-   ```
-
-4. **Receive with memo**:
+3. **Receive with memo**:
    ```
    receive 10 Coffee payment
-   receive 0.001btc Invoice for services
+   receive 50 Invoice for services
    ```
+
+**Note**: BTC invoices are not currently supported. All amounts are in USD.
 
 ### Examples
 
@@ -88,8 +84,9 @@ Copy and paste this invoice to pay, or scan the QR code below.
 
 4. **WhatsApp Service Integration**:
    - Returns both text and media (QR code) in response
-   - Validates amounts and currency types
-   - Enforces reasonable limits ($10,000 USD or 1 BTC)
+   - Validates amounts (USD only)
+   - Enforces reasonable limits ($10,000 USD maximum)
+   - Rejects BTC amount requests with helpful message
 
 ### GraphQL Mutations Used
 
@@ -100,6 +97,7 @@ Copy and paste this invoice to pay, or scan the QR code below.
        invoice {
          paymentRequest
          paymentHash
+         paymentSecret
        }
      }
    }
@@ -118,23 +116,11 @@ Copy and paste this invoice to pay, or scan the QR code below.
    }
    ```
 
-3. **BTC Invoice**:
-   ```graphql
-   mutation lnInvoiceCreate($input: LnInvoiceCreateInput!) {
-     lnInvoiceCreate(input: $input) {
-       invoice {
-         paymentRequest
-         paymentHash
-         satoshis
-       }
-     }
-   }
-   ```
-
 ### Error Handling
 
 - Invalid amounts: Clear error message with examples
-- Amount too large: Enforces limits for safety
+- BTC amounts: Rejects with message about USD-only support
+- Amount too large: Enforces $10,000 limit for safety
 - API failures: Generic error message to user
 - Expired invoices: Shows expiration status
 
@@ -150,6 +136,6 @@ Copy and paste this invoice to pay, or scan the QR code below.
 1. **Invoice Status Tracking**: Listen for payment completion events
 2. **Invoice History**: Command to view recent invoices
 3. **Custom Expiration**: Allow users to set invoice validity period
-4. **Multiple Currency Support**: Extend beyond USD/BTC
+4. **BTC Invoice Support**: Re-enable BTC invoices when needed
 5. **Payment Notifications**: Real-time alerts when invoice is paid
 6. **Invoice Templates**: Save frequently used amounts/memos
