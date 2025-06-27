@@ -156,9 +156,9 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy {
         if (response) {
           this.logger.debug(`Response type: ${typeof response}, has text: ${typeof response === 'object' && 'text' in response}, has media: ${typeof response === 'object' && 'media' in response}`);
           
-          // Check if response is an object with text and media
-          if (typeof response === 'object' && 'text' in response && 'media' in response) {
-            // Send image with caption
+          // Check if response is an object with text property
+          if (typeof response === 'object' && 'text' in response) {
+            // Send image with caption if media is present
             if (response.media) {
               await this.sendImage(msg.from, response.media, response.text);
             } else {
