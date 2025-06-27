@@ -5,8 +5,11 @@ import { AuthService } from '../../auth/services/auth.service';
 import { SessionService } from '../../auth/services/session.service';
 import { FlashApiService } from '../../flash-api/flash-api.service';
 import { BalanceService } from '../../flash-api/services/balance.service';
+import { UsernameService } from '../../flash-api/services/username.service';
+import { PriceService } from '../../flash-api/services/price.service';
 import { GeminiAiService } from '../../gemini-ai/gemini-ai.service';
 import { CommandParserService, CommandType, ParsedCommand } from './command-parser.service';
+import { validateUsername, getUsernameErrorMessage } from '../utils/username-validation';
 import { BalanceTemplate } from '../templates/balance-template';
 import { AccountLinkRequestDto } from '../../auth/dto/account-link-request.dto';
 import { VerifyOtpDto } from '../../auth/dto/verify-otp.dto';
@@ -24,6 +27,8 @@ export class WhatsappService {
     private readonly sessionService: SessionService,
     private readonly flashApiService: FlashApiService,
     private readonly balanceService: BalanceService,
+    private readonly usernameService: UsernameService,
+    private readonly priceService: PriceService,
     private readonly geminiAiService: GeminiAiService,
     private readonly commandParserService: CommandParserService,
     private readonly balanceTemplate: BalanceTemplate,
@@ -80,6 +85,9 @@ export class WhatsappService {
         case CommandType.LINK:
           return this.handleLinkCommand(whatsappId, phoneNumber);
           
+        case CommandType.UNLINK:
+          return this.handleUnlinkCommand(command, whatsappId, session);
+          
         case CommandType.VERIFY:
           return this.handleVerifyCommand(command, whatsappId, session);
           
@@ -88,6 +96,12 @@ export class WhatsappService {
           
         case CommandType.REFRESH:
           return this.handleRefreshCommand(whatsappId, session);
+          
+        case CommandType.USERNAME:
+          return this.handleUsernameCommand(command, whatsappId, session);
+          
+        case CommandType.PRICE:
+          return this.handlePriceCommand(whatsappId, session);
           
         case CommandType.CONSENT:
           return this.handleConsentCommand(command, whatsappId, session);
@@ -136,6 +150,32 @@ export class WhatsappService {
       }
       
       return "We're having trouble linking your account. Please try again later or contact support.";
+    }
+  }
+
+  /**
+   * Handle account unlinking command
+   */
+  private async handleUnlinkCommand(command: ParsedCommand, whatsappId: string, session: UserSession | null): Promise<string> {
+    try {
+      if (!session) {
+        return 'No Flash account is linked to this WhatsApp number.';
+      }
+      
+      const confirmed = command.args.confirm === 'confirm';
+      
+      if (!confirmed) {
+        // Ask for confirmation
+        return 'Are you sure you want to unlink your Flash account? This will:\n\n• Remove access to your Flash wallet through WhatsApp\n• Delete your session data\n• Require re-linking to use Flash services again\n\nTo confirm, type: unlink confirm';
+      }
+      
+      // User confirmed, proceed with unlinking
+      await this.authService.unlinkAccount(whatsappId);
+      
+      return 'Your Flash account has been successfully unlinked from WhatsApp.\n\nTo use Flash services through WhatsApp again, you\'ll need to type "link" to reconnect your account.\n\nThank you for using Flash!';
+    } catch (error) {
+      this.logger.error(`Error handling unlink command: ${error.message}`, error.stack);
+      return "We're having trouble processing your request. Please try again later.";
     }
   }
 
@@ -325,6 +365,91 @@ export class WhatsappService {
   }
 
   /**
+   * Handle username command
+   */
+  private async handleUsernameCommand(command: ParsedCommand, whatsappId: string, session: UserSession | null): Promise<string> {
+    try {
+      if (!session) {
+        return 'Please link your Flash account first by typing "link".';
+      }
+      
+      if (!session.isVerified || !session.flashUserId || !session.flashAuthToken) {
+        return 'Your account is not fully verified. Please complete the linking process first.';
+      }
+      
+      const newUsername = command.args.username;
+      
+      if (!newUsername) {
+        // User just typed "username" - show their current username
+        const currentUsername = await this.usernameService.getUsername(session.flashAuthToken);
+        
+        if (currentUsername) {
+          return `Your username is: @${currentUsername}`;
+        } else {
+          return 'You haven\'t set a username yet. To set one, type "username" followed by your desired username.\n\nExample: username johndoe';
+        }
+      } else {
+        // User wants to set a username
+        // First check if they already have one
+        const currentUsername = await this.usernameService.getUsername(session.flashAuthToken);
+        
+        if (currentUsername) {
+          return `You already have a username: @${currentUsername}\n\nUsernames cannot be changed once set.`;
+        }
+        
+        // Validate the username
+        const validationError = validateUsername(newUsername);
+        
+        if (validationError) {
+          return getUsernameErrorMessage(validationError);
+        }
+        
+        // Try to set the username
+        try {
+          await this.usernameService.setUsername(newUsername, session.flashAuthToken);
+          return `Success! Your username has been set to: @${newUsername}\n\nYour Lightning address is now: ${newUsername}@flashapp.me\n\n⚠️ Remember: Usernames cannot be changed once set.`;
+        } catch (error) {
+          if (error.message.includes('already taken')) {
+            return `The username @${newUsername} is already taken. Please choose another one.`;
+          }
+          throw error;
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Error handling username command: ${error.message}`, error.stack);
+      return "We're having trouble with your username request. Please try again later.";
+    }
+  }
+
+  /**
+   * Handle price command
+   */
+  private async handlePriceCommand(whatsappId: string, session: UserSession | null): Promise<string> {
+    try {
+      // Determine which currency to show
+      let currency = 'USD'; // Default currency
+      let authToken: string | undefined;
+      
+      if (session?.isVerified && session.flashAuthToken) {
+        // User is authenticated, use their auth token to get their display currency
+        authToken = session.flashAuthToken;
+        
+        // The authenticated query will automatically use the user's display currency
+        const priceInfo = await this.priceService.getBitcoinPrice(currency, authToken);
+        return this.priceService.formatPriceMessage(priceInfo);
+      } else {
+        // User not authenticated, show USD price
+        const priceInfo = await this.priceService.getBitcoinPrice(currency);
+        return this.priceService.formatPriceMessage(priceInfo) + 
+               '\n\n💡 Tip: Link your account to see prices in your preferred currency!';
+      }
+    } catch (error) {
+      this.logger.error(`Error handling price command: ${error.message}`, error.stack);
+      return "We're having trouble fetching the current Bitcoin price. Please try again later.";
+    }
+  }
+
+  /**
    * Handle consent command
    */
   private async handleConsentCommand(command: ParsedCommand, whatsappId: string, session: UserSession | null): Promise<string> {
@@ -433,14 +558,14 @@ export class WhatsappService {
    */
   private getHelpMessage(session: UserSession | null): string {
     if (!session) {
-      return 'Welcome to the Flash WhatsApp service! Here are the available commands:\n\n• link - Connect your Flash account\n• help - Show available commands\n\nTo get started, please link your Flash account by typing "link".';
+      return 'Welcome to the Flash WhatsApp service! Here are the available commands:\n\n• price - Check current Bitcoin price\n• link - Connect your Flash account\n• help - Show available commands\n\nTo get started, please link your Flash account by typing "link".';
     }
     
     if (!session.isVerified) {
-      return 'Here are the available commands:\n\n• link - Connect your Flash account\n• verify [code] - Enter verification code\n• help - Show available commands\n\nPlease complete the account linking process to access more features.';
+      return 'Here are the available commands:\n\n• price - Check current Bitcoin price\n• link - Connect your Flash account\n• verify [code] - Enter verification code\n• help - Show available commands\n\nPlease complete the account linking process to access more features.';
     }
     
-    return 'Here are the available commands for Flash:\n\n• balance - Check your Bitcoin and fiat balance\n• refresh - Refresh your balance (clear cache)\n• link - Manage your account connection\n• consent [yes/no] - Manage your AI support consent\n• help - Show available commands\n\nYou can also ask me questions about Flash services and I\'ll do my best to assist you!';
+    return 'Here are the available commands for Flash:\n\n• balance - Check your Bitcoin and fiat balance\n• refresh - Refresh your balance (clear cache)\n• price - Check current Bitcoin price\n• username - View or set your username\n• link - Connect your Flash account\n• unlink - Disconnect your Flash account\n• consent [yes/no] - Manage your AI support consent\n• help - Show available commands\n\nYou can also ask me questions about Flash services and I\'ll do my best to assist you!';
   }
 
   /**

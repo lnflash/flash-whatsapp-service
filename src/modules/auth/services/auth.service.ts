@@ -214,4 +214,26 @@ export class AuthService {
       throw error;
     }
   }
+
+  /**
+   * Unlink WhatsApp account from Flash
+   */
+  async unlinkAccount(whatsappId: string): Promise<void> {
+    try {
+      // Get session by WhatsApp ID
+      const session = await this.sessionService.getSessionByWhatsappId(whatsappId);
+      
+      if (!session) {
+        throw new BadRequestException('No linked account found');
+      }
+      
+      // Delete the session
+      await this.sessionService.deleteSession(session.sessionId);
+      
+      this.logger.log(`Account unlinked for WhatsApp ID: ${whatsappId}`);
+    } catch (error) {
+      this.logger.error(`Error unlinking account: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
 }

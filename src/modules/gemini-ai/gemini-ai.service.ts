@@ -124,9 +124,11 @@ Context about the user:
 
 Available Flash Connect commands:
 - link: Connect Flash account to WhatsApp
+- unlink: Disconnect Flash account from WhatsApp
 - verify [code]: Complete OTP verification
 - balance: Check Bitcoin and fiat balances (requires authentication)
 - refresh: Refresh balance by clearing cache
+- username: View or set username (one-time only)
 - help: Display available commands
 
 Common FAQs:

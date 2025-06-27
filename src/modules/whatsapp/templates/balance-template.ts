@@ -28,8 +28,7 @@ export class BalanceTemplate {
     
     return `${greeting}*Your Flash Balance*\n\n` +
            `${fiatFormatted}\n\n` +
-           `Last updated: ${lastUpdated}\n\n` +
-           `Need to add funds or make a payment? Visit ${this.appUrl}/wallet`;
+           `Last updated: ${lastUpdated}`;
   }
 
   /**
@@ -49,8 +48,7 @@ export class BalanceTemplate {
     return `${emoji} *Flash ${txType.charAt(0).toUpperCase() + txType.slice(1)} Transaction*\n\n` +
            `You have ${transactionVerb} ${fiatChangeFormatted}\n\n` +
            `Your new balance is:\n` +
-           `${this.formatFiatAmount(data.fiatBalance, data.fiatCurrency)}\n\n` +
-           `View transaction details at ${this.appUrl}/transactions`;
+           `${this.formatFiatAmount(data.fiatBalance, data.fiatCurrency)}`;
   }
 
   /**
