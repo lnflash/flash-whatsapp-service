@@ -18,12 +18,12 @@ jest.mock('ioredis', () => {
     subscribe: jest.fn().mockResolvedValue(undefined),
     duplicate: jest.fn().mockReturnValue({
       subscribe: jest.fn().mockResolvedValue(undefined),
-      on: jest.fn()
-    })
+      on: jest.fn(),
+    }),
   };
-  
+
   return {
-    default: jest.fn().mockImplementation(() => mockRedisInstance)
+    default: jest.fn().mockImplementation(() => mockRedisInstance),
   };
 });
 
@@ -57,7 +57,7 @@ describe('RedisService', () => {
 
     service = module.get<RedisService>(RedisService);
     configService = module.get<ConfigService>(ConfigService);
-    
+
     // Get the Redis mock instance
     // Call onModuleInit manually since Jest doesn't call lifecycle hooks
     await service.onModuleInit();

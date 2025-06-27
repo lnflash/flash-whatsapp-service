@@ -38,7 +38,11 @@ export class BalanceService {
   /**
    * Get user balance from Flash API with caching
    */
-  async getUserBalance(userId: string, authToken: string, skipCache: boolean = false): Promise<BalanceInfo> {
+  async getUserBalance(
+    userId: string,
+    authToken: string,
+    skipCache: boolean = false,
+  ): Promise<BalanceInfo> {
     try {
       // Try to get from cache first (unless skipCache is true)
       if (!skipCache) {
@@ -50,10 +54,10 @@ export class BalanceService {
 
       // Not in cache or skipping cache, fetch from API
       const balance = await this.fetchBalanceFromApi(userId, authToken);
-      
+
       // Store in cache for future requests
       await this.cacheBalance(userId, balance);
-      
+
       return balance;
     } catch (error) {
       this.logger.error(`Error getting user balance: ${error.message}`, error.stack);
@@ -81,11 +85,11 @@ export class BalanceService {
     try {
       const cacheKey = `balance:${userId}`;
       const cachedData = await this.redisService.get(cacheKey);
-      
+
       if (!cachedData) {
         return null;
       }
-      
+
       return JSON.parse(cachedData) as BalanceInfo;
     } catch (error) {
       this.logger.warn(`Error getting cached balance: ${error.message}`);
@@ -109,7 +113,11 @@ export class BalanceService {
   /**
    * Fetch balance data from Flash API with retries
    */
-  private async fetchBalanceFromApi(userId: string, authToken: string, attempt: number = 1): Promise<BalanceInfo> {
+  private async fetchBalanceFromApi(
+    userId: string,
+    authToken: string,
+    attempt: number = 1,
+  ): Promise<BalanceInfo> {
     try {
       // GraphQL query for user balance using 'me' query with exchange rates
       const query = `
@@ -136,9 +144,9 @@ export class BalanceService {
           }
         }
       `;
-      
+
       const variables = {};
-      
+
       // Execute the query with auth token
       const result = await this.flashApiService.executeQuery<{
         me: {
@@ -162,27 +170,31 @@ export class BalanceService {
           };
         };
       }>(query, variables, authToken);
-      
+
       // Extract wallets and display currency
       const account = result.me.defaultAccount;
       const wallets = account.wallets;
-      const btcWallet = wallets.find(w => w.walletCurrency === 'BTC');
-      const usdWallet = wallets.find(w => w.walletCurrency === 'USD');
-      
+      const btcWallet = wallets.find((w) => w.walletCurrency === 'BTC');
+      const usdWallet = wallets.find((w) => w.walletCurrency === 'USD');
+
       // Log wallet data for debugging
       this.logger.debug(`Wallets found: ${JSON.stringify(wallets)}`);
       this.logger.debug(`Display currency: ${account.displayCurrency}`);
       this.logger.debug(`BTC wallet balance: ${btcWallet?.balance || 'Not found'}`);
       this.logger.debug(`USD wallet balance: ${usdWallet?.balance || 'Not found'}`);
-      
+
       // Log exchange rate if available
       if (account.realtimePrice) {
-        this.logger.debug(`Exchange rate - USD cent price: base=${account.realtimePrice.usdCentPrice.base}, offset=${account.realtimePrice.usdCentPrice.offset}`);
+        this.logger.debug(
+          `Exchange rate - USD cent price: base=${account.realtimePrice.usdCentPrice.base}, offset=${account.realtimePrice.usdCentPrice.offset}`,
+        );
       }
-      
+
       // Log the exact response for debugging
-      this.logger.log(`Balance API Response - USD: ${usdWallet?.balance}, Display Currency: ${account.displayCurrency}`);
-      
+      this.logger.log(
+        `Balance API Response - USD: ${usdWallet?.balance}, Display Currency: ${account.displayCurrency}`,
+      );
+
       // Format the response - always use USD wallet balance with user's display currency
       // Note: The API returns balance in cents, so we need to convert to dollars
       return {
@@ -190,21 +202,30 @@ export class BalanceService {
         fiatBalance: (usdWallet?.balance || 0) / 100, // Convert cents to dollars
         fiatCurrency: account.displayCurrency || 'USD',
         lastUpdated: new Date(),
-        exchangeRate: account.displayCurrency !== 'USD' ? {
-          usdCentPrice: account.realtimePrice.usdCentPrice
-        } : undefined,
+        exchangeRate:
+          account.displayCurrency !== 'USD'
+            ? {
+                usdCentPrice: account.realtimePrice.usdCentPrice,
+              }
+            : undefined,
       };
     } catch (error) {
       if (attempt < this.maxRetries) {
-        this.logger.warn(`Error fetching balance, retrying (${attempt}/${this.maxRetries}): ${error.message}`);
-        
+        this.logger.warn(
+          `Error fetching balance, retrying (${attempt}/${this.maxRetries}): ${error.message}`,
+        );
+
         // Wait before retry with exponential backoff
-        await new Promise(resolve => setTimeout(resolve, this.retryDelay * Math.pow(2, attempt - 1)));
-        
+        await new Promise((resolve) =>
+          setTimeout(resolve, this.retryDelay * Math.pow(2, attempt - 1)),
+        );
+
         return this.fetchBalanceFromApi(userId, authToken, attempt + 1);
       }
-      
-      this.logger.error(`Failed to fetch balance after ${this.maxRetries} attempts: ${error.message}`);
+
+      this.logger.error(
+        `Failed to fetch balance after ${this.maxRetries} attempts: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -215,7 +236,7 @@ export class BalanceService {
   formatBalanceMessage(balance: BalanceInfo): string {
     const btcFormatted = this.formatBitcoinAmount(balance.btcBalance);
     const fiatFormatted = this.formatFiatAmount(balance.fiatBalance, balance.fiatCurrency);
-    
+
     return `*Your Current Flash Balance*\n\n• ${btcFormatted} BTC\n• ${fiatFormatted}\n\nLast updated: ${this.formatDateTime(balance.lastUpdated)}`;
   }
 
@@ -232,11 +253,13 @@ export class BalanceService {
    */
   private formatFiatAmount(amount: number, currency: string): string {
     const currencyFormatters: Record<string, (n: number) => string> = {
-      'JMD': (n) => `JMD $${n.toLocaleString('en-JM', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      'USD': (n) => `USD $${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      JMD: (n) =>
+        `JMD $${n.toLocaleString('en-JM', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      USD: (n) =>
+        `USD $${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       // Add more currencies as needed
     };
-    
+
     const formatter = currencyFormatters[currency] || ((n) => `${currency} ${n.toLocaleString()}`);
     return formatter(amount);
   }

@@ -12,13 +12,13 @@ export class TwilioWebhookGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
-    
+
     // Get the webhook URL
     const webhookUrl = `${request.protocol}://${request.get('host')}${request.originalUrl}`;
-    
+
     // Get the signature from Twilio
     const twilioSignature = request.headers['x-twilio-signature'];
-    
+
     if (!twilioSignature) {
       throw new UnauthorizedException('Missing Twilio signature');
     }
@@ -28,7 +28,7 @@ export class TwilioWebhookGuard implements CanActivate {
       this.authToken,
       twilioSignature,
       webhookUrl,
-      request.body
+      request.body,
     );
 
     if (!isValid) {

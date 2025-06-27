@@ -65,13 +65,13 @@ describe('AuthService', () => {
         whatsappId: '18765551234',
         phoneNumber: '+18765551234',
       };
-      
+
       // Mock Flash API initiatePhoneVerification to return success
       jest.spyOn(flashApiService, 'initiatePhoneVerification').mockResolvedValue({ success: true });
-      
+
       // Mock sessionService to return null (no existing session)
       jest.spyOn(sessionService, 'getSessionByWhatsappId').mockResolvedValue(null);
-      
+
       // Mock session creation
       const mockSession: UserSession = {
         sessionId: 'test_session_id',
@@ -85,18 +85,23 @@ describe('AuthService', () => {
         consentGiven: false,
       };
       jest.spyOn(sessionService, 'createSession').mockResolvedValue(mockSession);
-      
+
       const result = await service.initiateAccountLinking(linkRequest);
-      
+
       expect(result).toEqual({
         sessionId: 'test_session_id',
         otpSent: true,
       });
-      
+
       // Verify the correct services were called
-      expect(flashApiService.initiatePhoneVerification).toHaveBeenCalledWith(linkRequest.phoneNumber);
+      expect(flashApiService.initiatePhoneVerification).toHaveBeenCalledWith(
+        linkRequest.phoneNumber,
+      );
       expect(sessionService.getSessionByWhatsappId).toHaveBeenCalledWith(linkRequest.whatsappId);
-      expect(sessionService.createSession).toHaveBeenCalledWith(linkRequest.whatsappId, linkRequest.phoneNumber);
+      expect(sessionService.createSession).toHaveBeenCalledWith(
+        linkRequest.whatsappId,
+        linkRequest.phoneNumber,
+      );
     });
 
     it('should reject linking if Flash API fails to send verification code', async () => {
@@ -104,16 +109,16 @@ describe('AuthService', () => {
         whatsappId: '18765551234',
         phoneNumber: '+18765551234',
       };
-      
+
       // Mock Flash API initiatePhoneVerification to return failure
-      jest.spyOn(flashApiService, 'initiatePhoneVerification').mockResolvedValue({ 
-        success: false, 
-        errors: [{ message: 'Failed to send verification code' }] 
+      jest.spyOn(flashApiService, 'initiatePhoneVerification').mockResolvedValue({
+        success: false,
+        errors: [{ message: 'Failed to send verification code' }],
       });
-      
+
       // Mock sessionService to return null (no existing session)
       jest.spyOn(sessionService, 'getSessionByWhatsappId').mockResolvedValue(null);
-      
+
       // Mock session creation
       const mockSession: UserSession = {
         sessionId: 'test_session_id',
@@ -127,8 +132,10 @@ describe('AuthService', () => {
         consentGiven: false,
       };
       jest.spyOn(sessionService, 'createSession').mockResolvedValue(mockSession);
-      
-      await expect(service.initiateAccountLinking(linkRequest)).rejects.toThrow(BadRequestException);
+
+      await expect(service.initiateAccountLinking(linkRequest)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should return existing session if already verified', async () => {
@@ -136,7 +143,7 @@ describe('AuthService', () => {
         whatsappId: '18765551234',
         phoneNumber: '+18765551234',
       };
-      
+
       // Mock sessionService to return existing verified session
       const existingSession: UserSession = {
         sessionId: 'existing_session_id',
@@ -151,9 +158,9 @@ describe('AuthService', () => {
         consentGiven: false,
       };
       jest.spyOn(sessionService, 'getSessionByWhatsappId').mockResolvedValue(existingSession);
-      
+
       const result = await service.initiateAccountLinking(linkRequest);
-      
+
       expect(result).toEqual({
         sessionId: 'existing_session_id',
         otpSent: false,
@@ -167,7 +174,7 @@ describe('AuthService', () => {
         sessionId: 'test_session_id',
         otpCode: '123456',
       };
-      
+
       // Mock session retrieval
       const mockSession: UserSession = {
         sessionId: verifyDto.sessionId,
@@ -181,19 +188,19 @@ describe('AuthService', () => {
         consentGiven: false,
       };
       jest.spyOn(sessionService, 'getSession').mockResolvedValue(mockSession);
-      
+
       // Mock Flash API validatePhoneVerification to return auth token
-      jest.spyOn(flashApiService, 'validatePhoneVerification').mockResolvedValue({ 
-        authToken: 'test_auth_token' 
+      jest.spyOn(flashApiService, 'validatePhoneVerification').mockResolvedValue({
+        authToken: 'test_auth_token',
       });
-      
+
       // Mock Flash API getUserDetails
       jest.spyOn(flashApiService, 'getUserDetails').mockResolvedValue({
         id: 'flash_123',
         phone: mockSession.phoneNumber,
-        username: 'testuser'
+        username: 'testuser',
       });
-      
+
       // Mock session update
       const updatedSession: UserSession = {
         ...mockSession,
@@ -204,14 +211,17 @@ describe('AuthService', () => {
         mfaExpiresAt: new Date(Date.now() + 300000),
       };
       jest.spyOn(sessionService, 'updateSession').mockResolvedValue(updatedSession);
-      
+
       const result = await service.verifyAccountLinking(verifyDto);
-      
+
       expect(result).toEqual(updatedSession);
-      
+
       // Verify the correct services were called
       expect(sessionService.getSession).toHaveBeenCalledWith(verifyDto.sessionId);
-      expect(flashApiService.validatePhoneVerification).toHaveBeenCalledWith(mockSession.phoneNumber, verifyDto.otpCode);
+      expect(flashApiService.validatePhoneVerification).toHaveBeenCalledWith(
+        mockSession.phoneNumber,
+        verifyDto.otpCode,
+      );
       expect(flashApiService.getUserDetails).toHaveBeenCalledWith('test_auth_token');
       expect(sessionService.updateSession).toHaveBeenCalledWith(
         verifyDto.sessionId,
@@ -229,7 +239,7 @@ describe('AuthService', () => {
         sessionId: 'test_session_id',
         otpCode: '654321',
       };
-      
+
       // Mock session retrieval
       const mockSession: UserSession = {
         sessionId: verifyDto.sessionId,
@@ -243,12 +253,12 @@ describe('AuthService', () => {
         consentGiven: false,
       };
       jest.spyOn(sessionService, 'getSession').mockResolvedValue(mockSession);
-      
+
       // Mock Flash API validatePhoneVerification to return error
-      jest.spyOn(flashApiService, 'validatePhoneVerification').mockResolvedValue({ 
-        errors: [{ message: 'Invalid or expired verification code' }] 
+      jest.spyOn(flashApiService, 'validatePhoneVerification').mockResolvedValue({
+        errors: [{ message: 'Invalid or expired verification code' }],
       });
-      
+
       await expect(service.verifyAccountLinking(verifyDto)).rejects.toThrow(UnauthorizedException);
     });
   });
@@ -256,12 +266,12 @@ describe('AuthService', () => {
   describe('validateMfa', () => {
     it('should check if MFA is validated', async () => {
       const sessionId = 'test_session_id';
-      
+
       // Mock MFA validation check
       jest.spyOn(sessionService, 'isMfaValidated').mockResolvedValue(true);
-      
+
       const result = await service.validateMfa(sessionId);
-      
+
       expect(result).toBe(true);
       expect(sessionService.isMfaValidated).toHaveBeenCalledWith(sessionId);
     });
@@ -271,7 +281,7 @@ describe('AuthService', () => {
     it('should record user consent', async () => {
       const sessionId = 'test_session_id';
       const consentGiven = true;
-      
+
       // Mock consent recording
       const mockSession: UserSession = {
         sessionId,
@@ -287,9 +297,9 @@ describe('AuthService', () => {
         consentTimestamp: new Date(),
       };
       jest.spyOn(sessionService, 'setConsent').mockResolvedValue(mockSession);
-      
+
       const result = await service.recordConsent(sessionId, consentGiven);
-      
+
       expect(result).toEqual(mockSession);
       expect(sessionService.setConsent).toHaveBeenCalledWith(sessionId, consentGiven);
     });

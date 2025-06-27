@@ -9,24 +9,8 @@ import { SessionGuard } from './guards/session.guard';
 import { MfaGuard } from './guards/mfa.guard';
 
 @Module({
-  imports: [
-    ConfigModule,
-    RedisModule,
-    FlashApiModule,
-  ],
-  providers: [
-    AuthService,
-    SessionService,
-    OtpService,
-    SessionGuard,
-    MfaGuard,
-  ],
-  exports: [
-    AuthService,
-    SessionService,
-    OtpService,
-    SessionGuard,
-    MfaGuard,
-  ],
+  imports: [ConfigModule, RedisModule, FlashApiModule],
+  providers: [AuthService, SessionService, OtpService, SessionGuard, MfaGuard],
+  exports: [AuthService, SessionService, OtpService, SessionGuard, MfaGuard],
 })
 export class AuthModule {}

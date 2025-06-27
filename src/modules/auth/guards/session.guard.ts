@@ -1,4 +1,10 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  UnauthorizedException,
+  Logger,
+} from '@nestjs/common';
 import { SessionService } from '../services/session.service';
 import { Request } from 'express';
 
@@ -18,7 +24,7 @@ export class SessionGuard implements CanActivate {
     }
 
     const isValid = await this.sessionService.isSessionValid(sessionId);
-    
+
     if (!isValid) {
       this.logger.warn(`Invalid or expired session: ${sessionId}`);
       throw new UnauthorizedException('Invalid or expired session');

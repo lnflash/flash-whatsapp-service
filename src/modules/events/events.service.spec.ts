@@ -30,7 +30,7 @@ jest.mock('amqplib', () => {
     connect: jest.fn().mockResolvedValue(mockConnection),
     // Expose the mocks for test verification
     __getMockChannel: () => mockChannel,
-    __getMockConnection: () => mockConnection
+    __getMockConnection: () => mockConnection,
   };
 });
 
@@ -62,7 +62,7 @@ describe('EventsService', () => {
 
     service = module.get<EventsService>(EventsService);
     configService = module.get<ConfigService>(ConfigService);
-    
+
     // Call onModuleInit manually as Jest doesn't trigger lifecycle hooks
     await service.onModuleInit();
   });
@@ -86,9 +86,9 @@ describe('EventsService', () => {
       const eventType = 'test-event';
       const eventData = { test: 'data' };
       const mockChannel = require('amqplib').__getMockChannel();
-      
+
       const result = await service.publishEvent(eventType, eventData);
-      
+
       // Check that sendToQueue was called with correct parameters
       expect(mockChannel.sendToQueue).toHaveBeenCalledWith(
         'test-queue',
@@ -98,10 +98,10 @@ describe('EventsService', () => {
           contentType: 'application/json',
         }),
       );
-      
+
       // Verify the result
       expect(result).toBe(true);
-      
+
       // Check the message content
       const sentMessage = JSON.parse(mockChannel.sendToQueue.mock.calls[0][1].toString());
       expect(sentMessage.type).toBe(eventType);
@@ -115,34 +115,33 @@ describe('EventsService', () => {
       // Create a mock callback
       const mockCallback = jest.fn();
       const mockChannel = require('amqplib').__getMockChannel();
-      
+
       // Subscribe to events
       await service.subscribeToEvents(mockCallback);
-      
+
       // Check that consume was called with the correct queue name
-      expect(mockChannel.consume).toHaveBeenCalledWith(
-        'test-queue',
-        expect.any(Function),
-      );
-      
+      expect(mockChannel.consume).toHaveBeenCalledWith('test-queue', expect.any(Function));
+
       // Get the callback that was registered
       const registeredCallback = mockChannel.consume.mock.calls[0][1];
-      
+
       // Test the callback by simulating a message
       const mockMsg = {
-        content: Buffer.from(JSON.stringify({
-          type: 'test-event',
-          data: { id: 123 },
-          timestamp: new Date().toISOString()
-        })),
+        content: Buffer.from(
+          JSON.stringify({
+            type: 'test-event',
+            data: { id: 123 },
+            timestamp: new Date().toISOString(),
+          }),
+        ),
       };
-      
+
       // Call the registered callback directly
       await registeredCallback(mockMsg);
-      
+
       // Verify callback was called with correct args
       expect(mockCallback).toHaveBeenCalledWith('test-event', { id: 123 });
-      
+
       // Verify message was acknowledged
       expect(mockChannel.ack).toHaveBeenCalledWith(mockMsg);
     });

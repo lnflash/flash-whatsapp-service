@@ -1,13 +1,4 @@
-import { 
-  Controller, 
-  Get, 
-  Post,
-  HttpCode, 
-  HttpStatus,
-  Logger,
-  Res,
-  Query,
-} from '@nestjs/common';
+import { Controller, Get, Post, HttpCode, HttpStatus, Logger, Res, Query } from '@nestjs/common';
 import { Response } from 'express';
 import { WhatsAppWebService } from '../services/whatsapp-web.service';
 
@@ -15,9 +6,7 @@ import { WhatsAppWebService } from '../services/whatsapp-web.service';
 export class WhatsAppWebController {
   private readonly logger = new Logger(WhatsAppWebController.name);
 
-  constructor(
-    private readonly whatsAppWebService: WhatsAppWebService,
-  ) {}
+  constructor(private readonly whatsAppWebService: WhatsAppWebService) {}
 
   /**
    * Get WhatsApp Web status
@@ -31,11 +20,13 @@ export class WhatsAppWebController {
     return {
       status: isReady ? 'connected' : 'disconnected',
       ready: isReady,
-      info: info ? {
-        phoneNumber: info.wid?.user,
-        name: info.pushname,
-        platform: info.platform,
-      } : null,
+      info: info
+        ? {
+            phoneNumber: info.wid?.user,
+            name: info.pushname,
+            platform: info.platform,
+          }
+        : null,
       service: 'Flash Connect - WhatsApp Web.js Prototype',
     };
   }
@@ -47,7 +38,7 @@ export class WhatsAppWebController {
   async getQRCode(@Res() res: Response) {
     try {
       const qrCode = await this.whatsAppWebService.getQRCode();
-      
+
       if (!qrCode) {
         return res.status(200).json({
           status: 'already_authenticated',
@@ -57,7 +48,7 @@ export class WhatsAppWebController {
 
       // Generate QR code image using a service
       const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCode)}`;
-      
+
       return res.status(200).json({
         status: 'pending_authentication',
         qrCode: qrCode,
@@ -113,9 +104,9 @@ export class WhatsAppWebController {
 
       // Remove any non-numeric characters and ensure it starts with country code
       const phoneNumber = to.replace(/\D/g, '');
-      
+
       await this.whatsAppWebService.sendMessage(phoneNumber, message);
-      
+
       return {
         status: 'success',
         message: 'Test message sent successfully',

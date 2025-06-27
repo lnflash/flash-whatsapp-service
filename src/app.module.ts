@@ -18,7 +18,7 @@ import { MetricsMiddleware } from './common/middleware/metrics.middleware';
       load: [configuration],
       envFilePath: ['.env', `.env.${process.env.NODE_ENV || 'development'}`],
     }),
-    
+
     // Core modules
     WhatsappModule,
     RedisModule,

@@ -80,10 +80,10 @@ describe('GeminiAiService', () => {
       const context = { user: 'test-user' };
 
       const result = await service.processQuery(query, context);
-      
+
       // Verify result
       expect(result).toBe('This is the AI response');
-      
+
       // Since we're using Gemini AI, we don't need to verify fetch calls
     });
 
@@ -112,7 +112,7 @@ describe('GeminiAiService', () => {
     it('should return fallback response when API call fails', async () => {
       // Mock RedisService.get to return null (no cached response)
       jest.spyOn(service['redisService'], 'get').mockResolvedValue(null);
-      
+
       // Create a new service instance with a failing model
       const failingModule: TestingModule = await Test.createTestingModule({
         providers: [
@@ -137,9 +137,9 @@ describe('GeminiAiService', () => {
           },
         ],
       }).compile();
-      
+
       const failingService = failingModule.get<GeminiAiService>(GeminiAiService);
-      
+
       // Mock the model property to simulate an error
       (failingService as any).model = {
         generateContent: jest.fn().mockRejectedValue(new Error('API Error')),
@@ -147,9 +147,9 @@ describe('GeminiAiService', () => {
 
       // Process a test query
       const query = 'How do I check my balance?';
-      
+
       const result = await failingService.processQuery(query);
-      
+
       // Verify it returns fallback response
       expect(result).toContain('balance');
     });

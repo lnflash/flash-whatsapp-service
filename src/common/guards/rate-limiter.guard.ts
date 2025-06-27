@@ -20,16 +20,16 @@ export class RateLimiterGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
-    
+
     // Get client identifier (IP address, WhatsApp ID, etc.)
     const clientId = this.getClientIdentifier(request);
-    
+
     // Create Redis rate limit key
     const key = `rate-limit:${clientId}`;
-    
+
     // Check current count
     const currentCount = await this.getCurrentCount(key);
-    
+
     if (currentCount >= this.maxRequests) {
       this.logger.warn(`Rate limit exceeded for client ${clientId}`);
       // Return 429 Too Many Requests
@@ -40,10 +40,10 @@ export class RateLimiterGuard implements CanActivate {
       });
       return false;
     }
-    
+
     // Increment count
     await this.incrementCount(key);
-    
+
     return true;
   }
 
@@ -55,7 +55,7 @@ export class RateLimiterGuard implements CanActivate {
     if (request.body?.From) {
       return request.body.From.replace('whatsapp:', '');
     }
-    
+
     // Fallback to IP address
     return request.ip || 'unknown';
   }
@@ -73,7 +73,7 @@ export class RateLimiterGuard implements CanActivate {
    */
   private async incrementCount(key: string): Promise<void> {
     const exists = await this.redisService.exists(key);
-    
+
     if (exists) {
       await this.redisService.incr(key);
     } else {

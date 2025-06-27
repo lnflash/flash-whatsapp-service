@@ -65,3 +65,6 @@ secrets/
 Thumbs.db
 *.swp
 *.swo
+
+yarn.lock
+package-lock.json

@@ -90,9 +90,11 @@ describe('FlashApiService', () => {
 
       // Execute a test query
       const query = 'query TestQuery { testQuery { result } }';
-      
+
       // Verify it throws an error
-      await expect(service.executeQuery(query)).rejects.toThrow('Flash API error (400): Bad Request');
+      await expect(service.executeQuery(query)).rejects.toThrow(
+        'Flash API error (400): Bad Request',
+      );
     });
 
     it('should throw an error if GraphQL returns errors', async () => {
@@ -107,7 +109,7 @@ describe('FlashApiService', () => {
 
       // Execute a test query
       const query = 'query TestQuery { testQuery { result } }';
-      
+
       // Verify it throws an error
       await expect(service.executeQuery(query)).rejects.toThrow('GraphQL error:');
     });
@@ -119,10 +121,10 @@ describe('FlashApiService', () => {
       const mockResponse = {
         ok: true,
         json: jest.fn().mockResolvedValue({
-          data: { 
-            userPhoneRegistrationInitiate: { 
-              success: true 
-            } 
+          data: {
+            userPhoneRegistrationInitiate: {
+              success: true,
+            },
           },
         }),
       };
@@ -130,9 +132,9 @@ describe('FlashApiService', () => {
 
       const phoneNumber = '+18765551234';
       const result = await service.initiatePhoneVerification(phoneNumber);
-      
+
       expect(result).toEqual({ success: true });
-      
+
       // Verify the mutation was called with correct parameters
       expect(global.fetch).toHaveBeenCalledWith(
         'https://api.flashapp.me/graphql',
@@ -142,7 +144,7 @@ describe('FlashApiService', () => {
         }),
       );
     });
-    
+
     it('should return mock success when API is not configured', async () => {
       // Mock config to return no API URL
       jest.spyOn(configService, 'get').mockImplementation((key: string) => {
@@ -150,28 +152,28 @@ describe('FlashApiService', () => {
         if (key === 'flashApi.apiKey') return '';
         return undefined;
       });
-      
+
       // Create a new instance to pick up the mocked config
       const serviceWithoutConfig = new FlashApiService(configService);
-      
+
       const phoneNumber = '+18765551234';
       const result = await serviceWithoutConfig.initiatePhoneVerification(phoneNumber);
-      
+
       expect(result).toEqual({ success: true });
       expect(global.fetch).not.toHaveBeenCalled();
     });
   });
-  
+
   describe('validatePhoneVerification', () => {
     it('should validate phone verification code and return auth token', async () => {
       // Mock fetch response for login
       const mockResponse = {
         ok: true,
         json: jest.fn().mockResolvedValue({
-          data: { 
-            userLogin: { 
-              authToken: 'test_auth_token' 
-            } 
+          data: {
+            userLogin: {
+              authToken: 'test_auth_token',
+            },
           },
         }),
       };
@@ -180,30 +182,30 @@ describe('FlashApiService', () => {
       const phoneNumber = '+18765551234';
       const code = '123456';
       const result = await service.validatePhoneVerification(phoneNumber, code);
-      
+
       expect(result).toEqual({ authToken: 'test_auth_token' });
     });
-    
+
     it('should fall back to registration if login fails', async () => {
       // Mock fetch to fail on login, succeed on registration
       (global.fetch as jest.Mock)
         .mockResolvedValueOnce({
           ok: true,
           json: jest.fn().mockResolvedValue({
-            data: { 
-              userLogin: { 
-                errors: [{ message: 'User not found' }] 
-              } 
+            data: {
+              userLogin: {
+                errors: [{ message: 'User not found' }],
+              },
             },
           }),
         })
         .mockResolvedValueOnce({
           ok: true,
           json: jest.fn().mockResolvedValue({
-            data: { 
-              userPhoneRegistrationValidate: { 
-                authToken: 'new_user_token' 
-              } 
+            data: {
+              userPhoneRegistrationValidate: {
+                authToken: 'new_user_token',
+              },
             },
           }),
         });
@@ -211,11 +213,11 @@ describe('FlashApiService', () => {
       const phoneNumber = '+18765551234';
       const code = '123456';
       const result = await service.validatePhoneVerification(phoneNumber, code);
-      
+
       expect(result).toEqual({ authToken: 'new_user_token' });
       expect(global.fetch).toHaveBeenCalledTimes(2);
     });
-    
+
     it('should return mock token when API is not configured', async () => {
       // Mock config to return no API URL
       jest.spyOn(configService, 'get').mockImplementation((key: string) => {
@@ -223,31 +225,31 @@ describe('FlashApiService', () => {
         if (key === 'flashApi.apiKey') return '';
         return undefined;
       });
-      
+
       // Create a new instance to pick up the mocked config
       const serviceWithoutConfig = new FlashApiService(configService);
-      
+
       const phoneNumber = '+18765551234';
       const code = '123456';
       const result = await serviceWithoutConfig.validatePhoneVerification(phoneNumber, code);
-      
+
       expect(result.authToken).toMatch(/^mock_token_\d+$/);
       expect(global.fetch).not.toHaveBeenCalled();
     });
   });
-  
+
   describe('getUserDetails', () => {
     it('should get user details using auth token', async () => {
       // Mock fetch response
       const mockResponse = {
         ok: true,
         json: jest.fn().mockResolvedValue({
-          data: { 
-            me: { 
+          data: {
+            me: {
               id: 'user_123',
               phone: '+18765551234',
-              username: 'testuser'
-            } 
+              username: 'testuser',
+            },
           },
         }),
       };
@@ -255,37 +257,37 @@ describe('FlashApiService', () => {
 
       const authToken = 'test_auth_token';
       const result = await service.getUserDetails(authToken);
-      
+
       expect(result).toEqual({
         id: 'user_123',
         phone: '+18765551234',
-        username: 'testuser'
+        username: 'testuser',
       });
-      
+
       // Verify auth token was passed in headers
       expect(global.fetch).toHaveBeenCalledWith(
         'https://api.flashapp.me/graphql',
         expect.objectContaining({
           headers: expect.objectContaining({
-            'Authorization': 'Bearer test_auth_token',
+            Authorization: 'Bearer test_auth_token',
           }),
         }),
       );
     });
-    
+
     it('should return mock user when API is not configured', async () => {
       // Mock config to return no API URL
       jest.spyOn(configService, 'get').mockImplementation((key: string) => {
         if (key === 'flashApi.url') return '';
         return undefined;
       });
-      
+
       // Create a new instance to pick up the mocked config
       const serviceWithoutConfig = new FlashApiService(configService);
-      
+
       const authToken = 'test_auth_token';
       const result = await serviceWithoutConfig.getUserDetails(authToken);
-      
+
       expect(result.id).toMatch(/^user_\d+$/);
       expect(result.phone).toBe('+1234567890');
       expect(result.username).toBe('mock_user');

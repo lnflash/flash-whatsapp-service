@@ -29,17 +29,17 @@ export class PriceService {
       // Try to get from cache first
       const cacheKey = `price:btc:${currency}`;
       const cachedPrice = await this.getCachedPrice(cacheKey);
-      
+
       if (cachedPrice) {
         return cachedPrice;
       }
-      
+
       // Not in cache, fetch from API
       const price = await this.fetchPriceFromApi(currency, authToken);
-      
+
       // Store in cache
       await this.cachePrice(cacheKey, price);
-      
+
       return price;
     } catch (error) {
       this.logger.error(`Error getting Bitcoin price: ${error.message}`, error.stack);
@@ -53,11 +53,11 @@ export class PriceService {
   private async getCachedPrice(cacheKey: string): Promise<PriceInfo | null> {
     try {
       const cachedData = await this.redisService.get(cacheKey);
-      
+
       if (!cachedData) {
         return null;
       }
-      
+
       return JSON.parse(cachedData) as PriceInfo;
     } catch (error) {
       this.logger.warn(`Error getting cached price: ${error.message}`);
@@ -83,7 +83,7 @@ export class PriceService {
     try {
       let query: string;
       let variables: any;
-      
+
       if (authToken) {
         // Use authenticated query
         query = `
@@ -127,37 +127,40 @@ export class PriceService {
         `;
         variables = { currency };
       }
-      
+
       const result = await this.flashApiService.executeQuery<any>(query, variables, authToken);
-      
+
       // Extract realtime price based on query type
-      const realtimePrice = authToken 
-        ? result.me?.defaultAccount?.realtimePrice 
+      const realtimePrice = authToken
+        ? result.me?.defaultAccount?.realtimePrice
         : result.realtimePrice;
-      
+
       if (!realtimePrice) {
         throw new Error('No price data available');
       }
-      
+
       // Calculate BTC price from satoshi price
       // btcSatPrice gives us the price of 1 satoshi in the MINOR unit of the currency (e.g., cents for USD)
       // We need to:
       // 1. Get the price of 1 sat in minor units
       // 2. Multiply by sats per BTC to get BTC price in minor units
       // 3. Convert to major units (e.g., dollars from cents)
-      
+
       const satsPerBtc = 100000000;
-      const satPriceInMinorUnits = realtimePrice.btcSatPrice.base / Math.pow(10, realtimePrice.btcSatPrice.offset);
+      const satPriceInMinorUnits =
+        realtimePrice.btcSatPrice.base / Math.pow(10, realtimePrice.btcSatPrice.offset);
       const btcPriceInMinorUnits = satPriceInMinorUnits * satsPerBtc;
-      
+
       // Convert from minor units to major units
       // For USD: divide by 100 (cents to dollars)
       // For other currencies, we'd need their fraction digits
       const minorUnitsPerMajorUnit = currency === 'USD' ? 100 : 100; // Default to 100 for now
       const btcPrice = btcPriceInMinorUnits / minorUnitsPerMajorUnit;
-      
-      this.logger.debug(`BTC price calculation: ${satPriceInMinorUnits} ${currency} minor units/sat * ${satsPerBtc} sats/BTC = ${btcPriceInMinorUnits} minor units, / ${minorUnitsPerMajorUnit} = ${btcPrice} ${currency}/BTC`);
-      
+
+      this.logger.debug(
+        `BTC price calculation: ${satPriceInMinorUnits} ${currency} minor units/sat * ${satsPerBtc} sats/BTC = ${btcPriceInMinorUnits} minor units, / ${minorUnitsPerMajorUnit} = ${btcPrice} ${currency}/BTC`,
+      );
+
       return {
         btcPrice,
         currency: realtimePrice.denominatorCurrency || currency,
@@ -175,10 +178,8 @@ export class PriceService {
   formatPriceMessage(priceInfo: PriceInfo): string {
     const formattedPrice = this.formatCurrencyAmount(priceInfo.btcPrice, priceInfo.currency);
     const timeAgo = this.getTimeAgo(priceInfo.timestamp);
-    
-    return `*Bitcoin Price*\n\n` +
-           `1 BTC = ${formattedPrice}\n\n` +
-           `Last updated: ${timeAgo}`;
+
+    return `*Bitcoin Price*\n\n` + `1 BTC = ${formattedPrice}\n\n` + `Last updated: ${timeAgo}`;
   }
 
   /**
@@ -186,13 +187,19 @@ export class PriceService {
    */
   private formatCurrencyAmount(amount: number, currency: string): string {
     const currencyFormatters: Record<string, (n: number) => string> = {
-      'USD': (n) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      'EUR': (n) => `€${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      'JMD': (n) => `J$${n.toLocaleString('en-JM', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      USD: (n) =>
+        `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      EUR: (n) =>
+        `€${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      JMD: (n) =>
+        `J$${n.toLocaleString('en-JM', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       // Add more currencies as needed
     };
-    
-    const formatter = currencyFormatters[currency] || ((n) => `${currency} ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+
+    const formatter =
+      currencyFormatters[currency] ||
+      ((n) =>
+        `${currency} ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
     return formatter(amount);
   }
 
@@ -203,7 +210,7 @@ export class PriceService {
     const now = new Date();
     const diffMs = now.getTime() - timestamp.getTime();
     const diffSecs = Math.floor(diffMs / 1000);
-    
+
     if (diffSecs < 60) {
       return 'just now';
     } else if (diffSecs < 3600) {

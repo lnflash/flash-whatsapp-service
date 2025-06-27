@@ -10,6 +10,7 @@ export enum CommandType {
   REFRESH = 'refresh',
   USERNAME = 'username',
   PRICE = 'price',
+  RECEIVE = 'receive',
   UNKNOWN = 'unknown',
 }
 
@@ -22,7 +23,7 @@ export interface ParsedCommand {
 @Injectable()
 export class CommandParserService {
   private readonly logger = new Logger(CommandParserService.name);
-  
+
   private readonly commandPatterns = [
     { type: CommandType.HELP, pattern: /^help|^h$|^\?$/i },
     { type: CommandType.BALANCE, pattern: /^balance|^bal$/i },
@@ -33,6 +34,7 @@ export class CommandParserService {
     { type: CommandType.REFRESH, pattern: /^refresh$/i },
     { type: CommandType.USERNAME, pattern: /^username(?:\s+(.+))?$/i },
     { type: CommandType.PRICE, pattern: /^price|^rate|^btc$/i },
+    { type: CommandType.RECEIVE, pattern: /^receive(?:\s+(\d+(?:\.\d+)?))?\s*(.*)$/i },
   ];
 
   /**
@@ -41,15 +43,15 @@ export class CommandParserService {
   parseCommand(text: string): ParsedCommand {
     try {
       const trimmedText = text.trim();
-      
+
       for (const { type, pattern } of this.commandPatterns) {
         const match = trimmedText.match(pattern);
-        
+
         if (match) {
           return this.extractCommand(type, match, trimmedText);
         }
       }
-      
+
       // If no pattern matched, return as unknown command
       return {
         type: CommandType.UNKNOWN,
@@ -58,7 +60,7 @@ export class CommandParserService {
       };
     } catch (error) {
       this.logger.error(`Error parsing command: ${error.message}`, error.stack);
-      
+
       // Return as unknown command on error
       return {
         type: CommandType.UNKNOWN,
@@ -71,9 +73,13 @@ export class CommandParserService {
   /**
    * Extract command details based on the match
    */
-  private extractCommand(type: CommandType, match: RegExpMatchArray, rawText: string): ParsedCommand {
+  private extractCommand(
+    type: CommandType,
+    match: RegExpMatchArray,
+    rawText: string,
+  ): ParsedCommand {
     const args: Record<string, string> = {};
-    
+
     switch (type) {
       case CommandType.VERIFY:
         // Extract OTP code
@@ -81,29 +87,39 @@ export class CommandParserService {
           args.otp = match[1];
         }
         break;
-        
+
       case CommandType.CONSENT:
         // Extract consent choice
         if (match[1]) {
           args.choice = match[1].toLowerCase();
         }
         break;
-        
+
       case CommandType.UNLINK:
         // Extract confirmation if provided
         if (match[1]) {
           args.confirm = match[1].toLowerCase();
         }
         break;
-        
+
       case CommandType.USERNAME:
         // Extract username if provided
         if (match[1]) {
           args.username = match[1].trim();
         }
         break;
+
+      case CommandType.RECEIVE:
+        // Extract amount and memo if provided
+        if (match[1]) {
+          args.amount = match[1];
+        }
+        if (match[2]) {
+          args.memo = match[2].trim();
+        }
+        break;
     }
-    
+
     return { type, args, rawText };
   }
 }

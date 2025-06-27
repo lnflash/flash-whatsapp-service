@@ -3,13 +3,13 @@ import { EventsService } from '../../events/events.service';
 import { NotificationService } from '../services/notification.service';
 import { BalanceService } from '../../flash-api/services/balance.service';
 import { SessionService } from '../../auth/services/session.service';
-import { 
-  NotificationDto, 
-  NotificationType, 
-  NotificationPriority, 
-  NotificationChannel, 
-  PaymentData, 
-  SendNotificationDto 
+import {
+  NotificationDto,
+  NotificationType,
+  NotificationPriority,
+  NotificationChannel,
+  PaymentData,
+  SendNotificationDto,
 } from '../dto/notification.dto';
 
 @Injectable()
@@ -39,20 +39,23 @@ export class PaymentEventListener implements OnModuleInit {
           case 'payment_received':
             await this.handlePaymentReceived(data);
             break;
-          
+
           case 'payment_sent':
             await this.handlePaymentSent(data);
             break;
-            
+
           case 'balance_updated':
             await this.handleBalanceUpdated(data);
             break;
         }
       });
-      
+
       this.logger.log('Subscribed to payment events');
     } catch (error) {
-      this.logger.error(`Error setting up payment event subscriptions: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error setting up payment event subscriptions: ${error.message}`,
+        error.stack,
+      );
     }
   }
 
@@ -62,19 +65,21 @@ export class PaymentEventListener implements OnModuleInit {
   private async handlePaymentReceived(data: any): Promise<void> {
     try {
       const { userId, transactionId, amount, senderName, memo, timestamp, whatsappId } = data;
-      
+
       // Get auth token from session
       let authToken: string | null = null;
       if (whatsappId) {
         const session = await this.sessionService.getSessionByWhatsappId(whatsappId);
         authToken = session?.flashAuthToken || null;
       }
-      
+
       if (!authToken) {
-        this.logger.warn(`No auth token found for user ${userId}, skipping balance update notification`);
+        this.logger.warn(
+          `No auth token found for user ${userId}, skipping balance update notification`,
+        );
         return;
       }
-      
+
       // Construct payment data
       const paymentData: PaymentData = {
         transactionId,
@@ -84,10 +89,10 @@ export class PaymentEventListener implements OnModuleInit {
         timestamp: timestamp || new Date().toISOString(),
         currency: 'BTC',
       };
-      
+
       // Get updated balance
       const balanceInfo = await this.balanceService.getUserBalance(userId, authToken);
-      
+
       // Create notification
       const notification: NotificationDto = {
         type: NotificationType.PAYMENT_RECEIVED,
@@ -99,10 +104,10 @@ export class PaymentEventListener implements OnModuleInit {
         requiresAction: false,
         paymentData,
       };
-      
+
       // Send notification
       await this.notificationService.sendNotification({ notification });
-      
+
       this.logger.log(`Payment received notification sent to user ${userId}`);
     } catch (error) {
       this.logger.error(`Error handling payment received event: ${error.message}`, error.stack);
@@ -115,19 +120,21 @@ export class PaymentEventListener implements OnModuleInit {
   private async handlePaymentSent(data: any): Promise<void> {
     try {
       const { userId, transactionId, amount, receiverName, memo, timestamp, whatsappId } = data;
-      
+
       // Get auth token from session
       let authToken: string | null = null;
       if (whatsappId) {
         const session = await this.sessionService.getSessionByWhatsappId(whatsappId);
         authToken = session?.flashAuthToken || null;
       }
-      
+
       if (!authToken) {
-        this.logger.warn(`No auth token found for user ${userId}, skipping balance update notification`);
+        this.logger.warn(
+          `No auth token found for user ${userId}, skipping balance update notification`,
+        );
         return;
       }
-      
+
       // Construct payment data
       const paymentData: PaymentData = {
         transactionId,
@@ -137,10 +144,10 @@ export class PaymentEventListener implements OnModuleInit {
         timestamp: timestamp || new Date().toISOString(),
         currency: 'BTC',
       };
-      
+
       // Get updated balance
       const balanceInfo = await this.balanceService.getUserBalance(userId, authToken);
-      
+
       // Create notification
       const notification: NotificationDto = {
         type: NotificationType.PAYMENT_SENT,
@@ -152,10 +159,10 @@ export class PaymentEventListener implements OnModuleInit {
         requiresAction: false,
         paymentData,
       };
-      
+
       // Send notification
       await this.notificationService.sendNotification({ notification });
-      
+
       this.logger.log(`Payment sent notification sent to user ${userId}`);
     } catch (error) {
       this.logger.error(`Error handling payment sent event: ${error.message}`, error.stack);
@@ -168,12 +175,12 @@ export class PaymentEventListener implements OnModuleInit {
   private async handleBalanceUpdated(data: any): Promise<void> {
     try {
       const { userId, oldBalance, newBalance, reason, whatsappId } = data;
-      
+
       // Skip if no significant change
       if (Math.abs(newBalance - oldBalance) < 0.00000001) {
         return;
       }
-      
+
       // Create notification
       const notification: NotificationDto = {
         type: NotificationType.ACCOUNT_ACTIVITY,
@@ -184,15 +191,15 @@ export class PaymentEventListener implements OnModuleInit {
         channels: [NotificationChannel.WHATSAPP],
         requiresAction: false,
       };
-      
+
       // Add reason if provided
       if (reason) {
         notification.message += ` Reason: ${reason}`;
       }
-      
+
       // Send notification
       await this.notificationService.sendNotification({ notification });
-      
+
       this.logger.log(`Balance updated notification sent to user ${userId}`);
     } catch (error) {
       this.logger.error(`Error handling balance updated event: ${error.message}`, error.stack);

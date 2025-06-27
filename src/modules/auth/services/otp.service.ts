@@ -22,15 +22,15 @@ export class OtpService {
     try {
       // Generate a 6-digit numeric OTP
       const otp = this.generateNumericOtp(6);
-      
+
       // Store the OTP in Redis with expiry
       const otpKey = `otp:${sessionId}`;
       const otpHash = this.hashOtp(otp);
-      
+
       await this.redisService.set(otpKey, otpHash, this.otpExpiry);
-      
+
       this.logger.log(`Generated OTP for session ${sessionId}`);
-      
+
       return otp;
     } catch (error) {
       this.logger.error(`Error generating OTP: ${error.message}`, error.stack);
@@ -45,16 +45,16 @@ export class OtpService {
     try {
       const otpKey = `otp:${sessionId}`;
       const storedOtpHash = await this.redisService.get(otpKey);
-      
+
       if (!storedOtpHash) {
         this.logger.warn(`No OTP found for session ${sessionId}`);
         return false;
       }
-      
+
       // Hash the provided OTP and compare with stored hash
       const providedOtpHash = this.hashOtp(otpCode);
       const isValid = storedOtpHash === providedOtpHash;
-      
+
       if (isValid) {
         // Delete the OTP to prevent reuse
         await this.redisService.del(otpKey);
@@ -62,7 +62,7 @@ export class OtpService {
       } else {
         this.logger.warn(`Invalid OTP provided for session ${sessionId}`);
       }
-      
+
       return isValid;
     } catch (error) {
       this.logger.error(`Error verifying OTP: ${error.message}`, error.stack);
@@ -77,10 +77,10 @@ export class OtpService {
     // Generate a secure random set of digits
     const min = Math.pow(10, length - 1);
     const max = Math.pow(10, length) - 1;
-    
+
     const randomBytes = crypto.randomBytes(4);
     const randomNumber = min + (randomBytes.readUInt32BE(0) % (max - min + 1));
-    
+
     // Ensure exact length by padding with leading zeros if necessary
     return randomNumber.toString().padStart(length, '0');
   }

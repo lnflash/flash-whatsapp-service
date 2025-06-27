@@ -27,7 +27,18 @@ export interface CloudWebhookMessage {
           text?: {
             body: string;
           };
-          type: 'text' | 'image' | 'document' | 'audio' | 'video' | 'sticker' | 'location' | 'contacts' | 'interactive' | 'button' | 'order';
+          type:
+            | 'text'
+            | 'image'
+            | 'document'
+            | 'audio'
+            | 'video'
+            | 'sticker'
+            | 'location'
+            | 'contacts'
+            | 'interactive'
+            | 'button'
+            | 'order';
           image?: {
             caption?: string;
             id: string;
@@ -67,7 +78,7 @@ export class WhatsAppCloudService {
   private readonly apiVersion = 'v18.0';
   private readonly baseUrl = 'https://graph.facebook.com';
   private axiosInstance: AxiosInstance;
-  
+
   private readonly phoneNumberId: string;
   private readonly accessToken: string;
   private readonly verifyToken: string;
@@ -86,18 +97,18 @@ export class WhatsAppCloudService {
     this.axiosInstance = axios.create({
       baseURL: `${this.baseUrl}/${this.apiVersion}`,
       headers: {
-        'Authorization': `Bearer ${this.accessToken}`,
+        Authorization: `Bearer ${this.accessToken}`,
         'Content-Type': 'application/json',
       },
     });
 
     // Add response interceptor for error handling
     this.axiosInstance.interceptors.response.use(
-      response => response,
-      error => {
+      (response) => response,
+      (error) => {
         this.logger.error('WhatsApp Cloud API error:', error.response?.data || error.message);
         throw error;
-      }
+      },
     );
   }
 
@@ -117,7 +128,7 @@ export class WhatsAppCloudService {
 
     return crypto.timingSafeEqual(
       Buffer.from(signature),
-      Buffer.from(`sha256=${expectedSignature}`)
+      Buffer.from(`sha256=${expectedSignature}`),
     );
   }
 
@@ -129,7 +140,7 @@ export class WhatsAppCloudService {
       this.logger.log('Webhook verified successfully');
       return challenge;
     }
-    
+
     throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
   }
 
@@ -138,19 +149,16 @@ export class WhatsAppCloudService {
    */
   async sendTextMessage(to: string, message: string): Promise<any> {
     try {
-      const response = await this.axiosInstance.post(
-        `/${this.phoneNumberId}/messages`,
-        {
-          messaging_product: 'whatsapp',
-          recipient_type: 'individual',
-          to: to,
-          type: 'text',
-          text: {
-            preview_url: false,
-            body: message,
-          },
-        }
-      );
+      const response = await this.axiosInstance.post(`/${this.phoneNumberId}/messages`, {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: to,
+        type: 'text',
+        text: {
+          preview_url: false,
+          body: message,
+        },
+      });
 
       this.logger.log(`Message sent successfully to ${to}`);
       return response.data;
@@ -158,7 +166,7 @@ export class WhatsAppCloudService {
       this.logger.error(`Failed to send message to ${to}:`, error.response?.data || error.message);
       throw new HttpException(
         error.response?.data?.error?.message || 'Failed to send message',
-        HttpStatus.BAD_REQUEST
+        HttpStatus.BAD_REQUEST,
       );
     }
   }
@@ -169,41 +177,41 @@ export class WhatsAppCloudService {
   async sendInteractiveMessage(
     to: string,
     body: string,
-    buttons: Array<{ id: string; title: string }>
+    buttons: Array<{ id: string; title: string }>,
   ): Promise<any> {
     try {
-      const response = await this.axiosInstance.post(
-        `/${this.phoneNumberId}/messages`,
-        {
-          messaging_product: 'whatsapp',
-          recipient_type: 'individual',
-          to: to,
-          type: 'interactive',
-          interactive: {
-            type: 'button',
-            body: {
-              text: body,
-            },
-            action: {
-              buttons: buttons.map(button => ({
-                type: 'reply',
-                reply: {
-                  id: button.id,
-                  title: button.title,
-                },
-              })),
-            },
+      const response = await this.axiosInstance.post(`/${this.phoneNumberId}/messages`, {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: to,
+        type: 'interactive',
+        interactive: {
+          type: 'button',
+          body: {
+            text: body,
           },
-        }
-      );
+          action: {
+            buttons: buttons.map((button) => ({
+              type: 'reply',
+              reply: {
+                id: button.id,
+                title: button.title,
+              },
+            })),
+          },
+        },
+      });
 
       this.logger.log(`Interactive message sent successfully to ${to}`);
       return response.data;
     } catch (error) {
-      this.logger.error(`Failed to send interactive message to ${to}:`, error.response?.data || error.message);
+      this.logger.error(
+        `Failed to send interactive message to ${to}:`,
+        error.response?.data || error.message,
+      );
       throw new HttpException(
         error.response?.data?.error?.message || 'Failed to send interactive message',
-        HttpStatus.BAD_REQUEST
+        HttpStatus.BAD_REQUEST,
       );
     }
   }
@@ -215,33 +223,33 @@ export class WhatsAppCloudService {
     to: string,
     templateName: string,
     languageCode: string = 'en',
-    components?: any[]
+    components?: any[],
   ): Promise<any> {
     try {
-      const response = await this.axiosInstance.post(
-        `/${this.phoneNumberId}/messages`,
-        {
-          messaging_product: 'whatsapp',
-          recipient_type: 'individual',
-          to: to,
-          type: 'template',
-          template: {
-            name: templateName,
-            language: {
-              code: languageCode,
-            },
-            components: components,
+      const response = await this.axiosInstance.post(`/${this.phoneNumberId}/messages`, {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: to,
+        type: 'template',
+        template: {
+          name: templateName,
+          language: {
+            code: languageCode,
           },
-        }
-      );
+          components: components,
+        },
+      });
 
       this.logger.log(`Template message sent successfully to ${to}`);
       return response.data;
     } catch (error) {
-      this.logger.error(`Failed to send template message to ${to}:`, error.response?.data || error.message);
+      this.logger.error(
+        `Failed to send template message to ${to}:`,
+        error.response?.data || error.message,
+      );
       throw new HttpException(
         error.response?.data?.error?.message || 'Failed to send template message',
-        HttpStatus.BAD_REQUEST
+        HttpStatus.BAD_REQUEST,
       );
     }
   }
@@ -251,14 +259,11 @@ export class WhatsAppCloudService {
    */
   async markMessageAsRead(messageId: string): Promise<void> {
     try {
-      await this.axiosInstance.post(
-        `/${this.phoneNumberId}/messages`,
-        {
-          messaging_product: 'whatsapp',
-          status: 'read',
-          message_id: messageId,
-        }
-      );
+      await this.axiosInstance.post(`/${this.phoneNumberId}/messages`, {
+        messaging_product: 'whatsapp',
+        status: 'read',
+        message_id: messageId,
+      });
 
       this.logger.debug(`Message ${messageId} marked as read`);
     } catch (error) {
@@ -278,7 +283,7 @@ export class WhatsAppCloudService {
       this.logger.error(`Failed to get media URL:`, error.response?.data || error.message);
       throw new HttpException(
         error.response?.data?.error?.message || 'Failed to get media',
-        HttpStatus.BAD_REQUEST
+        HttpStatus.BAD_REQUEST,
       );
     }
   }
@@ -290,11 +295,11 @@ export class WhatsAppCloudService {
     try {
       const response = await axios.get(mediaUrl, {
         headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
+          Authorization: `Bearer ${this.accessToken}`,
         },
         responseType: 'arraybuffer',
       });
-      
+
       return Buffer.from(response.data);
     } catch (error) {
       this.logger.error(`Failed to download media:`, error.message);
@@ -312,22 +317,18 @@ export class WhatsAppCloudService {
       formData.append('file', blob);
       formData.append('messaging_product', 'whatsapp');
 
-      const response = await this.axiosInstance.post(
-        `/${this.phoneNumberId}/media`,
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        }
-      );
+      const response = await this.axiosInstance.post(`/${this.phoneNumberId}/media`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
 
       return response.data.id;
     } catch (error) {
       this.logger.error(`Failed to upload media:`, error.response?.data || error.message);
       throw new HttpException(
         error.response?.data?.error?.message || 'Failed to upload media',
-        HttpStatus.BAD_REQUEST
+        HttpStatus.BAD_REQUEST,
       );
     }
   }
@@ -349,7 +350,7 @@ export class WhatsAppCloudService {
 
     const entry = body.entry?.[0];
     const change = entry?.changes?.[0];
-    
+
     if (change?.field !== 'messages') {
       return null;
     }

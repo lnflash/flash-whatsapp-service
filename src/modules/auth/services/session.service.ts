@@ -21,12 +21,16 @@ export class SessionService {
   /**
    * Create a new user session
    */
-  async createSession(whatsappId: string, phoneNumber: string, flashUserId?: string): Promise<UserSession> {
+  async createSession(
+    whatsappId: string,
+    phoneNumber: string,
+    flashUserId?: string,
+  ): Promise<UserSession> {
     try {
       const sessionId = this.generateSessionId();
       const now = new Date();
       const expiresAt = new Date(now.getTime() + this.sessionExpiry * 1000);
-      
+
       const session: UserSession = {
         sessionId,
         whatsappId,
@@ -39,17 +43,17 @@ export class SessionService {
         mfaVerified: false,
         consentGiven: false,
       };
-      
+
       // Store in Redis
       const sessionKey = `session:${sessionId}`;
       await this.redisService.set(sessionKey, JSON.stringify(session), this.sessionExpiry);
-      
+
       // Create secondary index for whatsappId to sessionId mapping
       const whatsappKey = `whatsapp:${whatsappId}`;
       await this.redisService.set(whatsappKey, sessionId, this.sessionExpiry);
-      
+
       this.logger.log(`Created new session ${sessionId} for WhatsApp ID ${whatsappId}`);
-      
+
       return session;
     } catch (error) {
       this.logger.error(`Error creating session: ${error.message}`, error.stack);
@@ -64,11 +68,11 @@ export class SessionService {
     try {
       const sessionKey = `session:${sessionId}`;
       const sessionData = await this.redisService.get(sessionKey);
-      
+
       if (!sessionData) {
         return null;
       }
-      
+
       return JSON.parse(sessionData) as UserSession;
     } catch (error) {
       this.logger.error(`Error getting session: ${error.message}`, error.stack);
@@ -83,11 +87,11 @@ export class SessionService {
     try {
       const whatsappKey = `whatsapp:${whatsappId}`;
       const sessionId = await this.redisService.get(whatsappKey);
-      
+
       if (!sessionId) {
         return null;
       }
-      
+
       return this.getSession(sessionId);
     } catch (error) {
       this.logger.error(`Error getting session by WhatsApp ID: ${error.message}`, error.stack);
@@ -98,25 +102,28 @@ export class SessionService {
   /**
    * Update session data
    */
-  async updateSession(sessionId: string, updates: Partial<UserSession>): Promise<UserSession | null> {
+  async updateSession(
+    sessionId: string,
+    updates: Partial<UserSession>,
+  ): Promise<UserSession | null> {
     try {
       const session = await this.getSession(sessionId);
-      
+
       if (!session) {
         return null;
       }
-      
+
       const updatedSession = {
         ...session,
         ...updates,
         lastActivity: new Date(),
       };
-      
+
       const sessionKey = `session:${sessionId}`;
       await this.redisService.set(sessionKey, JSON.stringify(updatedSession), this.sessionExpiry);
-      
+
       this.logger.log(`Updated session ${sessionId}`);
-      
+
       return updatedSession;
     } catch (error) {
       this.logger.error(`Error updating session: ${error.message}`, error.stack);
@@ -130,14 +137,14 @@ export class SessionService {
   async setMfaVerified(sessionId: string, isVerified: boolean): Promise<UserSession | null> {
     try {
       const session = await this.getSession(sessionId);
-      
+
       if (!session) {
         return null;
       }
-      
+
       const now = new Date();
       const mfaExpiresAt = isVerified ? new Date(now.getTime() + this.mfaExpiry * 1000) : undefined;
-      
+
       return this.updateSession(sessionId, {
         mfaVerified: isVerified,
         mfaExpiresAt,
@@ -154,13 +161,13 @@ export class SessionService {
   async setConsent(sessionId: string, consentGiven: boolean): Promise<UserSession | null> {
     try {
       const session = await this.getSession(sessionId);
-      
+
       if (!session) {
         return null;
       }
-      
+
       const consentTimestamp = consentGiven ? new Date() : undefined;
-      
+
       return this.updateSession(sessionId, {
         consentGiven,
         consentTimestamp,
@@ -177,19 +184,19 @@ export class SessionService {
   async deleteSession(sessionId: string): Promise<boolean> {
     try {
       const session = await this.getSession(sessionId);
-      
+
       if (!session) {
         return false;
       }
-      
+
       const sessionKey = `session:${sessionId}`;
       const whatsappKey = `whatsapp:${session.whatsappId}`;
-      
+
       await this.redisService.del(sessionKey);
       await this.redisService.del(whatsappKey);
-      
+
       this.logger.log(`Deleted session ${sessionId}`);
-      
+
       return true;
     } catch (error) {
       this.logger.error(`Error deleting session: ${error.message}`, error.stack);
@@ -203,18 +210,18 @@ export class SessionService {
   async isMfaValidated(sessionId: string): Promise<boolean> {
     try {
       const session = await this.getSession(sessionId);
-      
+
       if (!session) {
         return false;
       }
-      
+
       if (!session.mfaVerified || !session.mfaExpiresAt) {
         return false;
       }
-      
+
       const now = new Date();
       const expiryDate = new Date(session.mfaExpiresAt);
-      
+
       return now < expiryDate;
     } catch (error) {
       this.logger.error(`Error checking MFA status: ${error.message}`, error.stack);
@@ -228,20 +235,20 @@ export class SessionService {
   async isSessionValid(sessionId: string): Promise<boolean> {
     try {
       const session = await this.getSession(sessionId);
-      
+
       if (!session) {
         return false;
       }
-      
+
       const now = new Date();
       const expiryDate = new Date(session.expiresAt);
-      
+
       if (now > expiryDate) {
         // Clean up expired session
         await this.deleteSession(sessionId);
         return false;
       }
-      
+
       return true;
     } catch (error) {
       this.logger.error(`Error validating session: ${error.message}`, error.stack);

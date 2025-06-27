@@ -10,7 +10,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     const redisConfig = this.configService.get('redis');
-    
+
     this.redisClient = new Redis({
       host: redisConfig.host,
       port: redisConfig.port,
@@ -110,9 +110,9 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    */
   async subscribe(channel: string, callback: (message: string) => void): Promise<void> {
     const subscriber = this.redisClient.duplicate();
-    
+
     await subscriber.subscribe(channel);
-    
+
     subscriber.on('message', (ch, message) => {
       if (ch === channel) {
         callback(message);

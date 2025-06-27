@@ -9,18 +9,8 @@ import { AuthModule } from '../auth/auth.module';
 import { FlashApiModule } from '../flash-api/flash-api.module';
 
 @Module({
-  imports: [
-    ConfigModule,
-    RedisModule,
-    WhatsappModule,
-    EventsModule,
-    AuthModule,
-    FlashApiModule,
-  ],
-  providers: [
-    NotificationService,
-    PaymentEventListener,
-  ],
+  imports: [ConfigModule, RedisModule, WhatsappModule, EventsModule, AuthModule, FlashApiModule],
+  providers: [NotificationService, PaymentEventListener],
   exports: [NotificationService],
 })
 export class NotificationsModule {}

@@ -4,10 +4,7 @@ import { GeminiAiService } from './gemini-ai.service';
 import { RedisModule } from '../redis/redis.module';
 
 @Module({
-  imports: [
-    ConfigModule,
-    RedisModule,
-  ],
+  imports: [ConfigModule, RedisModule],
   providers: [GeminiAiService],
   exports: [GeminiAiService],
 })

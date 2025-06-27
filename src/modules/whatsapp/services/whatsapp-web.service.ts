@@ -30,7 +30,7 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy {
           '--no-first-run',
           '--no-zygote',
           '--single-process',
-          '--disable-gpu'
+          '--disable-gpu',
         ],
       },
       // Increase timeout for slower systems
@@ -65,7 +65,7 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy {
     this.client.on('qr', (qr) => {
       this.logger.log('QR Code received, scan with WhatsApp:');
       qrcode.generate(qr, { small: true });
-      
+
       // Also log the QR string for alternative display methods
       this.logger.log(`QR String: ${qr}`);
     });
@@ -84,7 +84,7 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy {
     this.client.on('ready', () => {
       this.logger.log('WhatsApp Web client is ready!');
       this.isReady = true;
-      
+
       // Log the connected phone number
       const info = this.client.info;
       this.logger.log(`Connected as: ${info.pushname} (${info.wid.user})`);
@@ -94,11 +94,11 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy {
     this.client.on('disconnected', (reason) => {
       this.logger.warn('WhatsApp Web client disconnected:', reason);
       this.isReady = false;
-      
+
       // Attempt to reinitialize after disconnection
       setTimeout(() => {
         this.logger.log('Attempting to reconnect...');
-        this.client.initialize().catch(err => {
+        this.client.initialize().catch((err) => {
           this.logger.error('Reconnection failed:', err);
         });
       }, 5000);
@@ -129,14 +129,17 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy {
           this.logger.debug(`Skipping duplicate message: ${messageKey}`);
           return;
         }
-        
+
         // Mark message as processed
         this.processedMessages.add(messageKey);
-        
+
         // Clean up old message IDs after 5 minutes
-        setTimeout(() => {
-          this.processedMessages.delete(messageKey);
-        }, 5 * 60 * 1000);
+        setTimeout(
+          () => {
+            this.processedMessages.delete(messageKey);
+          },
+          5 * 60 * 1000,
+        );
 
         this.logger.log(`Received message from ${msg.from}: "${msg.body}"`);
 
@@ -151,19 +154,31 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy {
 
         // Send response if we have one
         if (response) {
-          await this.sendMessage(msg.from, response);
-          
+          // Check if response is an object with text and media
+          if (typeof response === 'object' && 'text' in response && 'media' in response) {
+            // Send image with caption
+            if (response.media) {
+              await this.sendImage(msg.from, response.media, response.text);
+            } else {
+              // Just send text if no media
+              await this.sendMessage(msg.from, response.text);
+            }
+          } else if (typeof response === 'string') {
+            // Simple text response
+            await this.sendMessage(msg.from, response);
+          }
+
           // Mark message as read
-          await msg.getChat().then(chat => chat.sendSeen());
+          await msg.getChat().then((chat) => chat.sendSeen());
         }
       } catch (error) {
         this.logger.error('Error processing message:', error);
-        
+
         // Send error message to user
         try {
           await this.sendMessage(
-            msg.from, 
-            "I'm sorry, I encountered an error processing your message. Please try again."
+            msg.from,
+            "I'm sorry, I encountered an error processing your message. Please try again.",
           );
         } catch (sendError) {
           this.logger.error('Failed to send error message:', sendError);
@@ -191,12 +206,12 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy {
     this.client.on('call', async (call) => {
       this.logger.log(`Incoming ${call.isVideo ? 'video' : 'audio'} call from ${call.from}`);
       await call.reject();
-      
+
       // Send a message explaining we don't support calls
       if (call.from) {
         await this.sendMessage(
           call.from,
-          "Sorry, I'm a text-based assistant and cannot handle voice or video calls. Please send me a text message instead!"
+          "Sorry, I'm a text-based assistant and cannot handle voice or video calls. Please send me a text message instead!",
         );
       }
     });
@@ -207,7 +222,7 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy {
     });
 
     // State changes
-    this.client.on('change_state', state => {
+    this.client.on('change_state', (state) => {
       this.logger.log(`State changed to: ${state}`);
     });
   }
@@ -223,7 +238,7 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy {
     try {
       // Ensure the number has @c.us suffix
       const chatId = to.includes('@') ? to : `${to}@c.us`;
-      
+
       await this.client.sendMessage(chatId, message);
       this.logger.log(`Message sent to ${to}`);
     } catch (error) {
@@ -239,16 +254,41 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy {
   async sendInteractiveMessage(
     to: string,
     body: string,
-    buttons: Array<{ id: string; title: string }>
+    buttons: Array<{ id: string; title: string }>,
   ): Promise<void> {
     // whatsapp-web.js doesn't support buttons, so we create a text-based menu
-    const buttonText = buttons
-      .map((btn, index) => `${index + 1}. ${btn.title}`)
-      .join('\n');
-    
+    const buttonText = buttons.map((btn, index) => `${index + 1}. ${btn.title}`).join('\n');
+
     const fullMessage = `${body}\n\nPlease reply with the number of your choice:\n${buttonText}`;
-    
+
     await this.sendMessage(to, fullMessage);
+  }
+
+  /**
+   * Send an image with optional caption
+   */
+  async sendImage(to: string, imageBuffer: Buffer, caption?: string): Promise<void> {
+    if (!this.isReady) {
+      throw new Error('WhatsApp Web client is not ready');
+    }
+
+    try {
+      // Import MessageMedia from whatsapp-web.js
+      const { MessageMedia } = await import('whatsapp-web.js');
+
+      // Ensure the number has @c.us suffix
+      const chatId = to.includes('@') ? to : `${to}@c.us`;
+
+      // Create media from buffer
+      const media = new MessageMedia('image/png', imageBuffer.toString('base64'), 'qrcode.png');
+
+      // Send the image with optional caption
+      await this.client.sendMessage(chatId, media, { caption });
+      this.logger.log(`Image sent to ${to}`);
+    } catch (error) {
+      this.logger.error(`Failed to send image to ${to}:`, error);
+      throw error;
+    }
   }
 
   /**

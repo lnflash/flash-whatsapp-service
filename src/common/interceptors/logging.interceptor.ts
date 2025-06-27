@@ -1,10 +1,4 @@
-import {
-  Injectable,
-  NestInterceptor,
-  ExecutionContext,
-  CallHandler,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, NestInterceptor, ExecutionContext, CallHandler, Logger } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 
@@ -29,10 +23,10 @@ export class LoggingInterceptor implements NestInterceptor {
       tap((data) => {
         const endTime = Date.now();
         const responseTime = endTime - startTime;
-        
+
         // Sanitize response data before logging
         const sanitizedResponse = this.sanitizeResponse(data);
-        
+
         this.logger.log(
           `Response: ${method} ${url} | Status: ${context.switchToHttp().getResponse().statusCode} | Time: ${responseTime}ms | Response: ${JSON.stringify(sanitizedResponse)}`,
         );
@@ -42,60 +36,80 @@ export class LoggingInterceptor implements NestInterceptor {
 
   private sanitizeBody(body: any): any {
     if (!body) return {};
-    
+
     const sensitiveFields = [
-      'password', 'token', 'secret', 'key', 'pin', 'mfa', 'otp',
-      'ssn', 'socialSecurity', 'creditCard', 'cardNumber', 'cvv',
-      'accountNumber', 'balance',
+      'password',
+      'token',
+      'secret',
+      'key',
+      'pin',
+      'mfa',
+      'otp',
+      'ssn',
+      'socialSecurity',
+      'creditCard',
+      'cardNumber',
+      'cvv',
+      'accountNumber',
+      'balance',
     ];
-    
+
     const sanitized = { ...body };
-    
+
     // Remove sensitive fields
     for (const field of sensitiveFields) {
       this.recursivelyRedact(sanitized, field);
     }
-    
+
     return sanitized;
   }
 
   private sanitizeResponse(data: any): any {
     if (!data) return {};
-    
+
     const sensitiveFields = [
-      'password', 'token', 'secret', 'key', 'pin', 'mfa', 'otp',
-      'ssn', 'socialSecurity', 'creditCard', 'cardNumber', 'cvv',
-      'accountNumber', 'balance',
+      'password',
+      'token',
+      'secret',
+      'key',
+      'pin',
+      'mfa',
+      'otp',
+      'ssn',
+      'socialSecurity',
+      'creditCard',
+      'cardNumber',
+      'cvv',
+      'accountNumber',
+      'balance',
     ];
-    
+
     const sanitized = typeof data === 'object' ? { ...data } : data;
-    
+
     if (typeof sanitized === 'object') {
       // Remove sensitive fields
       for (const field of sensitiveFields) {
         this.recursivelyRedact(sanitized, field);
       }
     }
-    
+
     return sanitized;
   }
 
   private recursivelyRedact(obj: any, sensitiveField: string): void {
     if (!obj || typeof obj !== 'object') return;
-    
+
     // Check if it's an array
     if (Array.isArray(obj)) {
       obj.forEach((item) => this.recursivelyRedact(item, sensitiveField));
       return;
     }
-    
+
     // Process object properties
     for (const key of Object.keys(obj)) {
       if (typeof obj[key] === 'object') {
         this.recursivelyRedact(obj[key], sensitiveField);
-      } else if (
-        key.toLowerCase().includes(sensitiveField.toLowerCase())
-      ) {
+      } else if (key.toLowerCase().includes(sensitiveField.toLowerCase())) {
         obj[key] = '[REDACTED]';
       }
     }

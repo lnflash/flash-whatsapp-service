@@ -11,10 +11,10 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
   const port = configService.get<number>('port') || 3000;
-  
+
   // Apply global middlewares
   app.use(helmet());
-  
+
   // Apply global pipes
   app.useGlobalPipes(
     new ValidationPipe({

@@ -69,7 +69,7 @@ export class MetricsMiddleware implements NestMiddleware {
 
       // Normalize route path
       let route = req.route ? req.route.path : req.path;
-      
+
       // For dynamic routes, replace parameters with placeholders
       if (req.params) {
         Object.keys(req.params).forEach((param) => {
@@ -81,16 +81,12 @@ export class MetricsMiddleware implements NestMiddleware {
       self.httpRequestDurationMicroseconds
         .labels(req.method, route, res.statusCode.toString())
         .observe(durationInSeconds);
-      
-      self.httpRequestCounter
-        .labels(req.method, route, res.statusCode.toString())
-        .inc();
+
+      self.httpRequestCounter.labels(req.method, route, res.statusCode.toString()).inc();
 
       // Record errors separately
       if (res.statusCode >= 400) {
-        self.httpRequestErrorCounter
-          .labels(req.method, route, res.statusCode.toString())
-          .inc();
+        self.httpRequestErrorCounter.labels(req.method, route, res.statusCode.toString()).inc();
       }
 
       // Call original end

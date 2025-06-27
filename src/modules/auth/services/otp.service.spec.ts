@@ -54,12 +54,12 @@ describe('OtpService', () => {
 
       const phoneNumber = '+18765551234';
       const sessionId = 'test_session_id';
-      
+
       const otp = await service.generateOtp(phoneNumber, sessionId);
-      
+
       // Verify the OTP has the expected format
       expect(otp).toMatch(/^\d{6}$/);
-      
+
       // Verify Redis was called with the correct parameters
       expect(redisService.set).toHaveBeenCalledWith(
         `otp:${sessionId}`,
@@ -73,21 +73,21 @@ describe('OtpService', () => {
     it('should verify a valid OTP', async () => {
       const sessionId = 'test_session_id';
       const otpCode = '123456';
-      
+
       // Store a hashed OTP in the mock
       const otpHash = require('crypto')
         .createHash('sha256')
         .update(otpCode + 'test_jwt_secret')
         .digest('hex');
-      
+
       // Mock Redis get and del
       jest.spyOn(redisService, 'get').mockResolvedValue(otpHash);
       jest.spyOn(redisService, 'del').mockResolvedValue();
 
       const isValid = await service.verifyOtp(sessionId, otpCode);
-      
+
       expect(isValid).toBe(true);
-      
+
       // Verify Redis was called to get and delete the OTP
       expect(redisService.get).toHaveBeenCalledWith(`otp:${sessionId}`);
       expect(redisService.del).toHaveBeenCalledWith(`otp:${sessionId}`);
@@ -97,21 +97,21 @@ describe('OtpService', () => {
       const sessionId = 'test_session_id';
       const correctOtp = '123456';
       const wrongOtp = '654321';
-      
+
       // Store a hashed OTP in the mock
       const otpHash = require('crypto')
         .createHash('sha256')
         .update(correctOtp + 'test_jwt_secret')
         .digest('hex');
-      
+
       // Mock Redis get
       jest.spyOn(redisService, 'get').mockResolvedValue(otpHash);
       jest.spyOn(redisService, 'del').mockResolvedValue();
 
       const isValid = await service.verifyOtp(sessionId, wrongOtp);
-      
+
       expect(isValid).toBe(false);
-      
+
       // Verify Redis was called to get the OTP, but not to delete it
       expect(redisService.get).toHaveBeenCalledWith(`otp:${sessionId}`);
       expect(redisService.del).not.toHaveBeenCalled();
@@ -120,12 +120,12 @@ describe('OtpService', () => {
     it('should return false if no OTP is found for the session', async () => {
       const sessionId = 'test_session_id';
       const otpCode = '123456';
-      
+
       // Mock Redis get returning null (no OTP found)
       jest.spyOn(redisService, 'get').mockResolvedValue(null);
 
       const isValid = await service.verifyOtp(sessionId, otpCode);
-      
+
       expect(isValid).toBe(false);
     });
   });

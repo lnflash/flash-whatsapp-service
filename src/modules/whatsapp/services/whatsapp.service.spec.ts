@@ -118,7 +118,7 @@ describe('WhatsappService', () => {
     it('should process a cloud message and return a response', async () => {
       // Mock Redis set
       jest.spyOn(redisService, 'set').mockResolvedValue();
-      
+
       // Mock session service
       jest.spyOn(sessionService, 'getSessionByWhatsappId').mockResolvedValue(null);
       jest.spyOn(sessionService, 'createSession').mockResolvedValue({
@@ -134,18 +134,18 @@ describe('WhatsappService', () => {
         consentGiven: false,
         profileName: 'Test User',
       });
-      
+
       // Mock command parser
       jest.spyOn(commandParserService, 'parseCommand').mockReturnValue({
         type: CommandType.HELP,
         args: {},
         rawText: 'help',
       });
-      
+
       // Mock Gemini AI service to return a help message
-      jest.spyOn(geminiAiService, 'processQuery').mockResolvedValue(
-        'Here are the available commands: help, balance, link, verify, etc.'
-      );
+      jest
+        .spyOn(geminiAiService, 'processQuery')
+        .mockResolvedValue('Here are the available commands: help, balance, link, verify, etc.');
 
       // Create test message
       const testMessage = {
@@ -161,10 +161,10 @@ describe('WhatsappService', () => {
 
       // Verify it returns a string
       expect(typeof result).toBe('string');
-      
+
       // Verify it includes the help message
       expect(result).toContain('Here are the available commands');
-      
+
       // Verify Redis was called to store the message
       expect(redisService.set).toHaveBeenCalledWith(
         expect.stringContaining('whatsapp:message:'),

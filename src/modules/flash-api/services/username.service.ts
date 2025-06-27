@@ -72,22 +72,24 @@ export class UsernameService {
 
       if (result.userUpdateUsername.errors?.length) {
         const errorCode = result.userUpdateUsername.errors[0].code;
-        
+
         if (errorCode === 'ADDRESS_UNAVAILABLE') {
-          throw new BadRequestException('This username is already taken. Please choose another one.');
+          throw new BadRequestException(
+            'This username is already taken. Please choose another one.',
+          );
         }
-        
+
         throw new BadRequestException(`Failed to set username: ${errorCode}`);
       }
 
       this.logger.log(`Username set successfully: ${username}`);
     } catch (error) {
       this.logger.error(`Error setting username: ${error.message}`, error.stack);
-      
+
       if (error instanceof BadRequestException) {
         throw error;
       }
-      
+
       throw new BadRequestException('Failed to set username. Please try again later.');
     }
   }
