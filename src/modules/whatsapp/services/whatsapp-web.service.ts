@@ -1,11 +1,11 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy, BeforeApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Client, LocalAuth, Message } from 'whatsapp-web.js';
 import * as qrcode from 'qrcode-terminal';
 import { WhatsappService } from './whatsapp.service';
 
 @Injectable()
-export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy {
+export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy, BeforeApplicationShutdown {
   private readonly logger = new Logger(WhatsAppWebService.name);
   private client: Client;
   private isReady = false;
@@ -50,10 +50,23 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
+    this.logger.log('Module destroy called, cleaning up WhatsApp client...');
+    await this.cleanup();
+  }
+
+  async beforeApplicationShutdown(signal?: string) {
+    this.logger.log(`Application shutdown signal received: ${signal}`);
+    await this.cleanup();
+  }
+
+  private async cleanup() {
     try {
       if (this.client) {
+        this.isReady = false;
+        // Remove all listeners to prevent memory leaks
+        this.client.removeAllListeners();
         await this.client.destroy();
-        this.logger.log('WhatsApp Web client destroyed');
+        this.logger.log('WhatsApp Web client destroyed successfully');
       }
     } catch (error) {
       this.logger.error('Error destroying WhatsApp Web client:', error);
@@ -352,9 +365,15 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy {
    */
   async logout(): Promise<void> {
     if (this.client) {
-      await this.client.logout();
-      this.isReady = false;
-      this.logger.log('Logged out from WhatsApp Web');
+      try {
+        await this.client.logout();
+        this.isReady = false;
+        this.logger.log('Logged out from WhatsApp Web');
+      } catch (error) {
+        this.logger.error('Error during logout:', error);
+        // Force cleanup if logout fails
+        await this.cleanup();
+      }
     }
   }
 }
