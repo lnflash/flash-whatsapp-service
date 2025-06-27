@@ -2,6 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { RedisService } from '../redis/redis.service';
+import { 
+  FLASH_COMMANDS, 
+  TRAINING_EXAMPLES, 
+  CONVERSATION_CONTEXT,
+  ERROR_RESPONSES 
+} from './training/flash-knowledge-base';
 
 @Injectable()
 export class GeminiAiService {
@@ -109,72 +115,114 @@ export class GeminiAiService {
    * Build a comprehensive prompt for Gemini
    */
   private buildPrompt(query: string, context: Record<string, any>): string {
-    const faqDatabase = this.getFaqDatabase();
+    // Find relevant training examples based on the query
+    const relevantExamples = this.findRelevantExamples(query, 3);
+    
+    // Build command reference
+    const commandReference = FLASH_COMMANDS.map(cmd => {
+      const authNote = cmd.requiresAuth ? ' (requires linked account)' : '';
+      return `- ${cmd.command}: ${cmd.description}${authNote}
+  Usage: ${cmd.usage}
+  ${cmd.notes ? `Note: ${cmd.notes}` : ''}`;
+    }).join('\n');
 
-    return `You are a helpful customer support assistant for Flash Connect, a Bitcoin wallet and payment service focused on the Caribbean market, particularly Jamaica. 
+    // Build examples section from relevant training data
+    const examplesSection = relevantExamples.length > 0 
+      ? `\nRelevant examples for similar questions:\n${relevantExamples.map(ex => 
+          `Q: ${ex.question}\nA: ${ex.answer}`
+        ).join('\n\n')}`
+      : '';
 
-Your responses should be:
-- Friendly and conversational, using appropriate Caribbean English when suitable
-- Clear and concise
-- Focused on helping users with Bitcoin and payment-related questions
-- Security-conscious (never ask for passwords, private keys, or sensitive data)
+    return `You are Flash Connect's WhatsApp assistant, helping users with their Bitcoin wallet and payment needs in the Caribbean.
 
-Context about the user:
+PERSONALITY & TONE:
+${CONVERSATION_CONTEXT.personality.tone}
+Style: ${CONVERSATION_CONTEXT.personality.style}
+
+IMPORTANT RULES:
+${CONVERSATION_CONTEXT.important_rules.map(rule => `- ${rule}`).join('\n')}
+
+CURRENT USER CONTEXT:
 - Authenticated: ${context.userId ? 'Yes' : 'No'}
-- Phone: ${context.phoneNumber || 'Unknown'}
-- Previous command: ${context.lastCommand || 'None'}
+- Has given AI consent: ${context.consentGiven ? 'Yes' : 'No'}
+- Phone: ${context.phoneNumber || 'Not provided'}
+- Last command used: ${context.lastCommand || 'None'}
 
-Available Flash Connect commands:
-- link: Connect Flash account to WhatsApp
-- unlink: Disconnect Flash account from WhatsApp
-- verify [code]: Complete OTP verification
-- balance: Check Bitcoin and fiat balances (requires authentication)
-- refresh: Refresh balance by clearing cache
-- username: View or set username (one-time only)
-- help: Display available commands
+AVAILABLE COMMANDS:
+${commandReference}
 
-Common FAQs:
-${Object.entries(faqDatabase)
-  .map(([q, a]) => `Q: ${q}\nA: ${a}`)
-  .join('\n\n')}
+${examplesSection}
 
-Current user query: ${query}
+COMMON USER MISTAKES TO WATCH FOR:
+${CONVERSATION_CONTEXT.common_mistakes.map(m => 
+  `- ${m.mistake}: ${m.correction}`
+).join('\n')}
 
-Please provide a helpful response. If the user is asking about account-specific information and they're not authenticated, remind them to link their account first.`;
+ERROR MESSAGES TO USE:
+${Object.entries(ERROR_RESPONSES).map(([key, msg]) => 
+  `- ${key}: "${msg}"`
+).join('\n')}
+
+USER QUERY: ${query}
+
+Instructions:
+1. Answer the user's question directly and helpfully
+2. If they're trying to use a command that requires authentication and they're not linked, guide them to link first
+3. For the "receive" command, ALWAYS remind users it's USD only (not BTC)
+4. Keep responses concise but friendly
+5. Use examples when explaining commands
+6. If unsure, suggest they contact support@flashapp.me
+
+Please provide your response:`;
   }
 
   /**
    * Generate a fallback response when AI is unavailable
    */
   private getFallbackResponse(query: string): string {
-    const commonResponses = [
-      "I'm sorry, I'm having trouble accessing the information you need right now. Please try again later or contact Flash support for immediate assistance.",
-      "I apologize, but I can't provide an answer to that question at the moment. For urgent inquiries, please contact Flash support through the app.",
-      "I'm currently experiencing some issues connecting to my knowledge base. Please try again in a moment, or check the Flash app for more information.",
-    ];
-
-    // Check for common questions to provide basic responses
     const lowerQuery = query.toLowerCase();
-
+    
+    // Try to find a relevant example from training data
+    const relevantExamples = this.findRelevantExamples(query, 1);
+    if (relevantExamples.length > 0) {
+      return relevantExamples[0].answer;
+    }
+    
+    // Check for specific command mentions
+    const mentionedCommand = FLASH_COMMANDS.find(cmd => 
+      lowerQuery.includes(cmd.command)
+    );
+    
+    if (mentionedCommand) {
+      let response = `The "${mentionedCommand.command}" command ${mentionedCommand.description.toLowerCase()}.`;
+      if (mentionedCommand.examples.length > 0) {
+        response += ` Example: ${mentionedCommand.examples[0]}`;
+      }
+      if (mentionedCommand.requiresAuth) {
+        response += ' (Note: You need to link your account first)';
+      }
+      return response;
+    }
+    
+    // Check for common keywords
+    if (lowerQuery.includes('receive') || lowerQuery.includes('invoice')) {
+      return ERROR_RESPONSES.btc_not_supported + ' Example: "receive 10" or "receive 25.50 Payment for services"';
+    }
+    
     if (lowerQuery.includes('balance')) {
-      return "To check your balance, simply type 'balance' as a command. If you need to see transaction details, please use the Flash app.";
+      return 'To check your balance, type "balance". Need to refresh? Use "refresh" to clear the cache.';
     }
-
-    if (lowerQuery.includes('help')) {
-      return "You can type 'help' to see a list of available commands.";
-    }
-
+    
     if (lowerQuery.includes('link') || lowerQuery.includes('connect')) {
-      return "To link your Flash account, type 'link' and follow the verification process.";
+      return 'To link your Flash account, type "link". You\'ll receive an OTP code in your Flash app to verify.';
     }
-
-    if (lowerQuery.includes('support') || lowerQuery.includes('contact')) {
-      return 'You can reach Flash support at support@flashapp.me or through the Help section in the Flash app.';
+    
+    if (lowerQuery.includes('support') || lowerQuery.includes('help') || lowerQuery.includes('contact')) {
+      return 'For help, type "help" to see available commands. For support, email support@flashapp.me or use the Help section in the Flash app.';
     }
-
-    // Return a random fallback response
-    const randomIndex = Math.floor(Math.random() * commonResponses.length);
-    return commonResponses[randomIndex];
+    
+    // Default response
+    return "I'm having trouble understanding your question. Type 'help' to see available commands, or contact support@flashapp.me for assistance.";
   }
 
   /**
@@ -222,31 +270,44 @@ Please provide a helpful response. If the user is asking about account-specific 
   }
 
   /**
-   * Get the FAQ database for context enhancement
+   * Find relevant examples from training data based on query
    */
-  private getFaqDatabase(): Record<string, string> {
-    return {
-      'What is Flash?':
-        'Flash is a Bitcoin wallet and payment app focused on the Caribbean market, starting with Jamaica. It provides seamless, secure Bitcoin and digital payments through mobile and web platforms.',
-      'How do I check my balance?':
-        'You can check your balance by simply typing "balance" in this chat.',
-      'How do I make a payment?':
-        "Currently, you need to use the Flash app to make payments. We're working on adding payment functionality to WhatsApp in the future.",
-      'Is my money safe?':
-        'Yes, Flash uses industry-standard security measures to protect your funds. All sensitive operations require multi-factor authentication.',
-      'What currencies are supported?':
-        'Flash supports Bitcoin (BTC) and Jamaican Dollars (JMD), with plans to add more Caribbean currencies.',
-      'How do I contact support?':
-        'You can contact Flash support by email at support@flashapp.me or through the "Help" section in the Flash app.',
-      'Is Flash available in my country?':
-        'Flash is currently available in Jamaica, with plans to expand to Trinidad & Tobago, Barbados, and other Caribbean countries soon.',
-      'What are the fees?':
-        'Flash has competitive fees that vary by transaction type. Please check the Flash app for current fee details.',
-      'Can I use Flash without internet?':
-        "An internet connection is required for most Flash features, but we're exploring offline payment options for the future.",
-      'How do I top up my account?':
-        'You can add funds through bank transfer, debit card, or by receiving Bitcoin from another wallet. Check the Flash app for available options in your country.',
-    };
+  private findRelevantExamples(query: string, limit: number = 3): typeof TRAINING_EXAMPLES {
+    const queryLower = query.toLowerCase();
+    const queryWords = queryLower.split(/\s+/);
+    
+    // Score each example based on keyword matches
+    const scoredExamples = TRAINING_EXAMPLES.map(example => {
+      let score = 0;
+      
+      // Check if query contains any keywords
+      example.keywords.forEach(keyword => {
+        if (queryLower.includes(keyword.toLowerCase())) {
+          score += 2;
+        }
+      });
+      
+      // Check if example question/answer contains query words
+      queryWords.forEach(word => {
+        if (word.length > 3) { // Skip short words
+          if (example.question.toLowerCase().includes(word)) {
+            score += 1;
+          }
+          if (example.answer.toLowerCase().includes(word)) {
+            score += 0.5;
+          }
+        }
+      });
+      
+      return { example, score };
+    });
+    
+    // Sort by score and return top matches
+    return scoredExamples
+      .filter(item => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map(item => item.example);
   }
 
   /**

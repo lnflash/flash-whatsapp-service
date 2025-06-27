@@ -1,8 +1,9 @@
 {
-  "watch": ["src"],
-  "ext": "ts",
-  "ignore": ["src/**/*.spec.ts"],
-  "exec": "node --inspect=5858 -r ts-node/register -r tsconfig-paths/register src/main.ts",
+  "watch": ["dist"],
+  "ext": "js",
+  "ignore": ["node_modules", "dist/**/*.map", "dist/tsconfig.tsbuildinfo"],
+  "exec": "node",
+  "delay": 2500,
   "env": {
     "NODE_ENV": "development"
   },

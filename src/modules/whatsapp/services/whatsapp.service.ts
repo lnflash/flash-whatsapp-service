@@ -538,7 +538,7 @@ export class WhatsappService {
   private async handleAiQuery(query: string, session: UserSession): Promise<string> {
     try {
       if (!session.consentGiven) {
-        return 'To use AI-powered support, please provide your consent by typing "consent yes".';
+        return 'Hi There! I would love to chat with you more, but first I need you to give your consent to talking to an AI bot. To use AI-powered support, please provide your consent by typing "consent yes".';
       }
 
       // Create context with user info, but remove sensitive data
