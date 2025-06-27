@@ -1,5 +1,5 @@
 // Invoice validation constants and functions
-export const MEMO_MAX_LENGTH = 500; // Match mobile app limit
+export const MEMO_MAX_LENGTH = 200; // Conservative limit to avoid backend errors
 export const MEMO_MIN_LENGTH = 0;
 export const AMOUNT_MIN_USD = 0.01; // Minimum 1 cent
 export const AMOUNT_MAX_USD = 10000; // Maximum $10,000

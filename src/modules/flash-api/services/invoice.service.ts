@@ -44,6 +44,13 @@ export class InvoiceService {
       }
     } catch (error) {
       this.logger.error(`Error creating invoice: ${error.message}`, error.stack);
+      
+      // Re-throw BadRequestException with original message
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      
+      // Generic error for unexpected exceptions
       throw new BadRequestException('Failed to create invoice');
     }
   }

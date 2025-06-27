@@ -154,6 +154,8 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy {
 
         // Send response if we have one
         if (response) {
+          this.logger.debug(`Response type: ${typeof response}, has text: ${typeof response === 'object' && 'text' in response}, has media: ${typeof response === 'object' && 'media' in response}`);
+          
           // Check if response is an object with text and media
           if (typeof response === 'object' && 'text' in response && 'media' in response) {
             // Send image with caption
@@ -166,10 +168,14 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy {
           } else if (typeof response === 'string') {
             // Simple text response
             await this.sendMessage(msg.from, response);
+          } else {
+            this.logger.warn(`Unexpected response format: ${JSON.stringify(response)}`);
           }
 
           // Mark message as read
           await msg.getChat().then((chat) => chat.sendSeen());
+        } else {
+          this.logger.warn('No response generated for message');
         }
       } catch (error) {
         this.logger.error('Error processing message:', error);

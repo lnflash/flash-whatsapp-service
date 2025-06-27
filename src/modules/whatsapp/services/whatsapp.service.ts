@@ -711,7 +711,9 @@ export class WhatsappService {
       
       // Return the specific error message if it's a BadRequestException
       if (error instanceof BadRequestException) {
-        return { text: error.message };
+        const errorMessage = error.message;
+        this.logger.debug(`Returning error message to user: ${errorMessage}`);
+        return { text: errorMessage };
       }
       
       // Generic error message for unexpected errors
