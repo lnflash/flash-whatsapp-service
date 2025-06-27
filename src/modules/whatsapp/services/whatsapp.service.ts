@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../../redis/redis.service';
 import { AuthService } from '../../auth/services/auth.service';
@@ -12,6 +12,14 @@ import { GeminiAiService } from '../../gemini-ai/gemini-ai.service';
 import { QrCodeService } from './qr-code.service';
 import { CommandParserService, CommandType, ParsedCommand } from './command-parser.service';
 import { validateUsername, getUsernameErrorMessage } from '../utils/username-validation';
+import {
+  validateMemo,
+  validateAmount,
+  sanitizeMemo,
+  parseAndValidateAmount,
+  getInvoiceValidationErrorMessage,
+  AMOUNT_MAX_USD,
+} from '../utils/invoice-validation';
 import { BalanceTemplate } from '../templates/balance-template';
 import { AccountLinkRequestDto } from '../../auth/dto/account-link-request.dto';
 import { VerifyOtpDto } from '../../auth/dto/verify-otp.dto';
@@ -639,7 +647,7 @@ export class WhatsappService {
 
       // Parse amount and memo from command
       const amountStr = command.args.amount;
-      const memo = command.args.memo || undefined;
+      let memo = command.args.memo || undefined;
 
       let amount: number | undefined;
       const currency: 'USD' | 'BTC' = 'USD'; // Only USD supported
@@ -652,19 +660,32 @@ export class WhatsappService {
           };
         }
         
-        // Parse USD amount
-        amount = parseFloat(amountStr.replace(/[^0-9.]/g, ''));
+        // Parse and validate USD amount
+        const parsedResult = parseAndValidateAmount(amountStr);
+        if (parsedResult.error) {
+          return { text: parsedResult.error };
+        }
+        amount = parsedResult.amount;
+      }
 
-        if (isNaN(amount) || amount <= 0) {
+      // Validate amount
+      const amountError = validateAmount(amount);
+      if (amountError) {
+        return {
+          text: getInvoiceValidationErrorMessage(amountError),
+        };
+      }
+
+      // Validate and sanitize memo
+      if (memo) {
+        const memoError = validateMemo(memo);
+        if (memoError) {
           return {
-            text: 'Invalid amount. Please specify a positive number, e.g., "receive 10" for $10',
+            text: getInvoiceValidationErrorMessage(memoError),
           };
         }
-
-        // Validate reasonable amounts
-        if (amount > 10000) {
-          return { text: 'Amount too large. Maximum amount is $10,000.' };
-        }
+        // Sanitize memo to prevent issues
+        memo = sanitizeMemo(memo);
       }
 
       // Create the invoice
@@ -687,6 +708,13 @@ export class WhatsappService {
       };
     } catch (error) {
       this.logger.error(`Error handling receive command: ${error.message}`, error.stack);
+      
+      // Return the specific error message if it's a BadRequestException
+      if (error instanceof BadRequestException) {
+        return { text: error.message };
+      }
+      
+      // Generic error message for unexpected errors
       return { text: 'Failed to create invoice. Please try again later.' };
     }
   }

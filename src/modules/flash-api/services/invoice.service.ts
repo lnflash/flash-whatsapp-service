@@ -79,10 +79,19 @@ export class InvoiceService {
       },
     };
 
+    this.logger.debug(`Creating no-amount invoice with memo length: ${memo?.length || 0}`);
+
     const result = await this.flashApiService.executeQuery<any>(mutation, variables, authToken);
 
     if (result.lnNoAmountInvoiceCreate?.errors?.length > 0) {
       const error = result.lnNoAmountInvoiceCreate.errors[0];
+      this.logger.error(`GraphQL error creating no-amount invoice: ${error.code} - ${error.message}`);
+      
+      // Provide user-friendly error messages
+      if (error.code === 'IBEX_ERROR') {
+        throw new BadRequestException('Unable to create invoice. Please try again with a shorter memo.');
+      }
+      
       throw new BadRequestException(error.message || 'Failed to create invoice');
     }
 
@@ -144,10 +153,22 @@ export class InvoiceService {
       },
     };
 
+    this.logger.debug(`Creating USD invoice for $${amount} with memo length: ${memo?.length || 0}`);
+
     const result = await this.flashApiService.executeQuery<any>(mutation, variables, authToken);
 
     if (result.lnUsdInvoiceCreate?.errors?.length > 0) {
       const error = result.lnUsdInvoiceCreate.errors[0];
+      this.logger.error(`GraphQL error creating USD invoice: ${error.code} - ${error.message}`);
+      
+      // Provide user-friendly error messages
+      if (error.code === 'IBEX_ERROR') {
+        throw new BadRequestException('Unable to create invoice. Please try again with a shorter memo or smaller amount.');
+      }
+      if (error.code === 'INSUFFICIENT_BALANCE') {
+        throw new BadRequestException('Insufficient balance to create this invoice.');
+      }
+      
       throw new BadRequestException(error.message || 'Failed to create invoice');
     }
 

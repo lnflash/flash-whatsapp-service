@@ -115,7 +115,9 @@ export class CommandParserService {
           args.amount = match[1];
         }
         if (match[2]) {
-          args.memo = match[2].trim();
+          // Limit memo length at parsing stage to prevent issues
+          const rawMemo = match[2].trim();
+          args.memo = rawMemo.substring(0, 1000); // Generous limit at parse stage
         }
         break;
     }
