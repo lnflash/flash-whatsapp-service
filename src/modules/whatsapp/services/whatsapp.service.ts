@@ -8,6 +8,7 @@ import { BalanceService } from '../../flash-api/services/balance.service';
 import { UsernameService } from '../../flash-api/services/username.service';
 import { PriceService } from '../../flash-api/services/price.service';
 import { InvoiceService } from '../../flash-api/services/invoice.service';
+import { TransactionService } from '../../flash-api/services/transaction.service';
 import { GeminiAiService } from '../../gemini-ai/gemini-ai.service';
 import { QrCodeService } from './qr-code.service';
 import { CommandParserService, CommandType, ParsedCommand } from './command-parser.service';
@@ -42,6 +43,7 @@ export class WhatsappService {
     private readonly usernameService: UsernameService,
     private readonly priceService: PriceService,
     private readonly invoiceService: InvoiceService,
+    private readonly transactionService: TransactionService,
     private readonly geminiAiService: GeminiAiService,
     private readonly qrCodeService: QrCodeService,
     private readonly commandParserService: CommandParserService,
@@ -123,6 +125,9 @@ export class WhatsappService {
 
         case CommandType.RECEIVE:
           return this.handleReceiveCommand(command, whatsappId, session);
+
+        case CommandType.HISTORY:
+          return this.handleHistoryCommand(whatsappId, session);
 
         case CommandType.CONSENT:
           return this.handleConsentCommand(command, whatsappId, session);
@@ -632,7 +637,7 @@ export class WhatsappService {
       return 'Here are the available commands:\n\n• price - Check current Bitcoin price\n• link - Connect your Flash account\n• verify [code] - Enter verification code\n• help - Show available commands\n\nPlease complete the account linking process to access more features.';
     }
 
-    return "Here are the available commands for Flash:\n\n• balance - Check your Bitcoin and fiat balance\n• refresh - Refresh your balance (clear cache)\n• receive [amount] [memo] - Create USD Lightning invoice\n• price - Check current Bitcoin price\n• username - View or set your username\n• link - Connect your Flash account\n• unlink - Disconnect your Flash account\n• consent [yes/no] - Manage your AI support consent\n• help - Show available commands\n\nYou can also ask me questions about Flash services and I'll do my best to assist you!";
+    return "Here are the available commands for Flash:\n\n• balance - Check your Bitcoin and fiat balance\n• refresh - Refresh your balance (clear cache)\n• receive [amount] [memo] - Create USD Lightning invoice\n• history - View recent transactions\n• price - Check current Bitcoin price\n• username - View or set your username\n• link - Connect your Flash account\n• unlink - Disconnect your Flash account\n• consent [yes/no] - Manage your AI support consent\n• help - Show available commands\n\nYou can also ask me questions about Flash services and I'll do my best to assist you!";
   }
 
   /**
@@ -733,6 +738,44 @@ export class WhatsappService {
       
       // Generic error message for unexpected errors
       return { text: 'Failed to create invoice. Please try again later.' };
+    }
+  }
+
+  /**
+   * Handle history command - show recent transactions
+   */
+  private async handleHistoryCommand(
+    whatsappId: string,
+    session: UserSession | null,
+  ): Promise<string> {
+    try {
+      // Check if user has a linked account
+      if (!session || !session.isVerified || !session.flashAuthToken || !session.flashUserId) {
+        return 'Please link your Flash account first to view transaction history. Type "link" to get started.';
+      }
+
+      // Get recent transactions
+      const transactions = await this.transactionService.getRecentTransactions(
+        session.flashAuthToken,
+        10, // Show last 10 transactions
+      );
+
+      if (!transactions) {
+        return '❌ Unable to fetch transaction history. Please try again later.';
+      }
+
+      // Get current display currency from user's balance
+      const balance = await this.balanceService.getUserBalance(
+        session.flashUserId,
+        session.flashAuthToken,
+      );
+      const displayCurrency = balance?.fiatCurrency || 'USD';
+
+      // Format transaction history for WhatsApp
+      return this.transactionService.formatTransactionHistory(transactions, displayCurrency);
+    } catch (error) {
+      this.logger.error(`Error handling history command: ${error.message}`, error.stack);
+      return '❌ Failed to fetch transaction history. Please try again later.';
     }
   }
 

@@ -51,6 +51,14 @@ export const FLASH_COMMANDS: CommandInfo[] = [
       'Only USD amounts are supported. BTC invoices are not available. Amount must be between $0.01 and $10,000. Memo is optional and limited to 200 characters.',
   },
   {
+    command: 'history',
+    description: 'View recent transaction history',
+    usage: 'history',
+    examples: ['history', 'transactions', 'txs'],
+    requiresAuth: true,
+    notes: 'Shows your last 10 transactions with dates, amounts, and counterparties',
+  },
+  {
     command: 'price',
     description: 'Check current Bitcoin price',
     usage: 'price',

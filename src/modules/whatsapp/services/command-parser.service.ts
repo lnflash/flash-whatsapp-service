@@ -11,6 +11,7 @@ export enum CommandType {
   USERNAME = 'username',
   PRICE = 'price',
   RECEIVE = 'receive',
+  HISTORY = 'history',
   UNKNOWN = 'unknown',
 }
 
@@ -35,6 +36,7 @@ export class CommandParserService {
     { type: CommandType.USERNAME, pattern: /^username(?:\s+(.+))?$/i },
     { type: CommandType.PRICE, pattern: /^price|^rate|^btc$/i },
     { type: CommandType.RECEIVE, pattern: /^receive(?:\s+(\d+(?:\.\d+)?))?\s*(.*)$/i },
+    { type: CommandType.HISTORY, pattern: /^history|^transactions|^txs$/i },
   ];
 
   /**

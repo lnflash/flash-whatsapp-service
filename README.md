@@ -71,6 +71,12 @@ Users can send these commands to the WhatsApp bot:
 - `verify 123456` - Complete verification with OTP
 - `balance` - Check your wallet balance
 - `refresh` - Force refresh your balance
+- `receive [amount] [memo]` - Create USD Lightning invoice
+- `history` - View recent transaction history
+- `price` - Check current Bitcoin price
+- `username [new_username]` - View or set username
+- `unlink` - Disconnect your Flash account
+- `consent yes/no` - Manage AI support consent
 - `help` - Show available commands
 
 ## Environment Variables
@@ -145,7 +151,7 @@ The service automatically converts USD wallet balances to the user's display cur
 ## Roadmap
 
 - [ ] Payment sending functionality
-- [ ] Transaction history
+- [x] Transaction history
 - [ ] Push notifications for received payments
 - [ ] Multi-language support
 - [ ] WhatsApp Business API migration
