@@ -27,7 +27,11 @@
     "test:watch": "jest --config jest.config.js --watch",
     "test:cov": "jest --config jest.config.js --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "ai:train": "ts-node scripts/manage-ai-training.ts",
+    "ai:add": "ts-node scripts/manage-ai-training.ts add",
+    "ai:test": "ts-node scripts/manage-ai-training.ts test",
+    "ai:list": "ts-node scripts/manage-ai-training.ts list"
   },
   "keywords": [
     "flash",
@@ -49,6 +53,7 @@
     "@nestjs/platform-express": "^11.1.0",
     "@nestjs/typeorm": "^11.0.0",
     "@types/qrcode": "^1.5.5",
+    "@types/ws": "^8.18.1",
     "amqplib": "^0.10.7",
     "axios": "^1.10.0",
     "bolt11": "^1.4.1",
@@ -67,7 +72,8 @@
     "rxjs": "^7.8.2",
     "twilio": "^5.7.1",
     "typeorm": "^0.3.22",
-    "whatsapp-web.js": "^1.30.0"
+    "whatsapp-web.js": "^1.30.0",
+    "ws": "^8.18.2"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.7",

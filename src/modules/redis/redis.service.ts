@@ -70,6 +70,27 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Add member to a set
+   */
+  async addToSet(key: string, member: string): Promise<void> {
+    await this.redisClient.sadd(key, member);
+  }
+
+  /**
+   * Get all members of a set
+   */
+  async getSetMembers(key: string): Promise<string[]> {
+    return this.redisClient.smembers(key);
+  }
+
+  /**
+   * Get keys matching pattern
+   */
+  async keys(pattern: string): Promise<string[]> {
+    return this.redisClient.keys(pattern);
+  }
+
+  /**
    * Check if key exists
    */
   async exists(key: string): Promise<boolean> {
@@ -91,12 +112,6 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     await this.redisClient.expire(key, seconds);
   }
 
-  /**
-   * Get keys matching a pattern
-   */
-  async keys(pattern: string): Promise<string[]> {
-    return this.redisClient.keys(pattern);
-  }
 
   /**
    * Publish a message to a channel

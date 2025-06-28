@@ -11,6 +11,7 @@ import { CommandParserService } from './services/command-parser.service';
 // import { WhatsAppCloudService } from './services/whatsapp-cloud.service';
 import { WhatsAppWebService } from './services/whatsapp-web.service';
 import { QrCodeService } from './services/qr-code.service';
+import { InvoiceTrackerService } from './services/invoice-tracker.service';
 
 // Guards and Templates
 import { RateLimiterGuard } from '../../common/guards/rate-limiter.guard';
@@ -36,6 +37,7 @@ import { GeminiAiModule } from '../gemini-ai/gemini-ai.module';
     RateLimiterGuard,
     BalanceTemplate,
     QrCodeService,
+    InvoiceTrackerService,
   ],
   exports: [WhatsappService, WhatsAppWebService],
 })

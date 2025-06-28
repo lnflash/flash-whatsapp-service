@@ -5,11 +5,12 @@ import { BalanceService } from './services/balance.service';
 import { UsernameService } from './services/username.service';
 import { PriceService } from './services/price.service';
 import { InvoiceService } from './services/invoice.service';
+import { SubscriptionService } from './services/subscription.service';
 import { RedisModule } from '../redis/redis.module';
 
 @Module({
   imports: [ConfigModule, RedisModule],
-  providers: [FlashApiService, BalanceService, UsernameService, PriceService, InvoiceService],
-  exports: [FlashApiService, BalanceService, UsernameService, PriceService, InvoiceService],
+  providers: [FlashApiService, BalanceService, UsernameService, PriceService, InvoiceService, SubscriptionService],
+  exports: [FlashApiService, BalanceService, UsernameService, PriceService, InvoiceService, SubscriptionService],
 })
 export class FlashApiModule {}

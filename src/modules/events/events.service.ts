@@ -163,6 +163,9 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
           const content = msg.content.toString();
           const event = JSON.parse(content);
 
+          // Log incoming events for debugging
+          this.logger.debug(`Received event: ${event.type}`, JSON.stringify(event.data));
+
           await callback(event.type, event.data);
 
           // Acknowledge the message

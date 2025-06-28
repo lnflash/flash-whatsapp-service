@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../../redis/redis.service';
 import { AuthService } from '../../auth/services/auth.service';
@@ -11,6 +11,8 @@ import { InvoiceService } from '../../flash-api/services/invoice.service';
 import { GeminiAiService } from '../../gemini-ai/gemini-ai.service';
 import { QrCodeService } from './qr-code.service';
 import { CommandParserService, CommandType, ParsedCommand } from './command-parser.service';
+import { WhatsAppWebService } from './whatsapp-web.service';
+import { InvoiceTrackerService } from './invoice-tracker.service';
 import { validateUsername, getUsernameErrorMessage } from '../utils/username-validation';
 import {
   validateMemo,
@@ -45,6 +47,10 @@ export class WhatsappService {
     private readonly commandParserService: CommandParserService,
     private readonly balanceTemplate: BalanceTemplate,
     // private readonly whatsAppCloudService: WhatsAppCloudService, // Disabled for prototype branch
+    @Inject(forwardRef(() => WhatsAppWebService))
+    private readonly whatsappWebService?: WhatsAppWebService,
+    @Inject(forwardRef(() => InvoiceTrackerService))
+    private readonly invoiceTrackerService?: InvoiceTrackerService,
   ) {}
 
   /**
@@ -696,6 +702,15 @@ export class WhatsappService {
         currency,
       );
 
+      // Store invoice for tracking
+      await this.storeInvoiceForTracking(session.whatsappId, invoice, session.flashAuthToken!);
+      
+      // Subscribe to Lightning updates for this user (if not already subscribed)
+      // Disabled temporarily due to WebSocket connection issues
+      // if (this.invoiceTrackerService) {
+      //   await this.invoiceTrackerService.subscribeForUser(session.whatsappId);
+      // }
+
       // Generate QR code
       const qrCodeBuffer = await this.qrCodeService.generateLightningQrCode(invoice.paymentRequest);
 
@@ -730,5 +745,122 @@ export class WhatsappService {
     }
 
     return "I'm not sure what you're asking. You can type 'help' to see available commands, or ask me questions about Flash services.";
+  }
+
+  /**
+   * Store invoice for payment tracking
+   */
+  private async storeInvoiceForTracking(
+    whatsappId: string,
+    invoice: any,
+    authToken: string,
+  ): Promise<void> {
+    try {
+      const invoiceData = {
+        paymentHash: invoice.paymentHash,
+        paymentRequest: invoice.paymentRequest,
+        amount: invoice.amount,
+        currency: invoice.currency || 'USD',
+        memo: invoice.memo,
+        status: 'pending',
+        expiresAt: invoice.expiresAt,
+        whatsappUserId: whatsappId,
+        authToken: authToken, // Store encrypted in production
+        createdAt: new Date().toISOString(),
+      };
+
+      // Store in Redis with expiration matching invoice expiry
+      const expirySeconds = Math.floor((new Date(invoice.expiresAt).getTime() - Date.now()) / 1000);
+      const key = `invoice:${invoice.paymentHash}`;
+      
+      await this.redisService.set(
+        key,
+        JSON.stringify(invoiceData),
+        Math.max(expirySeconds, 3600), // At least 1 hour
+      );
+
+      // Also store in a user's invoice list for easy lookup
+      await this.redisService.addToSet(
+        `user:${whatsappId}:invoices`,
+        invoice.paymentHash,
+      );
+
+      this.logger.log(`Stored invoice ${invoice.paymentHash} for tracking`);
+    } catch (error) {
+      this.logger.error('Failed to store invoice for tracking:', error);
+      // Don't throw - this is a non-critical feature
+    }
+  }
+
+  /**
+   * Check invoice payment status
+   */
+  async checkInvoiceStatus(paymentHash: string): Promise<any> {
+    try {
+      const key = `invoice:${paymentHash}`;
+      const invoiceData = await this.redisService.get(key);
+      
+      if (!invoiceData) {
+        return null;
+      }
+
+      const invoice = JSON.parse(invoiceData);
+      
+      // Only check if still pending
+      if (invoice.status !== 'pending') {
+        return invoice;
+      }
+
+      // Query GraphQL for invoice status
+      const query = `
+        query GetInvoiceStatus($paymentHash: String!) {
+          invoice(paymentHash: $paymentHash) {
+            status
+            settledAt
+          }
+        }
+      `;
+
+      const result = await this.flashApiService.executeQuery<any>(
+        query,
+        { paymentHash },
+        invoice.authToken,
+      );
+
+      if (result?.data?.invoice?.status === 'PAID') {
+        invoice.status = 'paid';
+        invoice.paidAt = result.data.invoice.settledAt;
+        
+        // Update Redis
+        await this.redisService.set(key, JSON.stringify(invoice), 3600); // Keep for 1 hour after payment
+        
+        // Notify user
+        await this.notifyInvoicePaid(invoice);
+      }
+
+      return invoice;
+    } catch (error) {
+      this.logger.error(`Failed to check invoice status: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Notify user when invoice is paid
+   */
+  async notifyInvoicePaid(invoice: any): Promise<void> {
+    try {
+      const message = `✅ Payment Received!\n\nAmount: $${invoice.amount} USD\n${invoice.memo ? `Memo: ${invoice.memo}\n` : ''}Paid at: ${new Date(invoice.paidAt).toLocaleString()}\n\nThank you for your payment!`;
+
+      // Send notification via WhatsApp Web
+      if (this.whatsappWebService) {
+        await this.whatsappWebService.sendMessage(
+          invoice.whatsappUserId,
+          message,
+        );
+      }
+    } catch (error) {
+      this.logger.error('Failed to send payment notification:', error);
+    }
   }
 }
