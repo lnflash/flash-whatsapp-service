@@ -1,9 +1,9 @@
 /**
- * Pulse (formerly Flash Connect) Knowledge Base
+ * Pulse Knowledge Base
  * This file contains structured information to train the AI for accurate responses
- * 
+ *
  * Pulse: A WhatsApp bot that captures the pulse of people as they share what's on their mind,
- * hoping for electric zaps (Lightning payments) to their wallet - just like blood flowing 
+ * hoping for electric zaps (Lightning payments) to their wallet - just like blood flowing
  * through veins being pushed by electric compressions in the heart.
  */
 
@@ -73,7 +73,8 @@ export const FLASH_COMMANDS: CommandInfo[] = [
       'request 50 from john (saved contact)',
     ],
     requiresAuth: true,
-    notes: 'Creates a payment request. Target can be: @username, phone number, or saved contact name. Can send via WhatsApp if phone number is known.',
+    notes:
+      'Creates a payment request. Target can be: @username, phone number, or saved contact name. Can send via WhatsApp if phone number is known.',
   },
   {
     command: 'contacts',
@@ -144,9 +145,36 @@ export const FLASH_COMMANDS: CommandInfo[] = [
     requiresAuth: false,
     notes: 'Lists all available commands',
   },
+  {
+    command: 'pending',
+    description: 'Check pending payments (sent/received)',
+    usage: 'pending [sent|received|claim <code>]',
+    examples: ['pending', 'pending sent', 'pending received', 'pending claim ABC123'],
+    requiresAuth: false,
+    notes: 'View pending payments. Received payments auto-claim when you link your account',
+  },
 ];
 
 export const TRAINING_EXAMPLES: TrainingExample[] = [
+  {
+    question: 'What is Pulse?',
+    answer: `I'm Pulse, your WhatsApp Bitcoin wallet assistant. I help you send/receive money using your Flash account.`,
+    category: 'general',
+    keywords: ['pulse', 'what', 'who', 'bot', 'assistant'],
+  },
+  {
+    question: 'Who is Pulse?',
+    answer: `I'm Pulse, a WhatsApp bot that helps you manage your Flash wallet. Type 'help' to see what I can do!`,
+    category: 'general',
+    keywords: ['pulse', 'who', 'bot', 'identity'],
+  },
+  {
+    question: 'How do I use Flash?',
+    answer:
+      'To use Flash, simply type "help" to see available commands. You can check your balance, receive payments, send money, and more.',
+    category: 'general',
+    keywords: ['use', 'how', 'get started', 'commands'],
+  },
   // Balance related
   {
     question: 'How do I check my balance?',
@@ -399,7 +427,7 @@ Our Flashpoint locations are considered Flash to Flash, but an additional fee ma
   {
     question: 'Can AI interact with users through specific applications?',
     answer:
-      'Yes, the Flash AI assistant can respond to questions through WhatsApp and help you use commands or get support.',
+      'Yes, Pulse can respond to questions through WhatsApp and help you use commands or get support.',
     category: 'ai',
     keywords: ['ai', 'assistant', 'apps', 'interact', 'support'],
   },
@@ -542,7 +570,7 @@ Our Flashpoint locations are considered Flash to Flash, but an additional fee ma
   {
     question: 'Is it possible to communicate with customer service through WhatsApp?',
     answer:
-      'Yes, you can chat with the Flash AI assistant on WhatsApp right here! You can also Chat with Fpash Support on WhatsApp number +18769202950 and be redirected to human support when needed.',
+      'Yes, you can chat with Pulse on WhatsApp right here! You can also Chat with Flash Support on WhatsApp number +18769202950 and be redirected to human support when needed.',
     category: 'support',
     keywords: ['customer service', 'whatsapp', 'chat', 'contact', 'help'],
   },
@@ -876,12 +904,16 @@ Bottom Line - You are never required to trust Flash or any other company with yo
 export const CONVERSATION_CONTEXT = {
   personality: {
     tone: 'Friendly, helpful, and professional with a touch of Caribbean warmth',
-    style: 'Clear and concise, avoiding technical jargon when possible',
+    style:
+      'Clear and concise, avoiding technical jargon when possible. ELI5 level language for general users, but can use more technical terms when appropriate for advanced users.',
     language:
-      'English with appropriate Caribbean expressions when suitable, always use a little patois when appropriate',
+      'English with appropriate Caribbean expressions when suitable, always use a little patois in every response, keeping the professional tone.',
   },
 
   important_rules: [
+    'Your name is Pulse, not Flash or Flash Connect or anything else.',
+    'You are Pulse, a helpful AI assistant for the Flash app, not a human.',
+    'Always warn users about potential scams and phishing attempts on thier first interaction with making a transaction.',
     'Never ask for passwords, private keys, or sensitive financial information',
     'Always remind users to link their account for features that require authentication',
     'Be clear about current limitations (e.g., USD-only invoices)',

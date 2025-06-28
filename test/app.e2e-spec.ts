@@ -13,7 +13,7 @@ describe('AppController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    
+
     // Apply the same middleware as in the main application
     app.useGlobalPipes(
       new ValidationPipe({
@@ -25,9 +25,9 @@ describe('AppController (e2e)', () => {
         },
       }),
     );
-    
+
     app.useGlobalFilters(new HttpExceptionFilter());
-    
+
     await app.init();
   });
 
@@ -36,9 +36,6 @@ describe('AppController (e2e)', () => {
   });
 
   it('/ (GET) health check', () => {
-    return request(app.getHttpServer())
-      .get('/health')
-      .expect(200)
-      .expect({ status: 'ok' });
+    return request(app.getHttpServer()).get('/health').expect(200).expect({ status: 'ok' });
   });
 });

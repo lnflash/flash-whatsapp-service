@@ -67,22 +67,33 @@ export class PaymentEventListener implements OnModuleInit {
   private async handlePaymentReceived(data: any): Promise<void> {
     try {
       this.logger.log(`Handling payment_received event: ${JSON.stringify(data)}`);
-      
-      const { userId, transactionId, amount, senderName, memo, timestamp, whatsappId, paymentHash } = data;
-      
+
+      const {
+        userId,
+        transactionId,
+        amount,
+        senderName,
+        memo,
+        timestamp,
+        whatsappId,
+        paymentHash,
+      } = data;
+
       // Log all data fields to see what's available
       this.logger.log(`Payment data fields: ${Object.keys(data).join(', ')}`);
-      
+
       // Check for various payment identifiers
-      const possiblePaymentHash = paymentHash || data.payment_hash || data.paymentIdentifier || data.hash;
-      
+      const possiblePaymentHash =
+        paymentHash || data.payment_hash || data.paymentIdentifier || data.hash;
+
       if (possiblePaymentHash) {
         this.logger.log(`Found payment identifier: ${possiblePaymentHash}`);
         await this.handleInvoicePayment(possiblePaymentHash, data);
         return;
       } else {
         // Try to match by memo if it contains the payment hash
-        if (memo && memo.length === 64) { // Payment hashes are 64 characters
+        if (memo && memo.length === 64) {
+          // Payment hashes are 64 characters
           this.logger.log(`Checking if memo is payment hash: ${memo}`);
           await this.handleInvoicePayment(memo, data);
           return;
@@ -233,7 +244,7 @@ export class PaymentEventListener implements OnModuleInit {
    * Handle Lightning invoice payment
    * This is the primary method for tracking Lightning invoice payments.
    * It replaces the WebSocket subscription approach that was experiencing connection issues.
-   * 
+   *
    * Requirements for this to work:
    * 1. Invoice must be stored in Redis with key `invoice:{paymentHash}`
    * 2. RabbitMQ payment event must include a payment hash field
@@ -244,26 +255,26 @@ export class PaymentEventListener implements OnModuleInit {
       // Look up the invoice in Redis
       const key = `invoice:${paymentHash}`;
       const invoiceData = await this.redisService.get(key);
-      
+
       if (!invoiceData) {
         this.logger.debug(`No tracked invoice found for payment hash: ${paymentHash}`);
         return;
       }
 
       const invoice = JSON.parse(invoiceData);
-      
+
       // Update invoice status
       invoice.status = 'paid';
       invoice.paidAt = data.timestamp || new Date().toISOString();
-      
+
       // Save updated invoice
       await this.redisService.set(key, JSON.stringify(invoice), 3600); // Keep for 1 hour
-      
+
       // Format payment notification
       const amount = data.amount || invoice.amount;
       const currency = invoice.currency || 'USD';
       const memo = invoice.memo || data.memo;
-      
+
       const message = `✅ Payment Received!\n\nAmount: ${currency === 'USD' ? '$' : ''}${amount} ${currency}\n${memo ? `Memo: ${memo}\n` : ''}Paid at: ${new Date(invoice.paidAt).toLocaleString()}\n\nThank you for your payment!`;
 
       // Send notification through the notification service
@@ -286,7 +297,7 @@ export class PaymentEventListener implements OnModuleInit {
       };
 
       await this.notificationService.sendNotification({ notification });
-      
+
       this.logger.log(`Lightning invoice payment notification sent for hash: ${paymentHash}`);
     } catch (error) {
       this.logger.error(`Error handling invoice payment: ${error.message}`, error.stack);

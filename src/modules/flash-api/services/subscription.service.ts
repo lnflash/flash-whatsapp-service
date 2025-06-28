@@ -20,8 +20,11 @@ export class SubscriptionService implements OnModuleDestroy {
 
   constructor(private readonly configService: ConfigService) {
     // Use the dedicated WebSocket endpoint
-    const apiUrl = this.configService.get<string>('flashApi.url', 'https://api.flashapp.me/graphql');
-    
+    const apiUrl = this.configService.get<string>(
+      'flashApi.url',
+      'https://api.flashapp.me/graphql',
+    );
+
     // Determine WebSocket URL based on environment
     if (apiUrl.includes('api.flashapp.me')) {
       // Production
@@ -36,7 +39,7 @@ export class SubscriptionService implements OnModuleDestroy {
       // Fallback: try to convert API URL
       this.wsUrl = apiUrl.replace('https://api.', 'wss://ws.').replace('http://', 'ws://');
     }
-    
+
     this.logger.log(`WebSocket URL configured: ${this.wsUrl}`);
   }
 
@@ -49,12 +52,12 @@ export class SubscriptionService implements OnModuleDestroy {
    */
   async connect(authToken: string): Promise<void> {
     this.authToken = authToken;
-    
+
     return new Promise((resolve, reject) => {
       try {
         this.ws = new WebSocket(this.wsUrl, {
           headers: {
-            'Authorization': `Bearer ${authToken}`,
+            Authorization: `Bearer ${authToken}`,
             'User-Agent': 'Flash-WhatsApp-Service/1.0',
             'Sec-WebSocket-Protocol': 'graphql-ws',
           },
@@ -75,7 +78,7 @@ export class SubscriptionService implements OnModuleDestroy {
           try {
             const message = JSON.parse(data.toString()) as SubscriptionMessage;
             this.handleMessage(message);
-            
+
             if (message.type === 'connection_ack') {
               this.logger.log('WebSocket connection acknowledged');
               resolve();
@@ -115,7 +118,7 @@ export class SubscriptionService implements OnModuleDestroy {
     }
 
     const subscriptionId = `ln-updates-${userId}`;
-    
+
     // Store callback
     this.subscriptions.set(subscriptionId, (data) => {
       const update = data?.myUpdates?.update;
@@ -144,14 +147,14 @@ export class SubscriptionService implements OnModuleDestroy {
   unsubscribe(subscriptionId: string): void {
     if (this.subscriptions.has(subscriptionId)) {
       this.subscriptions.delete(subscriptionId);
-      
+
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.send({
           id: subscriptionId,
           type: 'stop',
         });
       }
-      
+
       this.logger.log(`Unsubscribed from ${subscriptionId}`);
     }
   }
@@ -169,11 +172,11 @@ export class SubscriptionService implements OnModuleDestroy {
           }
         }
         break;
-        
+
       case 'error':
         this.logger.error(`Subscription error:`, message.payload);
         break;
-        
+
       case 'complete':
         this.logger.log(`Subscription ${message.id} completed`);
         if (message.id) {
@@ -209,7 +212,7 @@ export class SubscriptionService implements OnModuleDestroy {
 
     const delay = 5000; // 5 seconds
     this.logger.log(`Attempting to reconnect in ${delay}ms...`);
-    
+
     this.reconnectTimeout = setTimeout(async () => {
       try {
         await this.connect(this.authToken!);

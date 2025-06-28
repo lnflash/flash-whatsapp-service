@@ -44,12 +44,12 @@ export class InvoiceService {
       }
     } catch (error) {
       this.logger.error(`Error creating invoice: ${error.message}`, error.stack);
-      
+
       // Re-throw BadRequestException with original message
       if (error instanceof BadRequestException) {
         throw error;
       }
-      
+
       // Generic error for unexpected exceptions
       throw new BadRequestException('Failed to create invoice');
     }
@@ -92,13 +92,17 @@ export class InvoiceService {
 
     if (result.lnNoAmountInvoiceCreate?.errors?.length > 0) {
       const error = result.lnNoAmountInvoiceCreate.errors[0];
-      this.logger.error(`GraphQL error creating no-amount invoice: ${error.code} - ${error.message}`);
-      
+      this.logger.error(
+        `GraphQL error creating no-amount invoice: ${error.code} - ${error.message}`,
+      );
+
       // Provide user-friendly error messages
       if (error.code === 'IBEX_ERROR') {
-        throw new BadRequestException('Unable to create invoice. Please try again with a shorter memo.');
+        throw new BadRequestException(
+          'Unable to create invoice. Please try again with a shorter memo.',
+        );
       }
-      
+
       throw new BadRequestException(error.message || 'Failed to create invoice');
     }
 
@@ -167,15 +171,17 @@ export class InvoiceService {
     if (result.lnUsdInvoiceCreate?.errors?.length > 0) {
       const error = result.lnUsdInvoiceCreate.errors[0];
       this.logger.error(`GraphQL error creating USD invoice: ${error.code} - ${error.message}`);
-      
+
       // Provide user-friendly error messages
       if (error.code === 'IBEX_ERROR') {
-        throw new BadRequestException('Unable to create invoice. Please try again with a shorter memo or smaller amount.');
+        throw new BadRequestException(
+          'Unable to create invoice. Please try again with a shorter memo or smaller amount.',
+        );
       }
       if (error.code === 'INSUFFICIENT_BALANCE') {
         throw new BadRequestException('Insufficient balance to create this invoice.');
       }
-      
+
       throw new BadRequestException(error.message || 'Failed to create invoice');
     }
 
@@ -343,9 +349,7 @@ export class InvoiceService {
    */
   formatInvoiceMessage(invoice: InvoiceInfo): string {
     const timeLeft = this.getTimeLeft(invoice.expiresAt);
-    const amountText = invoice.amount
-      ? `$${invoice.amount.toFixed(2)} USD`
-      : 'Any amount (USD)';
+    const amountText = invoice.amount ? `$${invoice.amount.toFixed(2)} USD` : 'Any amount (USD)';
 
     return (
       `*Lightning Invoice*\n\n` +

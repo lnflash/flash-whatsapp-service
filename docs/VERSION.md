@@ -1,5 +1,38 @@
 # Version History
 
+## v0.4.0 (2025-06-28) - Pending Payments for Non-Flash Users
+
+### Major Features
+- **Pending Payments System**: Send money to anyone via WhatsApp
+  - Send to any phone number, even without Flash account
+  - 30-day expiry with automatic refunds
+  - Secure claim codes for payment verification
+  - Escrow system holds funds until claimed
+- **Recipient Notifications**: Automatic WhatsApp messages to recipients
+  - Clear instructions for claiming payments
+  - One-click account creation flow
+  - Automatic credit upon successful linking
+
+### New Commands
+- `pending` - View all pending payments
+- `pending sent` - List payments awaiting claim
+- `pending received` - Check for incoming payments
+- `pending claim [code]` - Claim payment with code
+
+### Technical Improvements
+- New `PendingPaymentService` with Redis-based storage
+- Phone number indexing for efficient lookups
+- Automatic payment expiry with TTL
+- ESLint v9 migration for better code quality
+- Enhanced error handling for failed payments
+
+### Bug Fixes
+- Fixed unit test failures with PendingPaymentService mock
+- Updated ESLint configuration for v9 compatibility
+- Improved payment validation and error messages
+
+---
+
 ## v0.3.0 (2024-06-28) - Admin Reconnection & Enhanced Features
 
 ### Major Features

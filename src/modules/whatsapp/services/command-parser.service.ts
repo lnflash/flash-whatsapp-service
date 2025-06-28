@@ -18,6 +18,7 @@ export enum CommandType {
   PAY = 'pay',
   VYBZ = 'vybz',
   ADMIN = 'admin',
+  PENDING = 'pending',
   UNKNOWN = 'unknown',
 }
 
@@ -41,14 +42,28 @@ export class CommandParserService {
     { type: CommandType.REFRESH, pattern: /^refresh$/i },
     { type: CommandType.USERNAME, pattern: /^username(?:\s+(.+))?$/i },
     { type: CommandType.PRICE, pattern: /^price|^rate|^btc$/i },
-    { type: CommandType.SEND, pattern: /^send\s+(\d+(?:\.\d+)?)\s+to\s+(?:@?(\w+)|(\+?\d{10,})|(\w+))(?:\s+(.*))?$/i },
+    {
+      type: CommandType.SEND,
+      pattern:
+        /^(?:send|sent)\s+(\d+(?:\.\d+)?)\s+to\s+(?:@?(\w+)|(\+?\d{10,})|(\w+))(?:\s+(.*))?$/i,
+    },
     { type: CommandType.RECEIVE, pattern: /^receive(?:\s+(\d+(?:\.\d+)?))?\s*(.*)$/i },
     { type: CommandType.HISTORY, pattern: /^history|^transactions|^txs$/i },
-    { type: CommandType.REQUEST, pattern: /^request\s+(\d+(?:\.\d+)?)\s+from\s+(?:@?(\w+)|(\+?\d{10,}))(?:\s+(.+))?$/i },
-    { type: CommandType.CONTACTS, pattern: /^contacts(?:\s+(add|list|remove|history))?(?:\s+(\w+))?(?:\s+(.+))?$/i },
+    {
+      type: CommandType.REQUEST,
+      pattern: /^request\s+(\d+(?:\.\d+)?)\s+from\s+(?:@?(\w+)|(\+?\d{10,}))(?:\s+(.+))?$/i,
+    },
+    {
+      type: CommandType.CONTACTS,
+      pattern: /^contacts(?:\s+(add|list|remove|history))?(?:\s+(\w+))?(?:\s+(.+))?$/i,
+    },
     { type: CommandType.PAY, pattern: /^pay(?:\s+(confirm|cancel|list|\d+))?(?:\s+(all))?$/i },
-    { type: CommandType.VYBZ, pattern: /^(?:vybz|vybe|vibes|vibe|post|share|drop)(?:\s+(status|check))?$/i },
+    {
+      type: CommandType.VYBZ,
+      pattern: /^(?:vybz|vybe|vibes|vibe|post|share|drop)(?:\s+(status|check))?$/i,
+    },
     { type: CommandType.ADMIN, pattern: /^admin\s+(disconnect|reconnect|status|clear-session)$/i },
+    { type: CommandType.PENDING, pattern: /^pending(?:\s+(sent|received|claim))?(?:\s+(.+))?$/i },
   ];
 
   /**
@@ -209,6 +224,17 @@ export class CommandParserService {
         // Extract admin action
         if (match[1]) {
           args.action = match[1].toLowerCase();
+        }
+        break;
+
+      case CommandType.PENDING:
+        // Extract action: sent, received, or claim
+        if (match[1]) {
+          args.action = match[1].toLowerCase();
+        }
+        // Extract claim code for claim action
+        if (match[2]) {
+          args.claimCode = match[2].trim();
         }
         break;
     }

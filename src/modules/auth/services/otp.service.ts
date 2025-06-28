@@ -27,7 +27,7 @@ export class OtpService {
       const otpKey = `otp:${sessionId}`;
       const otpHash = this.hashOtp(otp);
 
-      await this.redisService.set(otpKey, otpHash, this.otpExpiry);
+      await this.redisService.setEncrypted(otpKey, { hash: otpHash }, this.otpExpiry);
 
       this.logger.log(`Generated OTP for session ${sessionId}`);
 
@@ -44,16 +44,16 @@ export class OtpService {
   async verifyOtp(sessionId: string, otpCode: string): Promise<boolean> {
     try {
       const otpKey = `otp:${sessionId}`;
-      const storedOtpHash = await this.redisService.get(otpKey);
+      const storedOtpData = await this.redisService.getEncrypted(otpKey);
 
-      if (!storedOtpHash) {
+      if (!storedOtpData || !storedOtpData.hash) {
         this.logger.warn(`No OTP found for session ${sessionId}`);
         return false;
       }
 
       // Hash the provided OTP and compare with stored hash
       const providedOtpHash = this.hashOtp(otpCode);
-      const isValid = storedOtpHash === providedOtpHash;
+      const isValid = storedOtpData.hash === providedOtpHash;
 
       if (isValid) {
         // Delete the OTP to prevent reuse

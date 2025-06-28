@@ -1,4 +1,11 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { WhatsappService } from './whatsapp.service';
 // import { RedisService } from '../../redis/redis.service'; // Not used with WebSocket disabled
 // import { SubscriptionService } from '../../flash-api/services/subscription.service'; // WebSocket subscriptions disabled
@@ -27,7 +34,7 @@ export class InvoiceTrackerService implements OnModuleInit, OnModuleDestroy {
 
   private async startTracking() {
     this.logger.log('Invoice payment tracking service initialized (using RabbitMQ events)');
-    
+
     // WebSocket subscriptions are disabled - invoice tracking is now handled by RabbitMQ payment events
     // See PaymentEventListener for the current implementation
   }

@@ -44,12 +44,12 @@ export class SessionService {
         consentGiven: false,
       };
 
-      // Store in Redis
+      // Store in Redis with encryption
       const sessionKey = `session:${sessionId}`;
-      await this.redisService.set(sessionKey, JSON.stringify(session), this.sessionExpiry);
+      await this.redisService.setEncrypted(sessionKey, session, this.sessionExpiry);
 
-      // Create secondary index for whatsappId to sessionId mapping
-      const whatsappKey = `whatsapp:${whatsappId}`;
+      // Create secondary index for whatsappId to sessionId mapping (using hashed key)
+      const whatsappKey = this.redisService.hashKey('whatsapp', whatsappId);
       await this.redisService.set(whatsappKey, sessionId, this.sessionExpiry);
 
       this.logger.log(`Created new session ${sessionId} for WhatsApp ID ${whatsappId}`);
@@ -67,13 +67,13 @@ export class SessionService {
   async getSession(sessionId: string): Promise<UserSession | null> {
     try {
       const sessionKey = `session:${sessionId}`;
-      const sessionData = await this.redisService.get(sessionKey);
+      const session = await this.redisService.getEncrypted(sessionKey);
 
-      if (!sessionData) {
+      if (!session) {
         return null;
       }
 
-      return JSON.parse(sessionData) as UserSession;
+      return session as UserSession;
     } catch (error) {
       this.logger.error(`Error getting session: ${error.message}`, error.stack);
       return null;
@@ -85,7 +85,7 @@ export class SessionService {
    */
   async getSessionByWhatsappId(whatsappId: string): Promise<UserSession | null> {
     try {
-      const whatsappKey = `whatsapp:${whatsappId}`;
+      const whatsappKey = this.redisService.hashKey('whatsapp', whatsappId);
       const sessionId = await this.redisService.get(whatsappKey);
 
       if (!sessionId) {
@@ -120,7 +120,7 @@ export class SessionService {
       };
 
       const sessionKey = `session:${sessionId}`;
-      await this.redisService.set(sessionKey, JSON.stringify(updatedSession), this.sessionExpiry);
+      await this.redisService.setEncrypted(sessionKey, updatedSession, this.sessionExpiry);
 
       this.logger.log(`Updated session ${sessionId}`);
 

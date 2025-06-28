@@ -84,27 +84,27 @@ export function sanitizeMemo(memo: string): string {
 export function parseAndValidateAmount(amountStr: string): { amount?: number; error?: string } {
   // Remove all non-numeric characters except decimal point
   const cleanAmount = amountStr.replace(/[^0-9.]/g, '');
-  
+
   // Check for multiple decimal points
   const decimalCount = (cleanAmount.match(/\./g) || []).length;
   if (decimalCount > 1) {
     return { error: 'Invalid amount format. Please use only one decimal point.' };
   }
-  
+
   // Check for too many decimal places (more than 2 for USD)
   const parts = cleanAmount.split('.');
   if (parts[1] && parts[1].length > 2) {
     return { error: 'Too many decimal places. USD amounts support up to 2 decimal places.' };
   }
-  
+
   const amount = parseFloat(cleanAmount);
-  
+
   if (isNaN(amount) || !isFinite(amount)) {
     return { error: 'Invalid amount. Please enter a valid number.' };
   }
-  
+
   // Round to 2 decimal places for USD
   const roundedAmount = Math.round(amount * 100) / 100;
-  
+
   return { amount: roundedAmount };
 }

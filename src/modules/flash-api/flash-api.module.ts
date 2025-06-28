@@ -8,11 +8,32 @@ import { InvoiceService } from './services/invoice.service';
 import { SubscriptionService } from './services/subscription.service';
 import { TransactionService } from './services/transaction.service';
 import { PaymentService } from './services/payment.service';
+import { PendingPaymentService } from './services/pending-payment.service';
 import { RedisModule } from '../redis/redis.module';
 
 @Module({
   imports: [ConfigModule, RedisModule],
-  providers: [FlashApiService, BalanceService, UsernameService, PriceService, InvoiceService, SubscriptionService, TransactionService, PaymentService],
-  exports: [FlashApiService, BalanceService, UsernameService, PriceService, InvoiceService, SubscriptionService, TransactionService, PaymentService],
+  providers: [
+    FlashApiService,
+    BalanceService,
+    UsernameService,
+    PriceService,
+    InvoiceService,
+    SubscriptionService,
+    TransactionService,
+    PaymentService,
+    PendingPaymentService,
+  ],
+  exports: [
+    FlashApiService,
+    BalanceService,
+    UsernameService,
+    PriceService,
+    InvoiceService,
+    SubscriptionService,
+    TransactionService,
+    PaymentService,
+    PendingPaymentService,
+  ],
 })
 export class FlashApiModule {}

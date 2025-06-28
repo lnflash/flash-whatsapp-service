@@ -2,11 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { RedisService } from '../redis/redis.service';
-import { 
-  FLASH_COMMANDS, 
-  TRAINING_EXAMPLES, 
+import {
+  FLASH_COMMANDS,
+  TRAINING_EXAMPLES,
   CONVERSATION_CONTEXT,
-  ERROR_RESPONSES 
+  ERROR_RESPONSES,
 } from './training/flash-knowledge-base';
 
 @Injectable()
@@ -38,7 +38,7 @@ export class GeminiAiService {
             temperature: 0.7,
             topP: 0.8,
             topK: 40,
-            maxOutputTokens: 1024,
+            maxOutputTokens: 100, // Allow slightly longer responses for clarity
           },
           safetySettings: [
             {
@@ -117,9 +117,9 @@ export class GeminiAiService {
   private buildPrompt(query: string, context: Record<string, any>): string {
     // Find relevant training examples based on the query
     const relevantExamples = this.findRelevantExamples(query, 3);
-    
+
     // Build command reference
-    const commandReference = FLASH_COMMANDS.map(cmd => {
+    const commandReference = FLASH_COMMANDS.map((cmd) => {
       const authNote = cmd.requiresAuth ? ' (requires linked account)' : '';
       return `- ${cmd.command}: ${cmd.description}${authNote}
   Usage: ${cmd.usage}
@@ -127,20 +127,27 @@ export class GeminiAiService {
     }).join('\n');
 
     // Build examples section from relevant training data
-    const examplesSection = relevantExamples.length > 0 
-      ? `\nRelevant examples for similar questions:\n${relevantExamples.map(ex => 
-          `Q: ${ex.question}\nA: ${ex.answer}`
-        ).join('\n\n')}`
-      : '';
+    const examplesSection =
+      relevantExamples.length > 0
+        ? `\nRelevant examples for similar questions:\n${relevantExamples
+            .map((ex) => `Q: ${ex.question}\nA: ${ex.answer}`)
+            .join('\n\n')}`
+        : '';
 
-    return `You are Flash Connect's WhatsApp assistant, helping users with their Bitcoin wallet and payment needs in the Caribbean.
+    return `You are Pulse, a WhatsApp bot that helps users with their Bitcoin wallet and payment needs in the Caribbean.
+
+YOUR IDENTITY:
+- Your name is PULSE (not Flash Connect, not Flash assistant, just Pulse)
+- You are a WhatsApp bot/assistant
+- When asked "What is Pulse?", explain: "I'm Pulse, your WhatsApp Bitcoin wallet assistant"
+- You help users send/receive money using their Flash account
 
 PERSONALITY & TONE:
 ${CONVERSATION_CONTEXT.personality.tone}
 Style: ${CONVERSATION_CONTEXT.personality.style}
 
 IMPORTANT RULES:
-${CONVERSATION_CONTEXT.important_rules.map(rule => `- ${rule}`).join('\n')}
+${CONVERSATION_CONTEXT.important_rules.map((rule) => `- ${rule}`).join('\n')}
 
 CURRENT USER CONTEXT:
 - Authenticated: ${context.userId ? 'Yes' : 'No'}
@@ -154,14 +161,12 @@ ${commandReference}
 ${examplesSection}
 
 COMMON USER MISTAKES TO WATCH FOR:
-${CONVERSATION_CONTEXT.common_mistakes.map(m => 
-  `- ${m.mistake}: ${m.correction}`
-).join('\n')}
+${CONVERSATION_CONTEXT.common_mistakes.map((m) => `- ${m.mistake}: ${m.correction}`).join('\n')}
 
 ERROR MESSAGES TO USE:
-${Object.entries(ERROR_RESPONSES).map(([key, msg]) => 
-  `- ${key}: "${msg}"`
-).join('\n')}
+${Object.entries(ERROR_RESPONSES)
+  .map(([key, msg]) => `- ${key}: "${msg}"`)
+  .join('\n')}
 
 USER QUERY: ${query}
 
@@ -169,11 +174,13 @@ Instructions:
 1. Answer the user's question directly and helpfully
 2. If they're trying to use a command that requires authentication and they're not linked, guide them to link first
 3. For the "receive" command, ALWAYS remind users it's USD only (not BTC)
-4. Keep responses concise but friendly
-5. Use examples when explaining commands
-6. If unsure, suggest they contact support@flashapp.me
+4. Prioritize CLARITY and UNDERSTANDING over brevity
+5. Be helpful and informative, explaining things clearly
+6. For commands, show examples and explain what they do
+7. For typos like "sent" instead of "send", explain the correct usage
+8. Aim for responses between 140-280 characters when needed for clarity
 
-Please provide your response:`;
+Please provide a clear, helpful response:`;
   }
 
   /**
@@ -181,18 +188,16 @@ Please provide your response:`;
    */
   private getFallbackResponse(query: string): string {
     const lowerQuery = query.toLowerCase();
-    
+
     // Try to find a relevant example from training data
     const relevantExamples = this.findRelevantExamples(query, 1);
     if (relevantExamples.length > 0) {
       return relevantExamples[0].answer;
     }
-    
+
     // Check for specific command mentions
-    const mentionedCommand = FLASH_COMMANDS.find(cmd => 
-      lowerQuery.includes(cmd.command)
-    );
-    
+    const mentionedCommand = FLASH_COMMANDS.find((cmd) => lowerQuery.includes(cmd.command));
+
     if (mentionedCommand) {
       let response = `The "${mentionedCommand.command}" command ${mentionedCommand.description.toLowerCase()}.`;
       if (mentionedCommand.examples.length > 0) {
@@ -203,24 +208,31 @@ Please provide your response:`;
       }
       return response;
     }
-    
+
     // Check for common keywords
     if (lowerQuery.includes('receive') || lowerQuery.includes('invoice')) {
-      return ERROR_RESPONSES.btc_not_supported + ' Example: "receive 10" or "receive 25.50 Payment for services"';
+      return (
+        ERROR_RESPONSES.btc_not_supported +
+        ' Example: "receive 10" or "receive 25.50 Payment for services"'
+      );
     }
-    
+
     if (lowerQuery.includes('balance')) {
       return 'To check your balance, type "balance". Need to refresh? Use "refresh" to clear the cache.';
     }
-    
+
     if (lowerQuery.includes('link') || lowerQuery.includes('connect')) {
       return 'To link your Flash account, type "link". You\'ll receive an OTP code in your Flash app to verify.';
     }
-    
-    if (lowerQuery.includes('support') || lowerQuery.includes('help') || lowerQuery.includes('contact')) {
+
+    if (
+      lowerQuery.includes('support') ||
+      lowerQuery.includes('help') ||
+      lowerQuery.includes('contact')
+    ) {
       return 'For help, type "help" to see available commands. For support, email support@flashapp.me or use the Help section in the Flash app.';
     }
-    
+
     // Default response
     return "I'm having trouble understanding your question. Type 'help' to see available commands, or contact support@flashapp.me for assistance.";
   }
@@ -275,21 +287,22 @@ Please provide your response:`;
   private findRelevantExamples(query: string, limit: number = 3): typeof TRAINING_EXAMPLES {
     const queryLower = query.toLowerCase();
     const queryWords = queryLower.split(/\s+/);
-    
+
     // Score each example based on keyword matches
-    const scoredExamples = TRAINING_EXAMPLES.map(example => {
+    const scoredExamples = TRAINING_EXAMPLES.map((example) => {
       let score = 0;
-      
+
       // Check if query contains any keywords
-      example.keywords.forEach(keyword => {
+      example.keywords.forEach((keyword) => {
         if (queryLower.includes(keyword.toLowerCase())) {
           score += 2;
         }
       });
-      
+
       // Check if example question/answer contains query words
-      queryWords.forEach(word => {
-        if (word.length > 3) { // Skip short words
+      queryWords.forEach((word) => {
+        if (word.length > 3) {
+          // Skip short words
           if (example.question.toLowerCase().includes(word)) {
             score += 1;
           }
@@ -298,16 +311,16 @@ Please provide your response:`;
           }
         }
       });
-      
+
       return { example, score };
     });
-    
+
     // Sort by score and return top matches
     return scoredExamples
-      .filter(item => item.score > 0)
+      .filter((item) => item.score > 0)
       .sort((a, b) => b.score - a.score)
       .slice(0, limit)
-      .map(item => item.example);
+      .map((item) => item.example);
   }
 
   /**

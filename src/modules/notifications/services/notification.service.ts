@@ -193,10 +193,9 @@ export class NotificationService {
 
       // Check each session to find a match
       for (const key of sessionKeys) {
-        const sessionData = await this.redisService.get(key);
-        if (!sessionData) continue;
+        const session = await this.redisService.getEncrypted(key);
+        if (!session) continue;
 
-        const session = JSON.parse(sessionData);
         if (session.flashUserId === userId) {
           return session;
         }
@@ -215,10 +214,10 @@ export class NotificationService {
   async getUserPreferences(userId: string): Promise<NotificationPreferencesDto> {
     try {
       const preferencesKey = `notification:preferences:${userId}`;
-      const preferencesData = await this.redisService.get(preferencesKey);
+      const preferencesData = await this.redisService.getEncrypted(preferencesKey);
 
       if (preferencesData) {
-        return JSON.parse(preferencesData) as NotificationPreferencesDto;
+        return preferencesData as NotificationPreferencesDto;
       }
 
       // Return default preferences if none set
@@ -252,7 +251,7 @@ export class NotificationService {
   async updateUserPreferences(preferences: NotificationPreferencesDto): Promise<boolean> {
     try {
       const preferencesKey = `notification:preferences:${preferences.userId}`;
-      await this.redisService.set(preferencesKey, JSON.stringify(preferences));
+      await this.redisService.setEncrypted(preferencesKey, preferences);
       return true;
     } catch (error) {
       this.logger.error(`Error updating user preferences: ${error.message}`, error.stack);

@@ -12,6 +12,7 @@
 - ✅ Contact management with vCard support
 - ✅ Admin session management with QR delivery
 - ✅ Content sharing ("vybz") for earning sats
+- ✅ Pending payments for non-Flash users
 
 ## Q3 2024 - Enhancement & Polish
 

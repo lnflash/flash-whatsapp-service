@@ -6,10 +6,18 @@ import { AuthService } from '../../auth/services/auth.service';
 import { SessionService } from '../../auth/services/session.service';
 import { FlashApiService } from '../../flash-api/flash-api.service';
 import { BalanceService } from '../../flash-api/services/balance.service';
+import { UsernameService } from '../../flash-api/services/username.service';
+import { PriceService } from '../../flash-api/services/price.service';
+import { InvoiceService } from '../../flash-api/services/invoice.service';
+import { TransactionService } from '../../flash-api/services/transaction.service';
+import { PaymentService } from '../../flash-api/services/payment.service';
+import { PendingPaymentService } from '../../flash-api/services/pending-payment.service';
 import { GeminiAiService } from '../../gemini-ai/gemini-ai.service';
+import { QrCodeService } from './qr-code.service';
 import { CommandParserService, CommandType } from './command-parser.service';
 import { BalanceTemplate } from '../templates/balance-template';
-import { WhatsAppCloudService } from './whatsapp-cloud.service';
+import { WhatsAppWebService } from './whatsapp-web.service';
+import { InvoiceTrackerService } from './invoice-tracker.service';
 
 describe('WhatsappService', () => {
   let service: WhatsappService;
@@ -40,6 +48,9 @@ describe('WhatsappService', () => {
             del: jest.fn(),
             setNX: jest.fn(),
             exists: jest.fn(),
+            setEncrypted: jest.fn(),
+            getEncrypted: jest.fn(),
+            hashKey: jest.fn((prefix, id) => `${prefix}:hashed_${id}`),
           },
         },
         {
@@ -47,16 +58,16 @@ describe('WhatsappService', () => {
           useValue: {
             initiateAccountLinking: jest.fn(),
             verifyAccountLinking: jest.fn(),
+            unlinkAccount: jest.fn(),
           },
         },
         {
           provide: SessionService,
           useValue: {
-            getSession: jest.fn(),
             getSessionByWhatsappId: jest.fn(),
             createSession: jest.fn(),
+            getSession: jest.fn(),
             updateSession: jest.fn(),
-            destroySession: jest.fn(),
           },
         },
         {
@@ -68,35 +79,97 @@ describe('WhatsappService', () => {
         {
           provide: BalanceService,
           useValue: {
-            getUserBalance: jest.fn(),
+            getBalance: jest.fn().mockResolvedValue({
+              btcBalance: 0,
+              usdBalance: 0,
+              formattedBtcBalance: '0 sats',
+              formattedUsdBalance: '$0.00',
+            }),
+          },
+        },
+        {
+          provide: UsernameService,
+          useValue: {
+            getUsername: jest.fn(),
+            setUsername: jest.fn(),
+          },
+        },
+        {
+          provide: PriceService,
+          useValue: {
+            getBtcPrice: jest.fn().mockResolvedValue({
+              price: 50000,
+              formattedPrice: '$50,000.00',
+            }),
+          },
+        },
+        {
+          provide: InvoiceService,
+          useValue: {
+            createInvoice: jest.fn(),
+            decodeInvoice: jest.fn(),
+          },
+        },
+        {
+          provide: TransactionService,
+          useValue: {
+            getTransactionHistory: jest.fn(),
+          },
+        },
+        {
+          provide: PaymentService,
+          useValue: {
+            sendPayment: jest.fn(),
+            sendPaymentToUsername: jest.fn(),
+            sendPaymentToPhone: jest.fn(),
+          },
+        },
+        {
+          provide: PendingPaymentService,
+          useValue: {
+            createPendingPayment: jest.fn(),
+            getPendingPayment: jest.fn(),
+            confirmPayment: jest.fn(),
+            cancelPayment: jest.fn(),
+            cleanupExpiredPayments: jest.fn(),
           },
         },
         {
           provide: GeminiAiService,
           useValue: {
-            processQuery: jest.fn().mockResolvedValue('AI response'),
+            processQuery: jest.fn().mockResolvedValue('This is a test AI response'),
+          },
+        },
+        {
+          provide: QrCodeService,
+          useValue: {
+            generateQrCode: jest.fn(),
           },
         },
         {
           provide: CommandParserService,
           useValue: {
-            parseCommand: jest.fn().mockReturnValue({
-              type: 'HELP',
-              command: 'help',
-              args: {},
-            }),
+            parseCommand: jest.fn(),
           },
         },
         {
           provide: BalanceTemplate,
           useValue: {
-            formatBalance: jest.fn().mockReturnValue('Your balance is: 0.0001 BTC'),
+            formatBalanceMessage: jest.fn().mockReturnValue('Balance: $0.00 (0 sats)'),
           },
         },
         {
-          provide: WhatsAppCloudService,
+          provide: WhatsAppWebService,
           useValue: {
-            sendTextMessage: jest.fn().mockResolvedValue({}),
+            sendMessage: jest.fn(),
+            isClientReady: jest.fn().mockReturnValue(true),
+          },
+        },
+        {
+          provide: InvoiceTrackerService,
+          useValue: {
+            trackInvoice: jest.fn(),
+            untrackInvoice: jest.fn(),
           },
         },
       ],
@@ -116,61 +189,89 @@ describe('WhatsappService', () => {
 
   describe('processCloudMessage', () => {
     it('should process a cloud message and return a response', async () => {
-      // Mock Redis set
-      jest.spyOn(redisService, 'set').mockResolvedValue();
-
-      // Mock session service
-      jest.spyOn(sessionService, 'getSessionByWhatsappId').mockResolvedValue(null);
-      jest.spyOn(sessionService, 'createSession').mockResolvedValue({
-        sessionId: 'test-session-id',
-        whatsappId: '18765551234',
-        phoneNumber: '+18765551234',
-        flashUserId: undefined,
-        isVerified: false,
-        createdAt: new Date(),
-        expiresAt: new Date(Date.now() + 86400000), // 24 hours from now
-        lastActivity: new Date(),
-        mfaVerified: false,
-        consentGiven: false,
-        profileName: 'Test User',
-      });
-
       // Mock command parser
-      jest.spyOn(commandParserService, 'parseCommand').mockReturnValue({
+      const mockCommand = {
         type: CommandType.HELP,
         args: {},
         rawText: 'help',
-      });
+      };
+      jest.spyOn(commandParserService, 'parseCommand').mockReturnValue(mockCommand);
 
-      // Mock Gemini AI service to return a help message
-      jest
-        .spyOn(geminiAiService, 'processQuery')
-        .mockResolvedValue('Here are the available commands: help, balance, link, verify, etc.');
+      // Mock session
+      jest.spyOn(sessionService, 'getSessionByWhatsappId').mockResolvedValue(null);
 
-      // Create test message
-      const testMessage = {
-        from: '18765551234',
+      // Process a test message
+      const messageData = {
+        from: '+18765551234',
         text: 'help',
-        messageId: 'msg123',
-        timestamp: '1234567890',
+        messageId: 'test_msg_123',
+        timestamp: new Date().toISOString(),
         name: 'Test User',
       };
 
-      // Call the service method
-      const result = await service.processCloudMessage(testMessage);
+      const response = await service.processCloudMessage(messageData);
 
-      // Verify it returns a string
-      expect(typeof result).toBe('string');
+      // Verify response is a string (help message)
+      expect(response).toBeDefined();
+      expect(typeof response).toBe('string');
+      expect(response).toContain('Welcome!');
 
-      // Verify it includes the help message
-      expect(result).toContain('Here are the available commands');
+      // Verify command parser was called
+      expect(commandParserService.parseCommand).toHaveBeenCalledWith('help');
+    });
 
-      // Verify Redis was called to store the message
-      expect(redisService.set).toHaveBeenCalledWith(
-        expect.stringContaining('whatsapp:message:'),
-        expect.any(String),
-        expect.any(Number),
-      );
+    it('should handle unknown commands', async () => {
+      // Mock command for unknown/AI query
+      const mockCommand = {
+        type: CommandType.UNKNOWN,
+        args: {},
+        rawText: 'What is Bitcoin?',
+      };
+      jest.spyOn(commandParserService, 'parseCommand').mockReturnValue(mockCommand);
+
+      // Mock no session
+      jest.spyOn(sessionService, 'getSessionByWhatsappId').mockResolvedValue(null);
+
+      // Process message
+      const messageData = {
+        from: '+18765551234',
+        text: 'What is Bitcoin?',
+        messageId: 'test_msg_124',
+        timestamp: new Date().toISOString(),
+      };
+
+      const response = await service.processCloudMessage(messageData);
+
+      // Verify response suggests linking or help
+      expect(response).toContain('Keep your finger on it');
+      expect(response).toContain('link');
+      expect(response).toContain('help');
+    });
+
+    it('should require link for payment commands', async () => {
+      // Mock command
+      const mockCommand = {
+        type: CommandType.PAY,
+        args: { action: 'check' },
+        rawText: 'pay check',
+      };
+      jest.spyOn(commandParserService, 'parseCommand').mockReturnValue(mockCommand);
+
+      // Mock no session (user not linked)
+      jest.spyOn(sessionService, 'getSessionByWhatsappId').mockResolvedValue(null);
+
+      // Process message
+      const messageData = {
+        from: '+18765551234',
+        text: 'pay check',
+        messageId: 'test_msg_125',
+        timestamp: new Date().toISOString(),
+      };
+
+      const response = await service.processCloudMessage(messageData);
+
+      // Verify response prompts to link account
+      expect(response).toContain('link your Flash account');
     });
   });
 });

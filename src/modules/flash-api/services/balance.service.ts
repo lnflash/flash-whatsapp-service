@@ -84,13 +84,13 @@ export class BalanceService {
   private async getCachedBalance(userId: string): Promise<BalanceInfo | null> {
     try {
       const cacheKey = `balance:${userId}`;
-      const cachedData = await this.redisService.get(cacheKey);
+      const cachedData = await this.redisService.getEncrypted(cacheKey);
 
       if (!cachedData) {
         return null;
       }
 
-      return JSON.parse(cachedData) as BalanceInfo;
+      return cachedData as BalanceInfo;
     } catch (error) {
       this.logger.warn(`Error getting cached balance: ${error.message}`);
       return null; // Cache miss on error, will fallback to API
@@ -103,7 +103,7 @@ export class BalanceService {
   private async cacheBalance(userId: string, balance: BalanceInfo): Promise<void> {
     try {
       const cacheKey = `balance:${userId}`;
-      await this.redisService.set(cacheKey, JSON.stringify(balance), this.cacheTtl);
+      await this.redisService.setEncrypted(cacheKey, balance, this.cacheTtl);
     } catch (error) {
       this.logger.warn(`Error caching balance: ${error.message}`);
       // Non-critical error, don't throw

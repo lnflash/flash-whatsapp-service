@@ -10,6 +10,7 @@ import { PriceService } from '../../flash-api/services/price.service';
 import { InvoiceService } from '../../flash-api/services/invoice.service';
 import { TransactionService } from '../../flash-api/services/transaction.service';
 import { PaymentService, PaymentSendResult } from '../../flash-api/services/payment.service';
+import { PendingPaymentService } from '../../flash-api/services/pending-payment.service';
 import { GeminiAiService } from '../../gemini-ai/gemini-ai.service';
 import { ACCOUNT_DEFAULT_WALLET_QUERY } from '../../flash-api/graphql/queries';
 import { QrCodeService } from './qr-code.service';
@@ -47,6 +48,7 @@ export class WhatsappService {
     private readonly invoiceService: InvoiceService,
     private readonly transactionService: TransactionService,
     private readonly paymentService: PaymentService,
+    private readonly pendingPaymentService: PendingPaymentService,
     private readonly geminiAiService: GeminiAiService,
     private readonly qrCodeService: QrCodeService,
     private readonly commandParserService: CommandParserService,
@@ -150,15 +152,42 @@ export class WhatsappService {
         case CommandType.VYBZ:
           return this.handleVybzCommand(command, whatsappId, session);
 
+        case CommandType.PENDING:
+          return this.handlePendingCommand(command, whatsappId, session);
+
         case CommandType.ADMIN:
           return this.handleAdminCommand(command, whatsappId, phoneNumber);
 
         case CommandType.UNKNOWN:
         default:
+          // Check if this might be a Flash username response to pending send
+          const pendingSendKey = `pending_send:${whatsappId}`;
+          const pendingSendData = await this.redisService.get(pendingSendKey);
+
+          if (pendingSendData && command.rawText.startsWith('@')) {
+            const pending = JSON.parse(pendingSendData);
+            const username = command.rawText.substring(1); // Remove @ prefix
+
+            // Try to send to this username
+            await this.redisService.del(pendingSendKey); // Clear pending
+
+            const sendCommand: ParsedCommand = {
+              type: CommandType.SEND,
+              args: {
+                amount: pending.amount.toString(),
+                username: username,
+                memo: pending.memo,
+              },
+              rawText: `send ${pending.amount} to @${username}`,
+            };
+
+            return this.handleSendCommand(sendCommand, whatsappId, session);
+          }
+
           // Check if this might be a response to a pending contact request
           const pendingKey = `pending_request:${whatsappId}`;
           const pendingData = await this.redisService.get(pendingKey);
-          
+
           if (pendingData) {
             const pending = JSON.parse(pendingData);
             if (pending.type === 'payment_request') {
@@ -167,7 +196,7 @@ export class WhatsappService {
               if (parts.length >= 2) {
                 const possibleName = parts[0];
                 const possiblePhone = parts.slice(1).join('');
-                
+
                 // Check if this matches the pending contact name
                 if (possibleName.toLowerCase() === pending.contactName.toLowerCase()) {
                   // Process as contact addition with pending request
@@ -176,7 +205,7 @@ export class WhatsappService {
                     possibleName,
                     possiblePhone,
                   );
-                  
+
                   if (response) {
                     return response;
                   }
@@ -184,7 +213,7 @@ export class WhatsappService {
               }
             }
           }
-          
+
           // Check if the message contains a Lightning invoice
           const invoiceMatch = command.rawText.match(/\b(lnbc[a-z0-9]+)\b/i);
           if (invoiceMatch) {
@@ -195,18 +224,18 @@ export class WhatsappService {
               return `⚡ *Lightning Invoice Detected*\n\nTo pay this invoice, you need to connect your Flash account first.\n\n👉 Type \`link\` to get started!\n\nOnce connected, you'll be able to:\n• Pay Lightning invoices instantly\n• Send money to other Flash users\n• Check your balance\n• And much more!`;
             }
           }
-          
+
           // Check if user has an active vybz session
           if (session?.isVerified) {
             const vybzQueueKey = `vybz_waiting:${whatsappId}`;
             const waitingForContent = await this.redisService.get(vybzQueueKey);
-            
+
             if (waitingForContent) {
               // User is responding to vybz prompt with content
               await this.redisService.del(vybzQueueKey); // Clear the waiting flag
               return this.processVybzContent(whatsappId, command.rawText, 'text', session);
             }
-            
+
             // Otherwise, use AI to respond
             return this.handleAiQuery(command.rawText, session);
           } else {
@@ -307,6 +336,40 @@ export class WhatsappService {
       };
 
       await this.authService.verifyAccountLinking(verifyDto);
+
+      // Check for pending payments to auto-claim
+      try {
+        const updatedSession = await this.sessionService.getSessionByWhatsappId(whatsappId);
+        if (updatedSession && updatedSession.isVerified && updatedSession.phoneNumber) {
+          const pendingPayments = await this.pendingPaymentService.getPendingPaymentsByPhone(
+            updatedSession.phoneNumber,
+          );
+
+          if (pendingPayments.length > 0) {
+            let totalClaimed = 0;
+            let claimedCount = 0;
+
+            for (const payment of pendingPayments) {
+              try {
+                const claimResult = await this.processPendingPaymentClaim(payment, updatedSession);
+                if (claimResult.includes('✅')) {
+                  totalClaimed += payment.amountCents;
+                  claimedCount++;
+                }
+              } catch (error) {
+                this.logger.error(`Failed to auto-claim payment ${payment.id}: ${error.message}`);
+              }
+            }
+
+            if (claimedCount > 0) {
+              const totalUsd = (totalClaimed / 100).toFixed(2);
+              return `Your Flash account has been successfully linked!\n\n💰 Great news! You had ${claimedCount} pending payment${claimedCount > 1 ? 's' : ''} totaling $${totalUsd} that ${claimedCount > 1 ? 'have' : 'has'} been automatically credited to your account!\n\nType "balance" to see your updated balance.`;
+            }
+          }
+        }
+      } catch (error) {
+        this.logger.error(`Error checking for pending payments: ${error.message}`);
+      }
 
       return 'Your Flash account has been successfully linked! You can now check your balance and use other Flash services through WhatsApp.';
     } catch (error) {
@@ -602,9 +665,39 @@ export class WhatsappService {
 
       if (choice === 'yes') {
         await this.authService.recordConsent(session.sessionId, true);
+
+        // Check if there's a pending AI question
+        const pendingQuestionKey = `pending_ai_question:${whatsappId}`;
+        const pendingQuestion = await this.redisService.get(pendingQuestionKey);
+
+        if (pendingQuestion) {
+          // Clear the pending question
+          await this.redisService.del(pendingQuestionKey);
+
+          // Update session to reflect consent given
+          session.consentGiven = true;
+
+          // Answer the pending question
+          try {
+            const aiResponse = await this.handleAiQuery(pendingQuestion, session);
+            return `Thank you for providing your consent! 🎉\n\nNow, regarding your question: "${pendingQuestion}"\n\n${aiResponse}`;
+          } catch (error) {
+            this.logger.error(
+              `Error processing pending AI question: ${error.message}`,
+              error.stack,
+            );
+            return 'Thank you for providing your consent. You can now use all Flash services through WhatsApp.\n\nI had trouble processing your previous question. Please feel free to ask again!';
+          }
+        }
+
         return 'Thank you for providing your consent. You can now use all Flash services through WhatsApp.';
       } else if (choice === 'no') {
         await this.authService.recordConsent(session.sessionId, false);
+
+        // Clear any pending question since user declined consent
+        const pendingQuestionKey = `pending_ai_question:${whatsappId}`;
+        await this.redisService.del(pendingQuestionKey);
+
         return 'You have declined to provide consent. Some services will be limited. You can change this at any time by typing "consent yes".';
       } else {
         return 'Please specify your consent choice by typing "consent yes" or "consent no".';
@@ -621,6 +714,12 @@ export class WhatsappService {
   private async handleAiQuery(query: string, session: UserSession): Promise<string> {
     try {
       if (!session.consentGiven) {
+        // Store the pending question for after consent is given
+        // Use whatsappId without + to match the format used in handleConsentCommand
+        const normalizedWhatsappId = session.whatsappId.replace('+', '');
+        const pendingQuestionKey = `pending_ai_question:${normalizedWhatsappId}`;
+        await this.redisService.set(pendingQuestionKey, query, 300); // 5 minute expiry
+
         return 'Hi There! I would love to chat with you more, but first I need you to give your consent to talking to an AI bot. To use AI-powered support, please provide your consent by typing "consent yes".';
       }
 
@@ -702,59 +801,14 @@ export class WhatsappService {
    */
   private getHelpMessage(session: UserSession | null): string {
     if (!session) {
-      return `🌟 *Welcome to Pulse!*
-
-*Getting Started:*
-• \`link\` - Connect your Flash account
-• \`price\` - Check current Bitcoin price
-• \`help\` - Show this help message
-
-💡 Type \`link\` to connect your Flash account and unlock all features!`;
+      return `Welcome! Type 'link' to connect Flash account. 'price' for BTC price.`;
     }
 
     if (!session.isVerified) {
-      return `📱 *Pulse*
-
-*Available Commands:*
-• \`verify [code]\` - Enter your 6-digit verification code
-• \`price\` - Check current Bitcoin price
-• \`link\` - Start account connection
-• \`help\` - Show this help message
-
-⏳ Please complete verification to access all features.`;
+      return `Enter code: verify 123456. Or type 'price' for BTC price.`;
     }
 
-    return `⚡ *Pulse Commands*
-
-*💰 Money Management:*
-• \`balance\` - Check your Bitcoin & USD balance
-• \`send [amount] to [@username]\` - Send money to Flash users
-• \`send [amount] to [invoice]\` - Pay Lightning invoices
-• \`pay\` - Quick pay detected invoices
-• \`receive [amount] [memo]\` - Create Lightning invoice
-• \`request [amount] from [@username]\` - Request payment
-• \`history\` - View recent transactions
-• \`vybz\` - Share content & earn sats!
-
-*👥 Contacts:*
-• \`contacts list\` - Show saved contacts
-• \`contacts add [name] [phone]\` - Add new contact
-• \`contacts remove [name]\` - Remove contact
-
-*⚙️ Account:*
-• \`username\` - View/set your username
-• \`refresh\` - Force refresh balance
-• \`price\` - Current Bitcoin price
-• \`consent [yes/no]\` - AI support preferences
-• \`unlink\` - Disconnect account
-
-*📖 Examples:*
-• Send $10: \`send 10 to @alice\`
-• Request $5: \`request 5 from @bob\`
-• Receive $20: \`receive 20 for dinner\`
-• Pay invoice: \`send 10 to lnbc...\`
-
-💬 You can also ask questions in plain English!`;
+    return `Commands: balance, send 5 to @user, receive 10, history, pending, price`;
   }
 
   /**
@@ -787,7 +841,7 @@ export class WhatsappService {
             text: 'BTC invoices are not currently supported. Please specify amount in USD, e.g., "receive 10" for $10',
           };
         }
-        
+
         // Parse and validate USD amount
         const parsedResult = parseAndValidateAmount(amountStr);
         if (parsedResult.error) {
@@ -826,7 +880,7 @@ export class WhatsappService {
 
       // Store invoice for tracking
       await this.storeInvoiceForTracking(session.whatsappId, invoice, session.flashAuthToken!);
-      
+
       // Subscribe to Lightning updates for this user (if not already subscribed)
       // Disabled temporarily due to WebSocket connection issues
       // if (this.invoiceTrackerService) {
@@ -845,14 +899,14 @@ export class WhatsappService {
       };
     } catch (error) {
       this.logger.error(`Error handling receive command: ${error.message}`, error.stack);
-      
+
       // Return the specific error message if it's a BadRequestException
       if (error instanceof BadRequestException) {
         const errorMessage = error.message;
         this.logger.debug(`Returning error message to user: ${errorMessage}`);
         return { text: errorMessage };
       }
-      
+
       // Generic error message for unexpected errors
       return { text: 'Failed to create invoice. Please try again later.' };
     }
@@ -890,20 +944,40 @@ export class WhatsappService {
       let lightningAddress = command.args.recipient;
       let isContactPayment = false;
 
+      // If recipient doesn't have @ and it's not a phone/lightning address,
+      // it could be either a username or contact name
+      let possibleContactName = null;
+      if (
+        lightningAddress &&
+        !lightningAddress.includes('@') &&
+        !lightningAddress.includes('lnbc') &&
+        !lightningAddress.match(/^\+?\d{10,}$/)
+      ) {
+        possibleContactName = lightningAddress;
+        // Try as username first
+        if (!targetUsername) {
+          targetUsername = lightningAddress;
+        }
+      }
+
       // Check if recipient might be a saved contact
-      if (lightningAddress && !lightningAddress.includes('@') && !lightningAddress.includes('lnbc')) {
+      if (
+        lightningAddress &&
+        !lightningAddress.includes('@') &&
+        !lightningAddress.includes('lnbc')
+      ) {
         const contactsKey = `contacts:${whatsappId}`;
         const savedContacts = await this.redisService.get(contactsKey);
-        
+
         if (savedContacts) {
           const contacts = JSON.parse(savedContacts);
           const contactKey = lightningAddress.toLowerCase();
-          
+
           if (contacts[contactKey]) {
             // Found a saved contact
             isContactPayment = true;
             this.logger.log(`Using saved contact ${lightningAddress} for payment`);
-            
+
             // For contacts, we can't send directly - need to create a request
             return `❌ Direct payments to contacts are not yet supported.\n\nUse: request ${amount} from ${lightningAddress}\n\nThis will send them a payment request they can pay.`;
           }
@@ -911,17 +985,22 @@ export class WhatsappService {
       }
 
       // Check if it's a Lightning invoice/address
-      if (lightningAddress && (lightningAddress.startsWith('lnbc') || lightningAddress.includes('@'))) {
+      if (
+        lightningAddress &&
+        (lightningAddress.startsWith('lnbc') || lightningAddress.includes('@'))
+      ) {
         try {
-          this.logger.log(`Attempting Lightning payment to: ${lightningAddress.substring(0, 20)}...`);
-          
+          this.logger.log(
+            `Attempting Lightning payment to: ${lightningAddress.substring(0, 20)}...`,
+          );
+
           // Determine payment type and execute
           let result;
           if (lightningAddress.startsWith('lnbc')) {
             // It's a Lightning invoice
             // Get user's wallets
             const wallets = await this.paymentService.getUserWallets(session.flashAuthToken);
-            
+
             result = await this.paymentService.sendLightningPayment(
               {
                 walletId: wallets.usdWallet?.id || wallets.defaultWalletId,
@@ -938,7 +1017,18 @@ export class WhatsappService {
           if (result?.status === PaymentSendResult.Success) {
             return `✅ Payment sent!\n\nAmount: $${amount.toFixed(2)} USD\nTo: ${lightningAddress.substring(0, 30)}...\n\nPayment successful!`;
           } else {
-            return `❌ Payment failed: ${result?.errors?.[0]?.message || 'Unknown error'}`;
+            const errorMessage = result?.errors?.[0]?.message || 'Unknown error';
+
+            // Provide more helpful error messages
+            if (errorMessage.includes('Account is inactive')) {
+              return `❌ Payment failed: Account is inactive.\n\nYour account has restrictions on sending payments.\n\nPlease contact support@flashapp.me for assistance.`;
+            } else if (errorMessage.includes('Insufficient balance')) {
+              return `❌ Payment failed: Insufficient balance.\n\nYou need at least $${amount.toFixed(2)} USD to send this payment.`;
+            } else if (errorMessage.includes('limit')) {
+              return `❌ Payment failed: ${errorMessage}\n\nYou may have reached a transaction limit. Check your account limits in the Flash app.`;
+            }
+
+            return `❌ Payment failed: ${errorMessage}`;
           }
         } catch (error) {
           this.logger.error(`Lightning payment error: ${error.message}`);
@@ -959,10 +1049,10 @@ export class WhatsappService {
           if (walletCheck?.accountDefaultWallet?.id) {
             // Intraledger payment
             const walletId = walletCheck.accountDefaultWallet.id;
-            
+
             // Get user's wallets
             const userWallets = await this.paymentService.getUserWallets(session.flashAuthToken);
-            
+
             const result = await this.paymentService.sendIntraLedgerUsdPayment(
               {
                 walletId: userWallets.usdWallet?.id || userWallets.defaultWalletId,
@@ -976,13 +1066,137 @@ export class WhatsappService {
             if (result?.status === PaymentSendResult.Success) {
               return `✅ Payment sent to @${targetUsername}!\n\nAmount: $${amount.toFixed(2)} USD\n${command.args.memo ? `Memo: ${command.args.memo}` : ''}\n\nPayment successful!`;
             } else {
-              return `❌ Payment failed: ${result?.errors?.[0]?.message || 'Unknown error'}`;
+              const errorMessage = result?.errors?.[0]?.message || 'Unknown error';
+
+              // Provide more helpful error messages
+              if (errorMessage.includes('Account is inactive')) {
+                return `❌ Payment failed: Account is inactive.\n\nThis could mean:\n• The recipient's account (@${targetUsername}) is suspended or deactivated\n• Your account has restrictions on sending payments\n\nPlease contact support@flashapp.me for assistance.`;
+              } else if (errorMessage.includes('Insufficient balance')) {
+                return `❌ Payment failed: Insufficient balance.\n\nYou need at least $${amount.toFixed(2)} USD to send this payment.`;
+              } else if (errorMessage.includes('limit')) {
+                return `❌ Payment failed: ${errorMessage}\n\nYou may have reached a transaction limit. Check your account limits in the Flash app.`;
+              }
+
+              return `❌ Payment failed: ${errorMessage}`;
             }
           } else {
             return `❌ Username @${targetUsername} not found.`;
           }
         } catch (error) {
           this.logger.error(`Username payment error: ${error.message}`);
+
+          // Check if the error is about account not existing
+          if (error.message.includes('Account does not exist for username')) {
+            // Check if this might be a contact name
+            const contactsKey = `contacts:${whatsappId}`;
+            const contactsData = await this.redisService.get(contactsKey);
+
+            if (contactsData) {
+              const contacts = JSON.parse(contactsData);
+              const contact = contacts[targetUsername.toLowerCase()];
+
+              if (contact) {
+                // Found in contacts but they don't have a Flash account
+                // Create pending payment using admin wallet as escrow
+                try {
+                  // Get admin token from config
+                  const adminToken = this.configService.get<string>('flashApi.apiKey');
+                  if (!adminToken) {
+                    return `❌ Unable to process pending payment. Please try again later.`;
+                  }
+
+                  // Get admin wallet
+                  const adminWallets = await this.paymentService.getUserWallets(adminToken);
+                  const adminWalletId = adminWallets.usdWallet?.id || adminWallets.defaultWalletId;
+
+                  if (!adminWalletId) {
+                    this.logger.error('Admin wallet not found');
+                    return `❌ Unable to process pending payment. Please try again later.`;
+                  }
+
+                  // Get user's wallets
+                  const userWallets = await this.paymentService.getUserWallets(
+                    session.flashAuthToken,
+                  );
+                  const senderWalletId = userWallets.usdWallet?.id || userWallets.defaultWalletId;
+
+                  // First generate the claim code that will be used
+                  const claimCode = this.generateClaimCode();
+
+                  // Send payment to admin wallet (escrow) with claim code in memo
+                  const escrowMemo = `Pending payment for ${targetUsername} (${contact.phone}) - Claim: ${claimCode}`;
+                  const escrowResult = await this.paymentService.sendIntraLedgerUsdPayment(
+                    {
+                      walletId: senderWalletId,
+                      recipientWalletId: adminWalletId,
+                      amount: amount * 100, // Convert to cents
+                      memo: escrowMemo,
+                    },
+                    session.flashAuthToken,
+                  );
+
+                  if (escrowResult?.status !== PaymentSendResult.Success) {
+                    const errorMessage =
+                      escrowResult?.errors?.[0]?.message || 'Failed to create pending payment';
+                    return `❌ ${errorMessage}`;
+                  }
+
+                  // Create pending payment record with the same claim code
+                  const senderUsername =
+                    (await this.usernameService.getUsername(session.flashAuthToken)) ||
+                    'Flash user';
+                  const pendingPayment =
+                    await this.pendingPaymentService.createPendingPaymentWithCode({
+                      senderId: session.flashUserId!,
+                      senderUsername,
+                      senderPhone: session.phoneNumber,
+                      recipientPhone: contact.phone,
+                      recipientName: targetUsername,
+                      amountCents: amount * 100,
+                      memo: command.args.memo,
+                      claimCode: claimCode,
+                      escrowTransactionId: undefined, // Transaction ID not available in response
+                    });
+
+                  // Send notification to recipient if we have WhatsApp Web service
+                  if (this.whatsappWebService) {
+                    try {
+                      const recipientWhatsApp = `${contact.phone}@c.us`;
+                      const notificationMsg =
+                        this.pendingPaymentService.formatPendingPaymentMessage(pendingPayment);
+                      await this.whatsappWebService.sendMessage(recipientWhatsApp, notificationMsg);
+                    } catch (notifyError) {
+                      this.logger.error(`Failed to notify recipient: ${notifyError.message}`);
+                    }
+                  }
+
+                  return `✅ Payment sent successfully!\n\n💰 $${amount.toFixed(2)} USD is waiting for ${targetUsername}\n📱 They've been notified via WhatsApp\n🔑 Claim code: ${pendingPayment.claimCode}\n⏱️ Expires in 30 days\n\n${targetUsername} will receive the money automatically when they create their Flash account.`;
+                } catch (error) {
+                  this.logger.error(
+                    `Error creating pending payment: ${error.message}`,
+                    error.stack,
+                  );
+                  return `❌ Failed to create pending payment. Please try again.`;
+                }
+              }
+            }
+
+            // Not found in contacts either
+            // Store pending send info for when contact is added
+            const pendingKey = `pending_send:${whatsappId}`;
+            await this.redisService.set(
+              pendingKey,
+              JSON.stringify({
+                amount,
+                recipient: targetUsername,
+                memo: command.args.memo,
+              }),
+              300,
+            ); // 5 minute expiry
+
+            return `${targetUsername} not found. Share contact or: contacts add ${targetUsername} +1234567890`;
+          }
+
           return `❌ Unable to send to @${targetUsername}: ${error.message}`;
         }
       }
@@ -1070,11 +1284,11 @@ export class WhatsappService {
       if (targetUsername && !targetUsername.includes('@') && !targetPhone) {
         const contactsKey = `contacts:${whatsappId}`;
         const savedContacts = await this.redisService.get(contactsKey);
-        
+
         if (savedContacts) {
           const contacts = JSON.parse(savedContacts);
           const contactKey = targetUsername.toLowerCase();
-          
+
           if (contacts[contactKey]) {
             // Found a saved contact, use their phone number
             targetPhone = contacts[contactKey].phone;
@@ -1137,7 +1351,8 @@ export class WhatsappService {
       }
 
       // Get requester's username
-      const requesterUsername = await this.usernameService.getUsername(session.flashAuthToken) || 'Flash user';
+      const requesterUsername =
+        (await this.usernameService.getUsername(session.flashAuthToken)) || 'Flash user';
 
       // Create invoice for the requested amount
       const memo = `Payment request from @${requesterUsername}`;
@@ -1172,7 +1387,7 @@ export class WhatsappService {
           // Normalize phone number
           const normalizedPhone = targetPhone.replace(/\D/g, '');
           const whatsappNumber = `${normalizedPhone}@c.us`;
-          
+
           // Build recipient identifier for message
           let recipientIdentifier = '';
           if (isFromSavedContact) {
@@ -1182,15 +1397,15 @@ export class WhatsappService {
           } else {
             recipientIdentifier = `the number ${targetPhone}`; // Direct phone number
           }
-          
+
           // Send notification to recipient
           const notificationMessage = `💰 *Payment Request*\n\n@${requesterUsername} is requesting $${amount!.toFixed(2)} USD from you.\n\nTo view and pay this request, please check your WhatsApp messages or open the Flash app.`;
-          
+
           await this.whatsappWebService.sendMessage(whatsappNumber, notificationMessage);
-          
+
           // Send the actual payment request with QR
           await this.whatsappWebService.sendImage(whatsappNumber, qrBuffer, requestMessage);
-          
+
           // Track the request in contact history
           if (isFromSavedContact && targetUsername) {
             await this.trackContactRequest(whatsappId, targetUsername, {
@@ -1274,7 +1489,7 @@ export class WhatsappService {
           // Save contacts (expire after 1 year)
           await this.redisService.set(contactsKey, JSON.stringify(contacts), 365 * 24 * 60 * 60);
 
-          return `✅ Contact saved: ${contactName} (${phoneNumber})\n\nYou can now use: request [amount] from ${contactName}`;
+          return `✅ Contact saved: ${contactName} (${phoneNumber})\n\nYou can now use these commands:\n• send [amount] to ${contactName} - Send money instantly\n• request [amount] from ${contactName} - Request payment`;
 
         case 'remove':
           if (!contactName) {
@@ -1305,28 +1520,31 @@ export class WhatsappService {
 
           const historyKey = `contact_history:${whatsappId}:${contactName.toLowerCase()}`;
           const contactHistory = await this.redisService.get(historyKey);
-          
+
           if (!contactHistory) {
             return `No payment history found for contact "${contactName}".`;
           }
 
           const history = JSON.parse(contactHistory);
           let historyMessage = `📊 *Payment History for ${contactName}*\n\n`;
-          
-          history.slice(-10).reverse().forEach((req: any) => {
-            const date = new Date(req.timestamp);
-            const dateStr = date.toLocaleDateString('en-US', { 
-              month: 'short', 
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
+
+          history
+            .slice(-10)
+            .reverse()
+            .forEach((req: any) => {
+              const date = new Date(req.timestamp);
+              const dateStr = date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              });
+
+              if (req.type === 'request_sent') {
+                historyMessage += `💸 Requested $${req.amount.toFixed(2)} - ${dateStr}\n`;
+              }
             });
-            
-            if (req.type === 'request_sent') {
-              historyMessage += `💸 Requested $${req.amount.toFixed(2)} - ${dateStr}\n`;
-            }
-          });
-          
+
           historyMessage += `\n_Showing last 10 requests_`;
           return historyMessage;
 
@@ -1351,7 +1569,7 @@ export class WhatsappService {
           let message = '📇 *Your Saved Contacts*\n\n';
           for (const contact of contactEntries) {
             message += `• ${contact.name}: ${contact.phone}`;
-            
+
             // Check if there's history for this contact
             const histKey = `contact_history:${whatsappId}:${contact.name.toLowerCase()}`;
             const hist = await this.redisService.get(histKey);
@@ -1380,6 +1598,47 @@ export class WhatsappService {
     phoneNumber: string,
   ): Promise<string | { text: string; media?: Buffer } | null> {
     try {
+      // Check for pending send first
+      const pendingSendKey = `pending_send:${whatsappId}`;
+      const pendingSendData = await this.redisService.get(pendingSendKey);
+
+      if (pendingSendData) {
+        const pendingSend = JSON.parse(pendingSendData);
+        const normalizedContactName = contactName.toLowerCase().replace(/\s+/g, '_');
+
+        // Check if this contact matches the pending send
+        if (
+          pendingSend.recipient?.toLowerCase() === normalizedContactName ||
+          pendingSend.recipient?.toLowerCase() === contactName.toLowerCase()
+        ) {
+          // Delete the pending send
+          await this.redisService.del(pendingSendKey);
+
+          // First save the contact
+          const session = await this.sessionService.getSessionByWhatsappId(whatsappId);
+          if (!session || !session.isVerified) {
+            return 'Please link your Flash account first to manage contacts.';
+          }
+
+          // Save contact
+          const contactsKey = `contacts:${whatsappId}`;
+          const existingContacts = await this.redisService.get(contactsKey);
+          const contacts = existingContacts ? JSON.parse(existingContacts) : {};
+
+          contacts[normalizedContactName] = {
+            name: normalizedContactName,
+            phone: phoneNumber.replace(/\D/g, ''),
+            addedAt: new Date().toISOString(),
+          };
+
+          await this.redisService.set(contactsKey, JSON.stringify(contacts), 365 * 24 * 60 * 60);
+
+          // Contact saved, but they still need Flash to receive money
+          return `✅ Contact saved successfully!\n\n${contactName} needs a Flash account to receive your $${pendingSend.amount} USD.\n\nYou have two options:\n1. Reply with their @username if they already have Flash\n2. Send anyway - they'll get the money when they sign up\n\nTo send now, type: send ${pendingSend.amount} to ${contactName}`;
+        }
+      }
+
+      // Check for pending payment request
       const pendingKey = `pending_request:${whatsappId}`;
       const pendingData = await this.redisService.get(pendingKey);
 
@@ -1388,11 +1647,12 @@ export class WhatsappService {
       }
 
       const pending = JSON.parse(pendingData);
-      
+
       // Check if this contact matches the pending request
-      if (pending.type === 'payment_request' && 
-          pending.contactName?.toLowerCase() === contactName.toLowerCase().replace(/\s+/g, '_')) {
-        
+      if (
+        pending.type === 'payment_request' &&
+        pending.contactName?.toLowerCase() === contactName.toLowerCase().replace(/\s+/g, '_')
+      ) {
         // Delete the pending request
         await this.redisService.del(pendingKey);
 
@@ -1406,14 +1666,14 @@ export class WhatsappService {
         const contactsKey = `contacts:${whatsappId}`;
         const existingContacts = await this.redisService.get(contactsKey);
         const contacts = existingContacts ? JSON.parse(existingContacts) : {};
-        
+
         const normalizedName = contactName.replace(/\s+/g, '_');
         contacts[normalizedName.toLowerCase()] = {
           name: normalizedName,
           phone: phoneNumber.replace(/\D/g, ''),
           addedAt: new Date().toISOString(),
         };
-        
+
         await this.redisService.set(contactsKey, JSON.stringify(contacts), 365 * 24 * 60 * 60);
 
         // Now process the payment request
@@ -1427,10 +1687,10 @@ export class WhatsappService {
         };
 
         const result = await this.handleRequestCommand(command, whatsappId, session);
-        
+
         // Add message about contact being saved
         if (typeof result === 'object' && result.text && result.text.includes('✅')) {
-          result.text = `✅ Contact saved: ${normalizedName} (${phoneNumber})\n\n${result.text}`;
+          result.text = `✅ Contact saved: ${normalizedName} (${phoneNumber})\n\nYou can now:\n• send money to ${normalizedName}\n• request payments from ${normalizedName}\n\n${result.text}`;
         }
 
         return result;
@@ -1455,14 +1715,14 @@ export class WhatsappService {
       const historyKey = `contact_history:${whatsappId}:${contactName.toLowerCase()}`;
       const existingHistory = await this.redisService.get(historyKey);
       const history = existingHistory ? JSON.parse(existingHistory) : [];
-      
+
       history.push(requestData);
-      
+
       // Keep only last 50 requests per contact
       if (history.length > 50) {
         history.shift();
       }
-      
+
       await this.redisService.set(historyKey, JSON.stringify(history), 365 * 24 * 60 * 60);
     } catch (error) {
       this.logger.error(`Error tracking contact request: ${error.message}`);
@@ -1474,23 +1734,10 @@ export class WhatsappService {
    */
   private getUnknownCommandMessage(session: UserSession | null): string {
     if (!session || !session.isVerified) {
-      return `👋 Welcome to Pulse!
-
-I didn't understand that command. To get started:
-• Type \`link\` to connect your Flash account
-• Type \`help\` to see all commands
-
-💡 Once linked, you can send money, check balances, and more!`;
+      return `Keep your finger on it. Type 'link' to connect or 'help' for commands.`;
     }
 
-    return `❓ I didn't understand that command.
-
-Type \`help\` to see available commands, or try:
-• \`balance\` - Check your balance
-• \`send 10 to @username\` - Send money
-• \`receive 20\` - Create invoice
-
-💬 You can also ask questions in plain English!`;
+    return `Keep your finger on it. Try 'help' or 'balance'.`;
   }
 
   /**
@@ -1511,25 +1758,22 @@ Type \`help\` to see available commands, or try:
         status: 'pending',
         expiresAt: invoice.expiresAt,
         whatsappUserId: whatsappId,
-        authToken: authToken, // Store encrypted in production
+        authToken: authToken, // Will be encrypted by Redis service
         createdAt: new Date().toISOString(),
       };
 
-      // Store in Redis with expiration matching invoice expiry
+      // Store in Redis with encryption and expiration matching invoice expiry
       const expirySeconds = Math.floor((new Date(invoice.expiresAt).getTime() - Date.now()) / 1000);
       const key = `invoice:${invoice.paymentHash}`;
-      
-      await this.redisService.set(
+
+      await this.redisService.setEncrypted(
         key,
-        JSON.stringify(invoiceData),
+        invoiceData,
         Math.max(expirySeconds, 3600), // At least 1 hour
       );
 
       // Also store in a user's invoice list for easy lookup
-      await this.redisService.addToSet(
-        `user:${whatsappId}:invoices`,
-        invoice.paymentHash,
-      );
+      await this.redisService.addToSet(`user:${whatsappId}:invoices`, invoice.paymentHash);
 
       this.logger.log(`Stored invoice ${invoice.paymentHash} for tracking`);
     } catch (error) {
@@ -1544,14 +1788,12 @@ Type \`help\` to see available commands, or try:
   async checkInvoiceStatus(paymentHash: string): Promise<any> {
     try {
       const key = `invoice:${paymentHash}`;
-      const invoiceData = await this.redisService.get(key);
-      
-      if (!invoiceData) {
+      const invoice = await this.redisService.getEncrypted(key);
+
+      if (!invoice) {
         return null;
       }
 
-      const invoice = JSON.parse(invoiceData);
-      
       // Only check if still pending
       if (invoice.status !== 'pending') {
         return invoice;
@@ -1576,10 +1818,10 @@ Type \`help\` to see available commands, or try:
       if (result?.data?.invoice?.status === 'PAID') {
         invoice.status = 'paid';
         invoice.paidAt = result.data.invoice.settledAt;
-        
+
         // Update Redis
-        await this.redisService.set(key, JSON.stringify(invoice), 3600); // Keep for 1 hour after payment
-        
+        await this.redisService.setEncrypted(key, invoice, 3600); // Keep for 1 hour after payment
+
         // Notify user
         await this.notifyInvoicePaid(invoice);
       }
@@ -1600,10 +1842,7 @@ Type \`help\` to see available commands, or try:
 
       // Send notification via WhatsApp Web
       if (this.whatsappWebService) {
-        await this.whatsappWebService.sendMessage(
-          invoice.whatsappUserId,
-          message,
-        );
+        await this.whatsappWebService.sendMessage(invoice.whatsappUserId, message);
       }
     } catch (error) {
       this.logger.error('Failed to send payment notification:', error);
@@ -1621,15 +1860,14 @@ Type \`help\` to see available commands, or try:
     try {
       // Parse the invoice to get details
       const invoiceDetails = await this.parseInvoiceDetails(invoice);
-      
+
       // Store the invoice for quick payment
       // Use a list to support multiple pending payments
       const pendingPaymentsKey = `pending_payments:${whatsappId}`;
-      
-      // Get existing pending payments
-      const existingPayments = await this.redisService.get(pendingPaymentsKey);
-      let payments = existingPayments ? JSON.parse(existingPayments) : [];
-      
+
+      // Get existing pending payments (encrypted)
+      let payments = (await this.redisService.getEncrypted(pendingPaymentsKey)) || [];
+
       // Add new payment (avoid duplicates)
       const isDuplicate = payments.some((p: any) => p.invoice === invoice);
       if (!isDuplicate) {
@@ -1639,18 +1877,18 @@ Type \`help\` to see available commands, or try:
           timestamp: new Date().toISOString(),
           id: payments.length + 1,
         });
-        
+
         // Keep only last 10 payments
         if (payments.length > 10) {
           payments = payments.slice(-10);
         }
-        
-        await this.redisService.set(pendingPaymentsKey, JSON.stringify(payments), 300); // 5 minute expiry
+
+        await this.redisService.setEncrypted(pendingPaymentsKey, payments, 300); // 5 minute expiry
       }
 
       // Format the response message
       let message = `⚡ *Lightning Invoice Detected*\n\n`;
-      
+
       if (invoiceDetails.amount) {
         message += `Amount: $${invoiceDetails.amount.toFixed(2)} USD\n`;
       } else if (invoiceDetails.satoshis) {
@@ -1658,13 +1896,13 @@ Type \`help\` to see available commands, or try:
       } else {
         message += `Amount: Any amount\n`;
       }
-      
+
       if (invoiceDetails.description) {
         message += `Description: ${invoiceDetails.description}\n`;
       }
-      
+
       message += `\n💳 *Quick Payment Options:*\n`;
-      
+
       if (payments.length === 1) {
         message += `• Type \`pay confirm\` to pay this invoice\n`;
         message += `• Type \`pay cancel\` to dismiss\n`;
@@ -1673,10 +1911,12 @@ Type \`help\` to see available commands, or try:
         message += `• Type \`pay list\` to see all ${payments.length} pending invoices\n`;
         message += `• Type \`pay cancel all\` to dismiss all\n`;
       }
-      
-      const suggestedAmount = invoiceDetails.amount || (invoiceDetails.satoshis ? `${invoiceDetails.satoshis} sats` : '[amount]');
+
+      const suggestedAmount =
+        invoiceDetails.amount ||
+        (invoiceDetails.satoshis ? `${invoiceDetails.satoshis} sats` : '[amount]');
       message += `• Or use: \`send ${suggestedAmount} to ${invoice.substring(0, 20)}...\`\n`;
-      
+
       if (invoiceDetails.expiresIn) {
         message += `\n⏱️ Expires in: ${invoiceDetails.expiresIn}`;
       }
@@ -1704,17 +1944,15 @@ Type \`help\` to see available commands, or try:
 
       const action = command.args.action;
       const modifier = command.args.modifier;
-      
-      // Get pending payments
+
+      // Get pending payments (encrypted)
       const pendingPaymentsKey = `pending_payments:${whatsappId}`;
-      const pendingData = await this.redisService.get(pendingPaymentsKey);
-      
-      if (!pendingData) {
+      const payments = await this.redisService.getEncrypted(pendingPaymentsKey);
+
+      if (!payments || payments.length === 0) {
         return '❌ No pending payments found.\n\nTo pay a Lightning invoice, either:\n• Share or paste the invoice to detect it automatically\n• Use: `send [amount] to [invoice]`';
       }
 
-      let payments = JSON.parse(pendingData);
-      
       // Handle list command
       if (action === 'list') {
         let message = `📋 *Pending Lightning Invoices* (${payments.length})\n\n`;
@@ -1738,7 +1976,7 @@ Type \`help\` to see available commands, or try:
         message += `• Type \`pay cancel all\` to dismiss all`;
         return message;
       }
-      
+
       // Handle cancel with optional "all" modifier
       if (action === 'cancel') {
         if (modifier === 'all' || payments.length === 1) {
@@ -1752,7 +1990,7 @@ Type \`help\` to see available commands, or try:
       // Determine which payment to process
       let selectedPayment = null;
       let paymentIndex = -1;
-      
+
       if (action === 'confirm' && payments.length === 1) {
         // Single payment, confirm pays it
         selectedPayment = payments[0];
@@ -1770,13 +2008,13 @@ Type \`help\` to see available commands, or try:
         // Multiple payments, need selection
         return `❌ Multiple payments pending. Please specify which one:\n• Type \`pay [number]\` to pay a specific invoice\n• Type \`pay list\` to see all pending invoices`;
       }
-      
+
       // Process selected payment
       if (selectedPayment) {
         try {
           // Get user's wallets
           const wallets = await this.paymentService.getUserWallets(session.flashAuthToken);
-          
+
           // Send the payment
           const result = await this.paymentService.sendLightningPayment(
             {
@@ -1789,7 +2027,7 @@ Type \`help\` to see available commands, or try:
           // Remove the paid invoice from pending list
           payments.splice(paymentIndex, 1);
           if (payments.length > 0) {
-            await this.redisService.set(pendingPaymentsKey, JSON.stringify(payments), 300);
+            await this.redisService.setEncrypted(pendingPaymentsKey, payments, 300);
           } else {
             await this.redisService.del(pendingPaymentsKey);
           }
@@ -1804,12 +2042,12 @@ Type \`help\` to see available commands, or try:
             if (selectedPayment.details?.description) {
               successMessage += `Description: ${selectedPayment.details.description}\n`;
             }
-            
+
             if (payments.length > 0) {
               successMessage += `\n📋 You have ${payments.length} more pending payment${payments.length > 1 ? 's' : ''}.`;
               successMessage += `\nType \`pay list\` to see them.`;
             }
-            
+
             return successMessage;
           } else if (result?.status === PaymentSendResult.AlreadyPaid) {
             return '❌ This invoice has already been paid.';
@@ -1827,7 +2065,7 @@ Type \`help\` to see available commands, or try:
         // Single payment
         const payment = payments[0];
         let message = `⚡ *Pending Payment*\n\n`;
-        
+
         if (payment.details?.amount) {
           message += `Amount: $${payment.details.amount.toFixed(2)} USD\n`;
         } else if (payment.details?.satoshis) {
@@ -1835,15 +2073,15 @@ Type \`help\` to see available commands, or try:
         } else {
           message += `Amount: Any amount\n`;
         }
-        
+
         if (payment.details?.description) {
           message += `Description: ${payment.details.description}\n`;
         }
-        
+
         message += `\n💳 *Confirm Payment:*\n`;
         message += `• Type \`pay confirm\` to proceed\n`;
         message += `• Type \`pay cancel\` to dismiss`;
-        
+
         return message;
       } else {
         // Multiple payments
@@ -1853,7 +2091,7 @@ Type \`help\` to see available commands, or try:
         message += `• Type \`pay list\` to see all invoices\n`;
         message += `• Type \`pay [number]\` to pay a specific one\n`;
         message += `• Type \`pay cancel all\` to dismiss all`;
-        
+
         return message;
       }
     } catch (error) {
@@ -1875,14 +2113,14 @@ Type \`help\` to see available commands, or try:
       // Import bolt11 dynamically
       const bolt11 = require('bolt11');
       const decoded = bolt11.decode(invoice);
-      
+
       const details: any = {};
-      
+
       // Extract amount (in millisatoshis)
       if (decoded.millisatoshis) {
         // Convert millisatoshis to satoshis
         const satoshis = decoded.millisatoshis / 1000;
-        
+
         // For USD invoices created by Flash, the amount tag often contains cents
         // Check if this looks like a USD amount (common pattern)
         if (decoded.tags) {
@@ -1892,25 +2130,25 @@ Type \`help\` to see available commands, or try:
             details.amount = parseInt(amountTag.data) / 100;
           }
         }
-        
+
         // If no USD amount found, show in sats
         if (!details.amount && satoshis > 0) {
           details.satoshis = Math.round(satoshis);
         }
       }
-      
+
       // Extract description
       const descTag = decoded.tags.find((tag: any) => tag.tagName === 'description');
       if (descTag) {
         details.description = descTag.data;
       }
-      
+
       // Calculate expiry
       if (decoded.timeExpireDate) {
         const expiresAt = new Date(decoded.timeExpireDate * 1000);
         const now = new Date();
         const diffMs = expiresAt.getTime() - now.getTime();
-        
+
         if (diffMs > 0) {
           const diffMins = Math.floor(diffMs / 60000);
           if (diffMins > 60) {
@@ -1922,7 +2160,7 @@ Type \`help\` to see available commands, or try:
           details.expiresIn = 'Expired';
         }
       }
-      
+
       return details;
     } catch (error) {
       this.logger.warn(`Failed to parse invoice details: ${error.message}`);
@@ -1955,7 +2193,7 @@ Once connected, you can:
       }
 
       const action = command.args.action;
-      
+
       // Check status of previous posts
       if (action === 'status' || action === 'check') {
         return this.getVybzStatus(whatsappId, session);
@@ -1965,7 +2203,7 @@ Once connected, you can:
       const dailyPostsKey = `vybz_daily:${whatsappId}:${new Date().toDateString()}`;
       const dailyPosts = await this.redisService.get(dailyPostsKey);
       const postCount = dailyPosts ? parseInt(dailyPosts) : 0;
-      
+
       if (postCount >= 3) {
         return `❌ You've reached your daily limit of 3 posts.
 
@@ -1977,7 +2215,7 @@ Type \`vybz status\` to check your earnings.`;
       // Show options for sharing
       const vybzQueueKey = `vybz_queue:${whatsappId}`;
       const activeVybz = await this.redisService.get(vybzQueueKey);
-      
+
       if (activeVybz) {
         return `⏳ You already have content being processed.
 
@@ -1987,12 +2225,13 @@ Type \`vybz status\` to check progress.`;
       }
 
       // Get user's username
-      const username = await this.usernameService.getUsername(session.flashAuthToken) || 'Pulse user';
-      
+      const username =
+        (await this.usernameService.getUsername(session.flashAuthToken)) || 'Pulse user';
+
       // Set waiting flag for content
       const vybzWaitingKey = `vybz_waiting:${whatsappId}`;
       await this.redisService.set(vybzWaitingKey, 'true', 300); // 5 minute expiry
-      
+
       return `🎤 *Share Your Vybz!*
 
 What's on your mind, @${username}?
@@ -2015,16 +2254,13 @@ _Tip: Be creative, funny, or insightful to get more zaps!_`;
   /**
    * Get vybz earning status
    */
-  private async getVybzStatus(
-    whatsappId: string,
-    session: UserSession,
-  ): Promise<string> {
+  private async getVybzStatus(whatsappId: string, session: UserSession): Promise<string> {
     try {
       // Get user's posts history
       const postsKey = `vybz_posts:${whatsappId}`;
       const postsData = await this.redisService.get(postsKey);
       const posts = postsData ? JSON.parse(postsData) : [];
-      
+
       if (posts.length === 0) {
         return `📊 *Your Vybz Status*
 
@@ -2037,7 +2273,7 @@ Type \`vybz\` to share something and start earning sats!`;
       let totalZaps = 0;
       let totalSats = 0;
       const recentPosts = posts.slice(-5); // Last 5 posts
-      
+
       posts.forEach((post: any) => {
         totalZaps += post.zaps || 0;
         totalSats += post.satsReceived || 0;
@@ -2047,7 +2283,7 @@ Type \`vybz\` to share something and start earning sats!`;
       message += `Total Posts: ${posts.length}\n`;
       message += `Total Zaps: ${totalZaps}\n`;
       message += `Total Sats Earned: ⚡${totalSats.toLocaleString()}\n\n`;
-      
+
       if (recentPosts.length > 0) {
         message += `*Recent Posts:*\n`;
         recentPosts.forEach((post: any, index: number) => {
@@ -2060,9 +2296,9 @@ Type \`vybz\` to share something and start earning sats!`;
       const dailyPostsKey = `vybz_daily:${whatsappId}:${new Date().toDateString()}`;
       const dailyPosts = await this.redisService.get(dailyPostsKey);
       const postCount = dailyPosts ? parseInt(dailyPosts) : 0;
-      
+
       message += `\n📝 Posts today: ${postCount}/3`;
-      
+
       if (postCount < 3) {
         message += `\n\nType \`vybz\` to share something new!`;
       }
@@ -2126,10 +2362,10 @@ Please share something else that follows community guidelines.`;
         content: contentType === 'text' ? content : 'media_url_placeholder', // TODO: Upload media
         contentType,
         timestamp: new Date().toISOString(),
-        username: await this.usernameService.getUsername(session.flashAuthToken!) || 'Pulse user',
+        username: (await this.usernameService.getUsername(session.flashAuthToken!)) || 'Pulse user',
         country: 'Jamaica', // TODO: Get from user profile
       };
-      
+
       await this.redisService.set(vybzQueueKey, JSON.stringify(queueData), 300); // 5 min expiry
 
       // TODO: Post to Nostr
@@ -2178,8 +2414,10 @@ Content: "${content}"
 
 Respond with JSON: { "approved": true/false, "reason": "brief explanation if rejected" }`;
 
-      const aiResponse = await this.geminiAiService.processQuery(prompt, { context: 'content_moderation' });
-      
+      const aiResponse = await this.geminiAiService.processQuery(prompt, {
+        context: 'content_moderation',
+      });
+
       try {
         const result = JSON.parse(aiResponse);
         return result;
@@ -2191,11 +2429,180 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
     } catch (error) {
       this.logger.error(`Content moderation error: ${error.message}`);
       // Err on the side of caution
-      return { 
-        approved: false, 
-        reason: 'Content moderation unavailable. Please try again later.' 
+      return {
+        approved: false,
+        reason: 'Content moderation unavailable. Please try again later.',
       };
     }
+  }
+
+  /**
+   * Handle pending payment commands
+   */
+  private async handlePendingCommand(
+    command: ParsedCommand,
+    whatsappId: string,
+    session: UserSession | null,
+  ): Promise<string> {
+    try {
+      const action = command.args.action || 'received';
+
+      if (action === 'sent') {
+        // Show pending payments sent by user
+        if (!session || !session.isVerified) {
+          return 'Please link your Flash account first to view pending payments.';
+        }
+
+        const pendingPayments = await this.pendingPaymentService.getPendingPaymentsBySender(
+          session.flashUserId!,
+        );
+
+        if (pendingPayments.length === 0) {
+          return 'No pending payments sent.';
+        }
+
+        let message = `💸 *Pending Payments Sent*\n\n`;
+        for (const payment of pendingPayments) {
+          const amountUsd = (payment.amountCents / 100).toFixed(2);
+          const expiresIn = Math.ceil(
+            (new Date(payment.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+          );
+          message += `To: ${payment.recipientName || payment.recipientPhone}\n`;
+          message += `Amount: $${amountUsd}\n`;
+          message += `Code: ${payment.claimCode}\n`;
+          message += `Expires: ${expiresIn} days\n\n`;
+        }
+
+        return message.trim();
+      } else if (action === 'received') {
+        // Show pending payments for user's phone number
+        const userPhone = session?.phoneNumber || whatsappId;
+        const pendingPayments =
+          await this.pendingPaymentService.getPendingPaymentsByPhone(userPhone);
+
+        if (pendingPayments.length === 0) {
+          return 'No pending payments waiting for you.';
+        }
+
+        let message = `💰 *Pending Payments for You*\n\n`;
+        for (const payment of pendingPayments) {
+          const amountUsd = (payment.amountCents / 100).toFixed(2);
+          message += `From: @${payment.senderUsername}\n`;
+          message += `Amount: $${amountUsd}\n`;
+          message += `Code: ${payment.claimCode}\n\n`;
+        }
+
+        if (!session || !session.isVerified) {
+          message += `📱 To claim: Link your Flash account with 'link'`;
+        } else {
+          message += `✅ These will auto-claim to your account!`;
+        }
+
+        return message.trim();
+      } else if (action === 'claim') {
+        // Manual claim with code (usually automatic)
+        if (!session || !session.isVerified) {
+          return 'Please link your Flash account first to claim payments.';
+        }
+
+        const claimCode = command.args.claimCode;
+        if (!claimCode) {
+          return 'Please provide claim code. Usage: pending claim [code]';
+        }
+
+        // Find pending payment by claim code
+        const userPhone = session.phoneNumber;
+        const pendingPayments =
+          await this.pendingPaymentService.getPendingPaymentsByPhone(userPhone);
+
+        const payment = pendingPayments.find((p) => p.claimCode === claimCode.toUpperCase());
+        if (!payment) {
+          return `❌ Invalid claim code: ${claimCode}`;
+        }
+
+        // Process the claim
+        return await this.processPendingPaymentClaim(payment, session);
+      }
+
+      return 'Usage: pending [sent|received|claim <code>]';
+    } catch (error) {
+      this.logger.error(`Error handling pending command: ${error.message}`, error.stack);
+      return '❌ Failed to check pending payments. Please try again.';
+    }
+  }
+
+  /**
+   * Process a pending payment claim
+   */
+  private async processPendingPaymentClaim(payment: any, session: UserSession): Promise<string> {
+    try {
+      // Mark payment as claimed
+      const claimed = await this.pendingPaymentService.claimPendingPayment(
+        payment.id,
+        session.flashUserId!,
+      );
+
+      if (!claimed) {
+        return '❌ Unable to claim payment. It may have expired or been claimed.';
+      }
+
+      // Get admin token to transfer from escrow
+      const adminToken = this.configService.get<string>('flashApi.apiKey');
+      if (!adminToken) {
+        return '❌ Unable to process claim. Please contact support.';
+      }
+
+      // Get wallets
+      const adminWallets = await this.paymentService.getUserWallets(adminToken);
+      const userWallets = await this.paymentService.getUserWallets(session.flashAuthToken!);
+
+      const adminWalletId = adminWallets.usdWallet?.id || adminWallets.defaultWalletId;
+      const userWalletId = userWallets.usdWallet?.id || userWallets.defaultWalletId;
+
+      // Transfer from admin wallet to user with claim code in memo
+      const transferMemo = `Claimed pending payment from @${payment.senderUsername} - Claim: ${payment.claimCode}`;
+      const result = await this.paymentService.sendIntraLedgerUsdPayment(
+        {
+          walletId: adminWalletId,
+          recipientWalletId: userWalletId,
+          amount: payment.amountCents,
+          memo: transferMemo,
+        },
+        adminToken,
+      );
+
+      if (result?.status === PaymentSendResult.Success) {
+        const amountUsd = (payment.amountCents / 100).toFixed(2);
+
+        // Notify sender if possible
+        try {
+          const senderNotification = `✅ Your pending payment of $${amountUsd} to ${payment.recipientName || payment.recipientPhone} has been claimed!`;
+          // TODO: Send notification to sender via their WhatsApp if we have it stored
+        } catch (error) {
+          this.logger.error(`Failed to notify sender: ${error.message}`);
+        }
+
+        return `✅ Claimed $${amountUsd} from @${payment.senderUsername}!`;
+      } else {
+        // Revert claim status
+        payment.status = 'pending';
+        // Note: In production, you'd want to update this in the database
+
+        const errorMessage = result?.errors?.[0]?.message || 'Transfer failed';
+        return `❌ Failed to claim payment: ${errorMessage}`;
+      }
+    } catch (error) {
+      this.logger.error(`Error processing claim: ${error.message}`, error.stack);
+      return '❌ Failed to process claim. Please contact support.';
+    }
+  }
+
+  /**
+   * Generate a secure claim code
+   */
+  private generateClaimCode(): string {
+    const crypto = require('crypto');
+    return crypto.randomBytes(4).toString('hex').toUpperCase();
   }
 
   /**
@@ -2209,9 +2616,10 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
     try {
       // Check if user is admin (you can customize this check)
       const adminNumbers = this.configService.get<string>('ADMIN_PHONE_NUMBERS')?.split(',') || [];
-      const isAdmin = adminNumbers.includes(phoneNumber) || 
-                      phoneNumber === '13059244435' || // Your current number
-                      process.env.NODE_ENV === 'development'; // Allow in dev mode
+      const isAdmin =
+        adminNumbers.includes(phoneNumber) ||
+        phoneNumber === '13059244435' || // Your current number
+        process.env.NODE_ENV === 'development'; // Allow in dev mode
 
       if (!isAdmin) {
         return '❌ Unauthorized. Admin commands are restricted.';
@@ -2236,18 +2644,18 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
           try {
             // Send the message first before disconnecting
             const message = `✅ WhatsApp session will be disconnected.\n\nThis number is being logged out.\n\n⚠️ After disconnection, this number can no longer receive messages from the bot.\n\nUse \`admin reconnect\` on a different device to connect a new number.\n\n🔌 Disconnecting in 3 seconds...`;
-            
+
             // We need to send this message directly since we're about to disconnect
             if (this.whatsappWebService) {
               await this.whatsappWebService.sendMessage(whatsappId, message);
-              
+
               // Wait a bit to ensure message is sent
-              await new Promise(resolve => setTimeout(resolve, 3000));
-              
+              await new Promise((resolve) => setTimeout(resolve, 3000));
+
               // Now disconnect with logout
               await this.whatsappWebService.disconnect(true);
             }
-            
+
             // This response won't be sent via WhatsApp, but will show in logs
             return 'WhatsApp session disconnected successfully.';
           } catch (error) {
@@ -2266,7 +2674,7 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
           try {
             // Use the new prepareReconnect method that handles messaging
             await this.whatsappWebService.prepareReconnect(whatsappId);
-            
+
             // This response won't be sent via WhatsApp, but will show in logs
             return 'WhatsApp reconnection initiated. Check terminal for QR code.';
           } catch (error) {

@@ -58,7 +58,9 @@ export class TransactionService {
         authToken,
       );
 
-      this.logger.debug(`Transaction query result structure: ${JSON.stringify(Object.keys(result || {}))}`);
+      this.logger.debug(
+        `Transaction query result structure: ${JSON.stringify(Object.keys(result || {}))}`,
+      );
 
       if (result?.me?.defaultAccount?.transactions) {
         return result.me.defaultAccount.transactions;
@@ -100,14 +102,14 @@ export class TransactionService {
   formatTransaction(tx: Transaction, displayCurrency?: string): string {
     const direction = tx.direction === 'SEND' ? '📤 Sent' : '📥 Received';
     const status = tx.status === 'SUCCESS' ? '✅' : tx.status === 'PENDING' ? '⏳' : '❌';
-    
+
     // Format date - createdAt is in seconds, convert to milliseconds
     const date = new Date(parseInt(tx.createdAt) * 1000);
-    const dateStr = date.toLocaleDateString('en-US', { 
-      month: 'short', 
+    const dateStr = date.toLocaleDateString('en-US', {
+      month: 'short',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     });
 
     // Format amounts
@@ -115,7 +117,7 @@ export class TransactionService {
     if (tx.settlementCurrency === 'BTC') {
       const btcAmount = tx.settlementAmount / 100000000; // Convert sats to BTC
       amountStr = `${btcAmount.toFixed(8)} BTC`;
-      
+
       // Add USD equivalent if available
       if (tx.settlementDisplayAmount && tx.settlementDisplayCurrency) {
         amountStr += ` (~${tx.settlementDisplayAmount} ${tx.settlementDisplayCurrency})`;
@@ -124,7 +126,7 @@ export class TransactionService {
       // USD transaction - amount is already in dollars
       const usdAmount = parseFloat(tx.settlementAmount.toString());
       amountStr = `$${usdAmount.toFixed(2)} USD`;
-      
+
       // Add BTC equivalent if available
       if (tx.settlementPrice) {
         const btcEquivalent = this.calculateBtcEquivalent(usdAmount * 100, tx.settlementPrice);
@@ -136,7 +138,7 @@ export class TransactionService {
 
     // Build transaction line
     let txLine = `${status} ${direction} ${amountStr}\n   ${dateStr}`;
-    
+
     // Add memo if present
     if (tx.memo) {
       txLine += `\n   📝 ${tx.memo}`;
@@ -154,23 +156,20 @@ export class TransactionService {
   /**
    * Format transaction history for WhatsApp
    */
-  formatTransactionHistory(
-    transactions: TransactionConnection,
-    displayCurrency?: string,
-  ): string {
+  formatTransactionHistory(transactions: TransactionConnection, displayCurrency?: string): string {
     if (!transactions.edges || transactions.edges.length === 0) {
       return '📊 No transactions found.';
     }
 
     let message = '📊 *Recent Transactions*\n\n';
-    
+
     // Group by date
     const grouped = this.groupTransactionsByDate(transactions.edges);
-    
+
     for (const [dateGroup, txs] of Object.entries(grouped)) {
       message += `*${dateGroup}*\n`;
       message += '─────────────────\n';
-      
+
       for (const edge of txs) {
         message += this.formatTransaction(edge.node, displayCurrency) + '\n\n';
       }
@@ -202,10 +201,10 @@ export class TransactionService {
       } else if (this.isSameDay(txDate, yesterday)) {
         dateGroup = 'Yesterday';
       } else {
-        dateGroup = txDate.toLocaleDateString('en-US', { 
-          month: 'long', 
+        dateGroup = txDate.toLocaleDateString('en-US', {
+          month: 'long',
           day: 'numeric',
-          year: txDate.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
+          year: txDate.getFullYear() !== today.getFullYear() ? 'numeric' : undefined,
         });
       }
 
@@ -222,9 +221,11 @@ export class TransactionService {
    * Check if two dates are the same day
    */
   private isSameDay(date1: Date, date2: Date): boolean {
-    return date1.getFullYear() === date2.getFullYear() &&
-           date1.getMonth() === date2.getMonth() &&
-           date1.getDate() === date2.getDate();
+    return (
+      date1.getFullYear() === date2.getFullYear() &&
+      date1.getMonth() === date2.getMonth() &&
+      date1.getDate() === date2.getDate()
+    );
   }
 
   /**
@@ -238,11 +239,11 @@ export class TransactionService {
     try {
       // Convert cents to dollars
       const usdAmount = usdCents / 100;
-      
+
       // Calculate BTC amount using price
       const priceValue = price.base / Math.pow(10, price.offset);
       const btcAmount = usdAmount / priceValue;
-      
+
       // Format based on amount size
       if (btcAmount < 0.00001) {
         const sats = Math.round(btcAmount * 100000000);

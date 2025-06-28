@@ -1,6 +1,17 @@
-import { Controller, Get, Post, HttpCode, HttpStatus, Logger, Res, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  HttpCode,
+  HttpStatus,
+  Logger,
+  Res,
+  Query,
+  Body,
+} from '@nestjs/common';
 import { Response } from 'express';
 import { WhatsAppWebService } from '../services/whatsapp-web.service';
+import { SendTestMessageDto } from '../dto/send-test-message.dto';
 
 @Controller('whatsapp-web')
 export class WhatsAppWebController {
@@ -27,7 +38,7 @@ export class WhatsAppWebController {
             platform: info.platform,
           }
         : null,
-      service: 'Flash Connect - WhatsApp Web.js Prototype',
+      service: 'Pulse - WhatsApp Web.js Prototype',
     };
   }
 
@@ -90,22 +101,12 @@ export class WhatsAppWebController {
    */
   @Post('test-message')
   @HttpCode(HttpStatus.OK)
-  async sendTestMessage(
-    @Query('to') to: string,
-    @Query('message') message: string = 'Hello from Flash Connect! This is a test message.',
-  ) {
+  async sendTestMessage(@Body() dto: SendTestMessageDto) {
     try {
-      if (!to) {
-        return {
-          status: 'error',
-          message: 'Phone number is required',
-        };
-      }
+      // Remove any non-numeric characters from phone number
+      const phoneNumber = dto.to.replace(/\D/g, '');
 
-      // Remove any non-numeric characters and ensure it starts with country code
-      const phoneNumber = to.replace(/\D/g, '');
-
-      await this.whatsAppWebService.sendMessage(phoneNumber, message);
+      await this.whatsAppWebService.sendMessage(phoneNumber, dto.message || 'Hello from Pulse!');
 
       return {
         status: 'success',
@@ -129,7 +130,7 @@ export class WhatsAppWebController {
   healthCheck() {
     return {
       status: 'ok',
-      service: 'Flash Connect WhatsApp Web.js Prototype',
+      service: 'Pulse WhatsApp Web.js Prototype',
       timestamp: new Date().toISOString(),
       ready: this.whatsAppWebService.isClientReady(),
     };

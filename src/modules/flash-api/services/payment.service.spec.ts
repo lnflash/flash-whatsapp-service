@@ -211,11 +211,7 @@ describe('PaymentService', () => {
 
       flashApiService.executeQuery.mockResolvedValue(mockResponse);
 
-      const result = await service.probeLightningFee(
-        'wallet123',
-        'lnbc123...',
-        'auth-token',
-      );
+      const result = await service.probeLightningFee('wallet123', 'lnbc123...', 'auth-token');
 
       expect(result.amount).toBe(10);
       expect(flashApiService.executeQuery).toHaveBeenCalledWith(
@@ -241,12 +237,7 @@ describe('PaymentService', () => {
 
       flashApiService.executeQuery.mockResolvedValue(mockResponse);
 
-      const result = await service.getOnChainFee(
-        'wallet123',
-        'bc1qxxx...',
-        10000,
-        'auth-token',
-      );
+      const result = await service.getOnChainFee('wallet123', 'bc1qxxx...', 10000, 'auth-token');
 
       expect(result).toBe(500);
       expect(flashApiService.executeQuery).toHaveBeenCalledWith(

@@ -1,4 +1,4 @@
-# Flash Connect (formerly Flash WhatsApp Service)
+# Pulse (formerly Flash Connect, Flash WhatsApp Service)
 
 A WhatsApp integration service for Flash that enables users to check their Bitcoin wallet balance and interact with Flash services through WhatsApp. Now branded as "Pulse" to capture the pulse of the Lightning Network.
 
@@ -35,6 +35,7 @@ This service uses WhatsApp Web.js to provide a seamless integration between Flas
 - ✅ Admin session management with QR code delivery
 - ✅ Content sharing ("vybz") to earn sats
 - ✅ Transaction history viewing
+- ✅ Pending payments for non-Flash users
 
 ## Prerequisites
 
@@ -86,6 +87,7 @@ Users can send these commands to the WhatsApp bot:
 - `send [amount] to [target]` - Send payment to username/phone/contact
 - `contacts` - Manage saved contacts
 - `history` - View recent transaction history
+- `pending` - View and manage pending payments (sent/received/claim)
 - `price` - Check current Bitcoin price
 - `username [new_username]` - View or set username
 - `vybz` - Share content to earn sats (3 posts/day limit)
@@ -178,6 +180,38 @@ The service automatically converts USD wallet balances to the user's display cur
 - No MFA required for balance checks (user already authenticated via WhatsApp)
 - All sensitive data excluded from logs
 
+## Pending Payments Feature
+
+The pending payments feature allows Flash users to send money to anyone via WhatsApp, even if the recipient doesn't have a Flash account yet:
+
+### How it works:
+1. **Send to any phone number**: Use `send [amount] to [phone]` to send money to any WhatsApp number
+2. **Recipient gets notified**: The recipient receives a WhatsApp message with a claim code
+3. **Easy claiming**: Recipients can claim by replying "link" to create an account
+4. **Automatic credit**: Once linked, the pending payment is automatically credited
+5. **30-day expiry**: Unclaimed payments are returned to sender after 30 days
+
+### Pending payment commands:
+- `pending` - View all your pending payments
+- `pending sent` - View payments you've sent that are awaiting claim
+- `pending received` - Check if you have money waiting to be claimed
+- `pending claim [code]` - Claim a payment using the provided code
+
+### Example flow:
+```
+Sender: send 10 to +18765551234
+Bot: ✅ $10.00 sent to +18765551234. They'll receive instructions to claim it.
+
+[Recipient receives message]
+Bot: 💰 You have money waiting! @alice sent you $10.00
+     Reply "link" to claim your payment.
+     Claim code: ABC123
+
+Recipient: link
+[... account creation flow ...]
+Bot: ✅ Your $10.00 from @alice has been credited to your account!
+```
+
 ## Admin Reconnection Feature
 
 The admin reconnection feature allows authorized administrators to change the WhatsApp number connected to the bot without SSH access:
@@ -196,10 +230,39 @@ This seamless process ensures zero downtime during number changes.
 - [x] Lightning invoice detection and payment
 - [x] Contact management
 - [x] Admin session management
+- [x] Pending payments for non-Flash users
 - [ ] Push notifications for received payments
 - [ ] Multi-language support
 - [ ] WhatsApp Business API migration
 - [ ] Group chat support
+
+## Security Features
+
+Pulse implements enterprise-grade security:
+
+- **🔐 Encryption at Rest**: All sensitive data encrypted with AES-256-GCM
+- **✅ Input Validation**: Comprehensive DTOs with custom validators
+- **🚦 Rate Limiting**: Per-endpoint and per-user rate limits
+- **🔑 Secure Sessions**: Encrypted session storage with rotation
+- **🛡️ Webhook Security**: HMAC signature validation
+- **🔒 Secrets Management**: Environment-based configuration with validation
+
+For detailed security documentation, see:
+- [Security Implementation Guide](docs/SECURITY.md)
+- [Security Improvements](docs/SECURITY_IMPROVEMENTS.md)
+- [Known Vulnerabilities](docs/KNOWN_VULNERABILITIES.md)
+
+### Generating Secure Keys
+
+For production deployment, generate secure keys:
+
+```bash
+# Generate all security keys (encryption, JWT, session, webhook, Nostr)
+./scripts/generate-secure-keys.sh
+
+# Generate only Nostr keys with detailed instructions
+./scripts/generate-nostr-keys.sh
+```
 
 ## License
 

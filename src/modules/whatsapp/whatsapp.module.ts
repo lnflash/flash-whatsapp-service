@@ -8,6 +8,7 @@ import { WhatsAppWebController } from './controllers/whatsapp-web.controller';
 // Services
 import { WhatsappService } from './services/whatsapp.service';
 import { CommandParserService } from './services/command-parser.service';
+import { CommandValidatorService } from './services/command-validator.service';
 // import { WhatsAppCloudService } from './services/whatsapp-cloud.service';
 import { WhatsAppWebService } from './services/whatsapp-web.service';
 import { QrCodeService } from './services/qr-code.service';
@@ -34,6 +35,7 @@ import { GeminiAiModule } from '../gemini-ai/gemini-ai.module';
     // WhatsAppCloudService,  // Cloud API Service (disabled for prototype)
     WhatsAppWebService, // WhatsApp Web.js Service
     CommandParserService,
+    CommandValidatorService,
     RateLimiterGuard,
     BalanceTemplate,
     QrCodeService,
