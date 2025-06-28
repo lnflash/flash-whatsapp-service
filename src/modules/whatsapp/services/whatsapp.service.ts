@@ -960,7 +960,13 @@ export class WhatsappService {
           const existingContacts = await this.redisService.get(contactsKey);
           const contacts = existingContacts ? JSON.parse(existingContacts) : {};
 
-          // Add new contact
+          // Check if contact already exists
+          const existingContact = contacts[contactName.toLowerCase()];
+          if (existingContact && existingContact.phone === phoneNumber.replace(/\D/g, '')) {
+            return `ℹ️ Contact "${contactName}" already exists with this number.`;
+          }
+
+          // Add or update contact
           contacts[contactName.toLowerCase()] = {
             name: contactName,
             phone: phoneNumber.replace(/\D/g, ''),
