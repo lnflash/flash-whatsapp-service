@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Inject, forwardRef } from '@nestjs/common';
 import { WhatsappService } from './whatsapp.service';
 // import { RedisService } from '../../redis/redis.service'; // Not used with WebSocket disabled
 // import { SubscriptionService } from '../../flash-api/services/subscription.service'; // WebSocket subscriptions disabled
@@ -10,6 +10,7 @@ export class InvoiceTrackerService implements OnModuleInit, OnModuleDestroy {
   // private activeSubscriptions = new Map<string, string>(); // whatsappId -> subscriptionId // WebSocket subscriptions disabled
 
   constructor(
+    @Inject(forwardRef(() => WhatsappService))
     private readonly whatsappService: WhatsappService,
     // private readonly redisService: RedisService, // Not used with WebSocket disabled
     // private readonly subscriptionService: SubscriptionService, // WebSocket subscriptions disabled
