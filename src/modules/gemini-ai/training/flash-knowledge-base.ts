@@ -60,15 +60,29 @@ export const FLASH_COMMANDS: CommandInfo[] = [
   },
   {
     command: 'request',
-    description: 'Request payment from another Flash user',
-    usage: 'request [amount] from [@username] [optional: phone number]',
+    description: 'Request payment from another user',
+    usage: 'request [amount] from [target]',
     examples: [
       'request 10 from @john',
       'request 25.50 from @alice 18765551234',
-      'request 100 from john_doe',
+      'request 100 from 18765551234',
+      'request 50 from john (saved contact)',
     ],
     requiresAuth: true,
-    notes: 'Creates a payment request that can be sent via WhatsApp if phone number is provided. Amount is in USD.',
+    notes: 'Creates a payment request. Target can be: @username, phone number, or saved contact name. Can send via WhatsApp if phone number is known.',
+  },
+  {
+    command: 'contacts',
+    description: 'Manage saved contacts for payment requests',
+    usage: 'contacts [action] [name] [phone]',
+    examples: [
+      'contacts',
+      'contacts list',
+      'contacts add john 18765551234',
+      'contacts remove john',
+    ],
+    requiresAuth: true,
+    notes: 'Save frequently used contacts to easily request payments by name.',
   },
   {
     command: 'price',

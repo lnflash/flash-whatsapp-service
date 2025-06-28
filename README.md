@@ -72,7 +72,8 @@ Users can send these commands to the WhatsApp bot:
 - `balance` - Check your wallet balance
 - `refresh` - Force refresh your balance
 - `receive [amount] [memo]` - Create USD Lightning invoice
-- `request [amount] from [@username] [phone]` - Request payment from another user
+- `request [amount] from [target]` - Request payment (username/phone/contact)
+- `contacts` - Manage saved contacts
 - `history` - View recent transaction history
 - `price` - Check current Bitcoin price
 - `username [new_username]` - View or set username

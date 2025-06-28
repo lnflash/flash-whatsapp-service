@@ -133,6 +133,9 @@ export class WhatsappService {
         case CommandType.REQUEST:
           return this.handleRequestCommand(command, whatsappId, session);
 
+        case CommandType.CONTACTS:
+          return this.handleContactsCommand(command, whatsappId, session);
+
         case CommandType.CONSENT:
           return this.handleConsentCommand(command, whatsappId, session);
 
@@ -641,7 +644,7 @@ export class WhatsappService {
       return 'Here are the available commands:\n\n• price - Check current Bitcoin price\n• link - Connect your Flash account\n• verify [code] - Enter verification code\n• help - Show available commands\n\nPlease complete the account linking process to access more features.';
     }
 
-    return "Here are the available commands for Flash:\n\n• balance - Check your Bitcoin and fiat balance\n• refresh - Refresh your balance (clear cache)\n• receive [amount] [memo] - Create USD Lightning invoice\n• request [amount] from [@username] [phone] - Request payment\n• history - View recent transactions\n• price - Check current Bitcoin price\n• username - View or set your username\n• link - Connect your Flash account\n• unlink - Disconnect your Flash account\n• consent [yes/no] - Manage your AI support consent\n• help - Show available commands\n\nYou can also ask me questions about Flash services and I'll do my best to assist you!";
+    return "Here are the available commands for Flash:\n\n• balance - Check your Bitcoin and fiat balance\n• refresh - Refresh your balance (clear cache)\n• receive [amount] [memo] - Create USD Lightning invoice\n• request [amount] from [target] - Request payment\n• contacts - Manage saved contacts\n• history - View recent transactions\n• price - Check current Bitcoin price\n• username - View or set your username\n• link - Connect your Flash account\n• unlink - Disconnect your Flash account\n• consent [yes/no] - Manage your AI support consent\n• help - Show available commands\n\nYou can also ask me questions about Flash services and I'll do my best to assist you!";
   }
 
   /**
@@ -799,15 +802,32 @@ export class WhatsappService {
         };
       }
 
-      // Parse amount and username
+      // Parse amount and target (username or phone)
       const amountStr = command.args.amount;
-      const targetUsername = command.args.username;
-      const targetPhone = command.args.phoneNumber;
+      let targetUsername = command.args.username;
+      let targetPhone = command.args.phoneNumber;
 
-      if (!amountStr || !targetUsername) {
+      if (!amountStr || (!targetUsername && !targetPhone)) {
         return {
-          text: 'Please specify amount and username. Usage: request [amount] from [@username] [optional: phone]',
+          text: 'Please specify amount and recipient. Usage:\n• request [amount] from [@username]\n• request [amount] from [phone]\n• request [amount] from [@username] [phone]\n• request [amount] from [contact_name]',
         };
+      }
+
+      // Check if username might be a saved contact name
+      if (targetUsername && !targetUsername.includes('@') && !targetPhone) {
+        const contactsKey = `contacts:${whatsappId}`;
+        const savedContacts = await this.redisService.get(contactsKey);
+        
+        if (savedContacts) {
+          const contacts = JSON.parse(savedContacts);
+          const contactKey = targetUsername.toLowerCase();
+          
+          if (contacts[contactKey]) {
+            // Found a saved contact, use their phone number
+            targetPhone = contacts[contactKey].phone;
+            this.logger.log(`Using saved contact ${targetUsername}: ${targetPhone}`);
+          }
+        }
       }
 
       // Validate amount
@@ -817,24 +837,26 @@ export class WhatsappService {
       }
       const amount = parsedResult.amount;
 
-      // Validate target username exists
-      try {
-        const walletCheck = await this.flashApiService.executeQuery<any>(
-          ACCOUNT_DEFAULT_WALLET_QUERY,
-          { username: targetUsername },
-          session.flashAuthToken,
-        );
+      // Validate target username if provided
+      if (targetUsername) {
+        try {
+          const walletCheck = await this.flashApiService.executeQuery<any>(
+            ACCOUNT_DEFAULT_WALLET_QUERY,
+            { username: targetUsername },
+            session.flashAuthToken,
+          );
 
-        if (!walletCheck?.accountDefaultWallet?.id) {
+          if (!walletCheck?.accountDefaultWallet?.id) {
+            return {
+              text: `❌ Username @${targetUsername} not found. Please check the username and try again.`,
+            };
+          }
+        } catch (error) {
+          this.logger.error(`Error checking username: ${error.message}`);
           return {
-            text: `❌ Username @${targetUsername} not found. Please check the username and try again.`,
+            text: `❌ Unable to verify username @${targetUsername}. Please try again later.`,
           };
         }
-      } catch (error) {
-        this.logger.error(`Error checking username: ${error.message}`);
-        return {
-          text: `❌ Unable to verify username @${targetUsername}. Please try again later.`,
-        };
       }
 
       // Get requester's username
@@ -867,12 +889,18 @@ export class WhatsappService {
       requestMessage += `\`${invoice.paymentRequest}\`\n`;
       requestMessage += `\n_Request expires in ${Math.floor((new Date(invoice.expiresAt).getTime() - Date.now()) / 60000)} minutes_`;
 
-      // If phone number provided, try to send WhatsApp message
+      // Determine the final phone number to use
+      const phoneToUse = targetPhone || (targetUsername ? null : null);
+      
+      // If we have a phone number, try to send WhatsApp message
       if (targetPhone && this.whatsappWebService) {
         try {
           // Normalize phone number
           const normalizedPhone = targetPhone.replace(/\D/g, '');
           const whatsappNumber = `${normalizedPhone}@c.us`;
+          
+          // Build recipient identifier for message
+          const recipientIdentifier = targetUsername ? `@${targetUsername}` : `the number ${targetPhone}`;
           
           // Send notification to recipient
           const notificationMessage = `💰 *Payment Request*\n\n@${requesterUsername} is requesting $${amount!.toFixed(2)} USD from you.\n\nTo view and pay this request, please check your WhatsApp messages or open the Flash app.`;
@@ -883,7 +911,7 @@ export class WhatsappService {
           await this.whatsappWebService.sendImage(whatsappNumber, qrBuffer, requestMessage);
           
           return {
-            text: `✅ Payment request sent to @${targetUsername} via WhatsApp!\n\nThey will receive your request for $${amount!.toFixed(2)} USD.`,
+            text: `✅ Payment request sent to ${recipientIdentifier} via WhatsApp!\n\nThey will receive your request for $${amount!.toFixed(2)} USD.`,
           };
         } catch (error) {
           this.logger.error(`Failed to send WhatsApp message: ${error.message}`);
@@ -899,6 +927,102 @@ export class WhatsappService {
     } catch (error) {
       this.logger.error(`Error handling request command: ${error.message}`, error.stack);
       return { text: '❌ Failed to create payment request. Please try again later.' };
+    }
+  }
+
+  /**
+   * Handle contacts command - manage saved contacts
+   */
+  private async handleContactsCommand(
+    command: ParsedCommand,
+    whatsappId: string,
+    session: UserSession | null,
+  ): Promise<string> {
+    try {
+      // Check if user has a linked account
+      if (!session || !session.isVerified) {
+        return 'Please link your Flash account first to manage contacts. Type "link" to get started.';
+      }
+
+      const action = command.args.action || 'list';
+      const contactName = command.args.name;
+      const phoneNumber = command.args.phoneNumber;
+
+      const contactsKey = `contacts:${whatsappId}`;
+
+      switch (action) {
+        case 'add':
+          if (!contactName || !phoneNumber) {
+            return 'Please provide name and phone number. Usage: contacts add [name] [phone]';
+          }
+
+          // Get existing contacts
+          const existingContacts = await this.redisService.get(contactsKey);
+          const contacts = existingContacts ? JSON.parse(existingContacts) : {};
+
+          // Add new contact
+          contacts[contactName.toLowerCase()] = {
+            name: contactName,
+            phone: phoneNumber.replace(/\D/g, ''),
+            addedAt: new Date().toISOString(),
+          };
+
+          // Save contacts (expire after 1 year)
+          await this.redisService.set(contactsKey, JSON.stringify(contacts), 365 * 24 * 60 * 60);
+
+          return `✅ Contact saved: ${contactName} (${phoneNumber})\n\nYou can now use: request [amount] from ${contactName}`;
+
+        case 'remove':
+          if (!contactName) {
+            return 'Please provide contact name. Usage: contacts remove [name]';
+          }
+
+          const contactsToUpdate = await this.redisService.get(contactsKey);
+          if (!contactsToUpdate) {
+            return 'You have no saved contacts.';
+          }
+
+          const contactList = JSON.parse(contactsToUpdate);
+          const nameKey = contactName.toLowerCase();
+
+          if (!contactList[nameKey]) {
+            return `Contact "${contactName}" not found.`;
+          }
+
+          delete contactList[nameKey];
+          await this.redisService.set(contactsKey, JSON.stringify(contactList), 365 * 24 * 60 * 60);
+
+          return `✅ Contact "${contactName}" removed.`;
+
+        case 'list':
+        default:
+          const savedContacts = await this.redisService.get(contactsKey);
+          if (!savedContacts) {
+            return 'You have no saved contacts.\n\nTo add a contact: contacts add [name] [phone]';
+          }
+
+          const contactData = JSON.parse(savedContacts);
+          const contactEntries = Object.values(contactData) as Array<{
+            name: string;
+            phone: string;
+            addedAt: string;
+          }>;
+
+          if (contactEntries.length === 0) {
+            return 'You have no saved contacts.\n\nTo add a contact: contacts add [name] [phone]';
+          }
+
+          let message = '📇 *Your Saved Contacts*\n\n';
+          contactEntries.forEach((contact) => {
+            message += `• ${contact.name}: ${contact.phone}\n`;
+          });
+          message += '\n_Use these names in payment requests!_';
+
+          return message;
+      }
+    } catch (error) {
+      this.logger.error(`Error handling contacts command: ${error.message}`, error.stack);
+      return '❌ Failed to manage contacts. Please try again later.';
     }
   }
 

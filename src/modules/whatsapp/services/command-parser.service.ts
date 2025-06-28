@@ -13,6 +13,7 @@ export enum CommandType {
   RECEIVE = 'receive',
   HISTORY = 'history',
   REQUEST = 'request',
+  CONTACTS = 'contacts',
   UNKNOWN = 'unknown',
 }
 
@@ -38,7 +39,8 @@ export class CommandParserService {
     { type: CommandType.PRICE, pattern: /^price|^rate|^btc$/i },
     { type: CommandType.RECEIVE, pattern: /^receive(?:\s+(\d+(?:\.\d+)?))?\s*(.*)$/i },
     { type: CommandType.HISTORY, pattern: /^history|^transactions|^txs$/i },
-    { type: CommandType.REQUEST, pattern: /^request\s+(\d+(?:\.\d+)?)\s+from\s+@?(\w+)(?:\s+(.+))?$/i },
+    { type: CommandType.REQUEST, pattern: /^request\s+(\d+(?:\.\d+)?)\s+from\s+(?:@?(\w+)|(\+?\d{10,}))(?:\s+(.+))?$/i },
+    { type: CommandType.CONTACTS, pattern: /^contacts(?:\s+(add|list|remove))?(?:\s+(\w+))?(?:\s+(.+))?$/i },
   ];
 
   /**
@@ -126,12 +128,30 @@ export class CommandParserService {
         break;
 
       case CommandType.REQUEST:
-        // Extract amount, username, and optional phone number
+        // Extract amount and either username or phone number
         if (match[1]) {
           args.amount = match[1];
         }
         if (match[2]) {
+          // Username was provided
           args.username = match[2];
+        } else if (match[3]) {
+          // Phone number was provided instead of username
+          args.phoneNumber = match[3];
+        }
+        if (match[4]) {
+          // Additional phone number (when username was provided)
+          args.phoneNumber = match[4].trim();
+        }
+        break;
+
+      case CommandType.CONTACTS:
+        // Extract action, name, and phone number
+        if (match[1]) {
+          args.action = match[1].toLowerCase(); // add, list, remove
+        }
+        if (match[2]) {
+          args.name = match[2];
         }
         if (match[3]) {
           args.phoneNumber = match[3].trim();
