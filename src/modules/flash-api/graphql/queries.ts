@@ -88,3 +88,11 @@ export const REALTIME_PRICE_QUERY = `
     }
   }
 `;
+
+export const ACCOUNT_DEFAULT_WALLET_QUERY = `
+  query accountDefaultWallet($username: Username!) {
+    accountDefaultWallet(username: $username) {
+      id
+    }
+  }
+`;

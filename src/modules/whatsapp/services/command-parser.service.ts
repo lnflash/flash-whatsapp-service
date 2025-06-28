@@ -12,6 +12,7 @@ export enum CommandType {
   PRICE = 'price',
   RECEIVE = 'receive',
   HISTORY = 'history',
+  REQUEST = 'request',
   UNKNOWN = 'unknown',
 }
 
@@ -37,6 +38,7 @@ export class CommandParserService {
     { type: CommandType.PRICE, pattern: /^price|^rate|^btc$/i },
     { type: CommandType.RECEIVE, pattern: /^receive(?:\s+(\d+(?:\.\d+)?))?\s*(.*)$/i },
     { type: CommandType.HISTORY, pattern: /^history|^transactions|^txs$/i },
+    { type: CommandType.REQUEST, pattern: /^request\s+(\d+(?:\.\d+)?)\s+from\s+@?(\w+)(?:\s+(.+))?$/i },
   ];
 
   /**
@@ -120,6 +122,19 @@ export class CommandParserService {
           // Limit memo length at parsing stage to prevent issues
           const rawMemo = match[2].trim();
           args.memo = rawMemo.substring(0, 1000); // Generous limit at parse stage
+        }
+        break;
+
+      case CommandType.REQUEST:
+        // Extract amount, username, and optional phone number
+        if (match[1]) {
+          args.amount = match[1];
+        }
+        if (match[2]) {
+          args.username = match[2];
+        }
+        if (match[3]) {
+          args.phoneNumber = match[3].trim();
         }
         break;
     }

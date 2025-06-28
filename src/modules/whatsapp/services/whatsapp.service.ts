@@ -10,6 +10,7 @@ import { PriceService } from '../../flash-api/services/price.service';
 import { InvoiceService } from '../../flash-api/services/invoice.service';
 import { TransactionService } from '../../flash-api/services/transaction.service';
 import { GeminiAiService } from '../../gemini-ai/gemini-ai.service';
+import { ACCOUNT_DEFAULT_WALLET_QUERY } from '../../flash-api/graphql/queries';
 import { QrCodeService } from './qr-code.service';
 import { CommandParserService, CommandType, ParsedCommand } from './command-parser.service';
 import { WhatsAppWebService } from './whatsapp-web.service';
@@ -128,6 +129,9 @@ export class WhatsappService {
 
         case CommandType.HISTORY:
           return this.handleHistoryCommand(whatsappId, session);
+
+        case CommandType.REQUEST:
+          return this.handleRequestCommand(command, whatsappId, session);
 
         case CommandType.CONSENT:
           return this.handleConsentCommand(command, whatsappId, session);
@@ -637,7 +641,7 @@ export class WhatsappService {
       return 'Here are the available commands:\n\n• price - Check current Bitcoin price\n• link - Connect your Flash account\n• verify [code] - Enter verification code\n• help - Show available commands\n\nPlease complete the account linking process to access more features.';
     }
 
-    return "Here are the available commands for Flash:\n\n• balance - Check your Bitcoin and fiat balance\n• refresh - Refresh your balance (clear cache)\n• receive [amount] [memo] - Create USD Lightning invoice\n• history - View recent transactions\n• price - Check current Bitcoin price\n• username - View or set your username\n• link - Connect your Flash account\n• unlink - Disconnect your Flash account\n• consent [yes/no] - Manage your AI support consent\n• help - Show available commands\n\nYou can also ask me questions about Flash services and I'll do my best to assist you!";
+    return "Here are the available commands for Flash:\n\n• balance - Check your Bitcoin and fiat balance\n• refresh - Refresh your balance (clear cache)\n• receive [amount] [memo] - Create USD Lightning invoice\n• request [amount] from [@username] [phone] - Request payment\n• history - View recent transactions\n• price - Check current Bitcoin price\n• username - View or set your username\n• link - Connect your Flash account\n• unlink - Disconnect your Flash account\n• consent [yes/no] - Manage your AI support consent\n• help - Show available commands\n\nYou can also ask me questions about Flash services and I'll do my best to assist you!";
   }
 
   /**
@@ -776,6 +780,125 @@ export class WhatsappService {
     } catch (error) {
       this.logger.error(`Error handling history command: ${error.message}`, error.stack);
       return '❌ Failed to fetch transaction history. Please try again later.';
+    }
+  }
+
+  /**
+   * Handle payment request command - request payment from another user
+   */
+  private async handleRequestCommand(
+    command: ParsedCommand,
+    whatsappId: string,
+    session: UserSession | null,
+  ): Promise<{ text: string; media?: Buffer }> {
+    try {
+      // Check if user has a linked account
+      if (!session || !session.isVerified || !session.flashAuthToken) {
+        return {
+          text: 'Please link your Flash account first to request payments. Type "link" to get started.',
+        };
+      }
+
+      // Parse amount and username
+      const amountStr = command.args.amount;
+      const targetUsername = command.args.username;
+      const targetPhone = command.args.phoneNumber;
+
+      if (!amountStr || !targetUsername) {
+        return {
+          text: 'Please specify amount and username. Usage: request [amount] from [@username] [optional: phone]',
+        };
+      }
+
+      // Validate amount
+      const parsedResult = parseAndValidateAmount(amountStr);
+      if (parsedResult.error) {
+        return { text: parsedResult.error };
+      }
+      const amount = parsedResult.amount;
+
+      // Validate target username exists
+      try {
+        const walletCheck = await this.flashApiService.executeQuery<any>(
+          ACCOUNT_DEFAULT_WALLET_QUERY,
+          { username: targetUsername },
+          session.flashAuthToken,
+        );
+
+        if (!walletCheck?.accountDefaultWallet?.id) {
+          return {
+            text: `❌ Username @${targetUsername} not found. Please check the username and try again.`,
+          };
+        }
+      } catch (error) {
+        this.logger.error(`Error checking username: ${error.message}`);
+        return {
+          text: `❌ Unable to verify username @${targetUsername}. Please try again later.`,
+        };
+      }
+
+      // Get requester's username
+      const requesterUsername = await this.usernameService.getUsername(session.flashAuthToken) || 'Flash user';
+
+      // Create invoice for the requested amount
+      const memo = `Payment request from @${requesterUsername}`;
+      const invoice = await this.invoiceService.createInvoice(
+        session.flashAuthToken,
+        amount!,
+        memo,
+        'USD',
+      );
+
+      if (!invoice) {
+        return { text: '❌ Failed to create payment request. Please try again later.' };
+      }
+
+      // Generate QR code
+      const qrBuffer = await this.qrCodeService.generateQrCode(invoice.paymentRequest);
+
+      // Format the request message
+      let requestMessage = `💸 *Payment Request*\n\n`;
+      requestMessage += `From: @${requesterUsername}\n`;
+      requestMessage += `Amount: $${amount!.toFixed(2)} USD\n`;
+      requestMessage += `\n📱 *To pay this request:*\n`;
+      requestMessage += `1. Open Flash app\n`;
+      requestMessage += `2. Tap "Send"\n`;
+      requestMessage += `3. Scan this QR code or paste:\n`;
+      requestMessage += `\`${invoice.paymentRequest}\`\n`;
+      requestMessage += `\n_Request expires in ${Math.floor((new Date(invoice.expiresAt).getTime() - Date.now()) / 60000)} minutes_`;
+
+      // If phone number provided, try to send WhatsApp message
+      if (targetPhone && this.whatsappWebService) {
+        try {
+          // Normalize phone number
+          const normalizedPhone = targetPhone.replace(/\D/g, '');
+          const whatsappNumber = `${normalizedPhone}@c.us`;
+          
+          // Send notification to recipient
+          const notificationMessage = `💰 *Payment Request*\n\n@${requesterUsername} is requesting $${amount!.toFixed(2)} USD from you.\n\nTo view and pay this request, please check your WhatsApp messages or open the Flash app.`;
+          
+          await this.whatsappWebService.sendMessage(whatsappNumber, notificationMessage);
+          
+          // Send the actual payment request with QR
+          await this.whatsappWebService.sendImage(whatsappNumber, qrBuffer, requestMessage);
+          
+          return {
+            text: `✅ Payment request sent to @${targetUsername} via WhatsApp!\n\nThey will receive your request for $${amount!.toFixed(2)} USD.`,
+          };
+        } catch (error) {
+          this.logger.error(`Failed to send WhatsApp message: ${error.message}`);
+          // Continue to show the QR code to the requester
+        }
+      }
+
+      // Return the payment request to the requester
+      return {
+        text: requestMessage,
+        media: qrBuffer,
+      };
+    } catch (error) {
+      this.logger.error(`Error handling request command: ${error.message}`, error.stack);
+      return { text: '❌ Failed to create payment request. Please try again later.' };
     }
   }
 

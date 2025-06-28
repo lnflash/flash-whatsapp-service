@@ -59,6 +59,18 @@ export const FLASH_COMMANDS: CommandInfo[] = [
     notes: 'Shows your last 10 transactions with dates, amounts, and counterparties',
   },
   {
+    command: 'request',
+    description: 'Request payment from another Flash user',
+    usage: 'request [amount] from [@username] [optional: phone number]',
+    examples: [
+      'request 10 from @john',
+      'request 25.50 from @alice 18765551234',
+      'request 100 from john_doe',
+    ],
+    requiresAuth: true,
+    notes: 'Creates a payment request that can be sent via WhatsApp if phone number is provided. Amount is in USD.',
+  },
+  {
     command: 'price',
     description: 'Check current Bitcoin price',
     usage: 'price',
