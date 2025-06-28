@@ -1,5 +1,38 @@
 # Version History
 
+## v0.3.0 (2024-06-28) - Admin Reconnection & Enhanced Features
+
+### Major Features
+- **Admin Session Management**: Complete control over WhatsApp connections
+  - `admin status` - Check connection status
+  - `admin disconnect` - Disconnect current session
+  - `admin reconnect` - Connect new number with QR code delivery
+  - `admin clear-session` - Clear all session data
+- **QR Code Delivery**: QR codes sent directly via WhatsApp (no terminal access needed)
+- **Seamless Reconnection**: Zero downtime when switching WhatsApp numbers
+- **Welcome Messages**: Automatic confirmation when new connection established
+
+### New Commands
+- `pay` - Interactive Lightning invoice payment with confirm/cancel
+- `send [amount] to [target]` - Send payments to username/phone/contact
+- `vybz` - Share content to earn sats (3 posts/day limit)
+- Contact sharing via WhatsApp vCards now automatically saves contacts
+
+### Technical Improvements
+- Session persistence across server restarts
+- Improved invoice detection with amount parsing
+- Multiple pending payment support (up to 10)
+- Enhanced error handling for puppeteer context
+- Better state management during client switching
+
+### Bug Fixes
+- Fixed message sending after reconnection
+- Fixed session persistence issues
+- Fixed timing issues with QR code generation
+- Improved client stability after switching
+
+---
+
 ## v0.1.0 (2024-01-26) - WhatsApp Web.js Prototype
 
 ### Features

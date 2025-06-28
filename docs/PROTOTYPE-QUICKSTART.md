@@ -1,4 +1,4 @@
-# Flash Connect - WhatsApp Web.js Prototype Quick Start
+# Flash Connect (Pulse) - WhatsApp Web.js Quick Start
 
 ## 🚀 Get Started in 3 Minutes
 
@@ -61,9 +61,16 @@ curl http://localhost:3000/whatsapp-web/qr
 Once connected, send these messages to your WhatsApp number:
 
 - `help` - Get list of commands
-- `balance` - Check balance (requires Flash API)
 - `link` - Link your Flash account
+- `balance` - Check balance (after linking)
+- `receive 10` - Create Lightning invoice
+- `pay` - Pay pending invoices
+- `vybz` - Share content to earn sats
 - Any question - Get AI-powered response
+
+### Admin Commands (if authorized)
+- `admin status` - Check connection status
+- `admin reconnect` - Change WhatsApp number
 
 ## 🛠️ Troubleshooting
 
@@ -104,8 +111,14 @@ yarn start:dev
 ### Enable Flash API Integration
 Edit `.env` and add:
 ```env
+FLASH_API_URL=https://api.flashapp.me/graphql
 FLASH_API_KEY=your_api_key_here
-FLASH_API_SECRET=your_api_secret_here
+```
+
+### Configure Admin Access
+Add authorized phone numbers:
+```env
+ADMIN_PHONE_NUMBERS=13059244435,18764250250
 ```
 
 ### Disable AI Responses

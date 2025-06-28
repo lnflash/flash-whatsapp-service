@@ -96,3 +96,20 @@ export const ACCOUNT_DEFAULT_WALLET_QUERY = `
     }
   }
 `;
+
+export const ME_WALLETS_QUERY = `
+  query meWallets {
+    me {
+      id
+      defaultAccount {
+        id
+        defaultWalletId
+        wallets {
+          id
+          balance
+          walletCurrency
+        }
+      }
+    }
+  }
+`;

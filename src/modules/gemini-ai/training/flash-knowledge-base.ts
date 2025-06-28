@@ -1,6 +1,10 @@
 /**
- * Flash WhatsApp Bot Knowledge Base
+ * Pulse (formerly Flash Connect) Knowledge Base
  * This file contains structured information to train the AI for accurate responses
+ * 
+ * Pulse: A WhatsApp bot that captures the pulse of people as they share what's on their mind,
+ * hoping for electric zaps (Lightning payments) to their wallet - just like blood flowing 
+ * through veins being pushed by electric compressions in the heart.
  */
 
 export interface TrainingExample {
