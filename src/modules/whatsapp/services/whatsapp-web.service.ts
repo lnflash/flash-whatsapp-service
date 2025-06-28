@@ -120,6 +120,14 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy, Before
     // Message handling
     this.client.on('message', async (msg: Message) => {
       try {
+        // Log ALL available properties on the message object
+        this.logger.debug('=== INCOMING MESSAGE DEBUG ===');
+        this.logger.debug(`Message type: ${msg.type}`);
+        this.logger.debug(`From: ${msg.from}`);
+        this.logger.debug(`Body: ${msg.body}`);
+        this.logger.debug(`Has vCards: ${!!msg.vCards}`);
+        this.logger.debug(`vCards count: ${msg.vCards?.length || 0}`);
+        
         // Ignore group messages and status updates
         if (!msg.from.endsWith('@c.us')) {
           return;
@@ -130,8 +138,8 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy, Before
           return;
         }
 
-        // Ignore empty messages
-        if (!msg.body || msg.body.trim() === '') {
+        // Ignore empty messages (unless it's a vCard)
+        if ((!msg.body || msg.body.trim() === '') && msg.type !== 'vcard') {
           this.logger.debug(`Ignoring empty message from ${msg.from}`);
           return;
         }
@@ -154,9 +162,62 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy, Before
           5 * 60 * 1000,
         );
 
+        // Enhanced logging to capture all message types
         this.logger.log(`Received message from ${msg.from}: "${msg.body}"`);
+        this.logger.debug(`Message type: ${msg.type}`);
+        this.logger.debug(`Has media: ${msg.hasMedia}`);
+        this.logger.debug(`Message data keys: ${Object.keys(msg).join(', ')}`);
+        
+        // Check for vCard (contact sharing)
+        if (msg.type === 'vcard' || msg.vCards?.length > 0) {
+          this.logger.log('📇 CONTACT VCARD RECEIVED!');
+          this.logger.log(`vCards count: ${msg.vCards?.length || 0}`);
+          
+          if (msg.vCards && msg.vCards.length > 0) {
+            msg.vCards.forEach((vcard, index) => {
+              this.logger.log(`\n=== vCard ${index + 1} ===`);
+              this.logger.log(`Raw vCard data:\n${vcard}`);
+              
+              // Parse vCard data
+              const lines = vcard.split('\n');
+              const contactInfo: any = {};
+              
+              lines.forEach(line => {
+                if (line.startsWith('FN:')) {
+                  contactInfo.fullName = line.substring(3);
+                } else if (line.startsWith('N:')) {
+                  contactInfo.name = line.substring(2);
+                } else if (line.startsWith('TEL')) {
+                  const phoneMatch = line.match(/TEL[^:]*:(.+)/);
+                  if (phoneMatch) {
+                    if (!contactInfo.phones) contactInfo.phones = [];
+                    contactInfo.phones.push(phoneMatch[1]);
+                  }
+                } else if (line.startsWith('EMAIL')) {
+                  const emailMatch = line.match(/EMAIL[^:]*:(.+)/);
+                  if (emailMatch) {
+                    contactInfo.email = emailMatch[1];
+                  }
+                }
+              });
+              
+              this.logger.log(`Parsed contact info: ${JSON.stringify(contactInfo, null, 2)}`);
+            });
+          }
+          
+          // For now, return a message acknowledging the contact
+          const response = "I received a contact! I've logged the details. In the future, I'll be able to save this contact for payment requests.";
+          await this.sendMessage(msg.from, response);
+          return;
+        }
+        
+        // Log other message types for debugging
+        if (msg.type !== 'chat') {
+          this.logger.log(`Non-chat message type received: ${msg.type}`);
+          this.logger.debug(`Full message object: ${JSON.stringify(msg, null, 2)}`);
+        }
 
-        // Process the message using our existing WhatsApp service
+        // Process regular text messages
         const response = await this.whatsappService.processCloudMessage({
           from: msg.from.replace('@c.us', ''),
           text: msg.body,
