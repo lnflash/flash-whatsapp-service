@@ -814,6 +814,7 @@ export class WhatsappService {
       }
 
       // Check if username might be a saved contact name
+      let isFromSavedContact = false;
       if (targetUsername && !targetUsername.includes('@') && !targetPhone) {
         const contactsKey = `contacts:${whatsappId}`;
         const savedContacts = await this.redisService.get(contactsKey);
@@ -825,6 +826,7 @@ export class WhatsappService {
           if (contacts[contactKey]) {
             // Found a saved contact, use their phone number
             targetPhone = contacts[contactKey].phone;
+            isFromSavedContact = true;
             this.logger.log(`Using saved contact ${targetUsername}: ${targetPhone}`);
           }
         }
@@ -837,8 +839,8 @@ export class WhatsappService {
       }
       const amount = parsedResult.amount;
 
-      // Validate target username if provided
-      if (targetUsername) {
+      // Validate target username if provided (skip if it's a saved contact)
+      if (targetUsername && !isFromSavedContact) {
         try {
           const walletCheck = await this.flashApiService.executeQuery<any>(
             ACCOUNT_DEFAULT_WALLET_QUERY,
@@ -889,9 +891,6 @@ export class WhatsappService {
       requestMessage += `\`${invoice.paymentRequest}\`\n`;
       requestMessage += `\n_Request expires in ${Math.floor((new Date(invoice.expiresAt).getTime() - Date.now()) / 60000)} minutes_`;
 
-      // Determine the final phone number to use
-      const phoneToUse = targetPhone || (targetUsername ? null : null);
-      
       // If we have a phone number, try to send WhatsApp message
       if (targetPhone && this.whatsappWebService) {
         try {
@@ -900,7 +899,14 @@ export class WhatsappService {
           const whatsappNumber = `${normalizedPhone}@c.us`;
           
           // Build recipient identifier for message
-          const recipientIdentifier = targetUsername ? `@${targetUsername}` : `the number ${targetPhone}`;
+          let recipientIdentifier = '';
+          if (isFromSavedContact) {
+            recipientIdentifier = targetUsername!; // Saved contact name
+          } else if (targetUsername) {
+            recipientIdentifier = `@${targetUsername}`; // Flash username
+          } else {
+            recipientIdentifier = `the number ${targetPhone}`; // Direct phone number
+          }
           
           // Send notification to recipient
           const notificationMessage = `💰 *Payment Request*\n\n@${requesterUsername} is requesting $${amount!.toFixed(2)} USD from you.\n\nTo view and pay this request, please check your WhatsApp messages or open the Flash app.`;
@@ -917,6 +923,13 @@ export class WhatsappService {
           this.logger.error(`Failed to send WhatsApp message: ${error.message}`);
           // Continue to show the QR code to the requester
         }
+      }
+
+      // If this was a contact request but no phone was found, show a different message
+      if (!targetPhone && isFromSavedContact) {
+        return {
+          text: `❌ Unable to send payment request. The contact "${targetUsername}" doesn't have a phone number saved.`,
+        };
       }
 
       // Return the payment request to the requester
