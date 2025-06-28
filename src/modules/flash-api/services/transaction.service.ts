@@ -7,7 +7,7 @@ export interface Transaction {
   status: string;
   direction: string;
   memo?: string;
-  createdAt: string;
+  createdAt: string; // Unix timestamp in seconds
   settlementAmount: number;
   settlementFee: number;
   settlementCurrency: string;
@@ -58,10 +58,13 @@ export class TransactionService {
         authToken,
       );
 
-      if (result?.data?.me?.defaultAccount?.transactions) {
-        return result.data.me.defaultAccount.transactions;
+      this.logger.debug(`Transaction query result structure: ${JSON.stringify(Object.keys(result || {}))}`);
+
+      if (result?.me?.defaultAccount?.transactions) {
+        return result.me.defaultAccount.transactions;
       }
 
+      this.logger.warn('No transactions found in response');
       return null;
     } catch (error) {
       this.logger.error(`Error fetching transactions: ${error.message}`, error.stack);
@@ -98,8 +101,8 @@ export class TransactionService {
     const direction = tx.direction === 'SEND' ? '📤 Sent' : '📥 Received';
     const status = tx.status === 'SUCCESS' ? '✅' : tx.status === 'PENDING' ? '⏳' : '❌';
     
-    // Format date
-    const date = new Date(tx.createdAt);
+    // Format date - createdAt is in seconds, convert to milliseconds
+    const date = new Date(parseInt(tx.createdAt) * 1000);
     const dateStr = date.toLocaleDateString('en-US', { 
       month: 'short', 
       day: 'numeric',
@@ -118,15 +121,15 @@ export class TransactionService {
         amountStr += ` (~${tx.settlementDisplayAmount} ${tx.settlementDisplayCurrency})`;
       }
     } else {
-      // USD transaction
-      const usdAmount = tx.settlementAmount / 100; // Convert cents to dollars
+      // USD transaction - amount is already in dollars
+      const usdAmount = parseFloat(tx.settlementAmount.toString());
       amountStr = `$${usdAmount.toFixed(2)} USD`;
       
       // Add BTC equivalent if available
       if (tx.settlementPrice) {
-        const btcEquivalent = this.calculateBtcEquivalent(tx.settlementAmount, tx.settlementPrice);
+        const btcEquivalent = this.calculateBtcEquivalent(usdAmount * 100, tx.settlementPrice);
         if (btcEquivalent) {
-          amountStr += ` (~${btcEquivalent} BTC)`;
+          amountStr += ` (~${btcEquivalent})`;
         }
       }
     }
@@ -191,7 +194,7 @@ export class TransactionService {
     yesterday.setDate(yesterday.getDate() - 1);
 
     for (const edge of edges) {
-      const txDate = new Date(edge.node.createdAt);
+      const txDate = new Date(parseInt(edge.node.createdAt) * 1000);
       let dateGroup: string;
 
       if (this.isSameDay(txDate, today)) {
