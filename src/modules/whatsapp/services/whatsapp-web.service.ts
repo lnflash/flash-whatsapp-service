@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Client, LocalAuth, Message } from 'whatsapp-web.js';
 import * as qrcode from 'qrcode-terminal';
 import { WhatsappService } from './whatsapp.service';
+import { QrCodeService } from './qr-code.service';
 
 @Injectable()
 export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy, BeforeApplicationShutdown {
@@ -10,11 +11,14 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy, Before
   private client: Client;
   private isReady = false;
   private processedMessages = new Set<string>();
+  private reconnectingAdminNumber: string | null = null;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly whatsappService: WhatsappService,
+    private readonly qrCodeService: QrCodeService,
   ) {
+    this.logger.log('WhatsAppWebService constructor called');
     // Initialize WhatsApp Web client with persistent session
     this.client = new Client({
       authStrategy: new LocalAuth({
@@ -43,7 +47,18 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy, Before
   async onModuleInit() {
     try {
       this.logger.log('Initializing WhatsApp Web client...');
+      this.logger.log('Session path: ./whatsapp-sessions');
+      
+      // Check if session exists
+      const fs = require('fs');
+      if (fs.existsSync('./whatsapp-sessions/session')) {
+        this.logger.log('Existing session found, attempting to restore...');
+      } else {
+        this.logger.log('No existing session found, will need QR code scan');
+      }
+      
       await this.client.initialize();
+      this.logger.log('WhatsApp client initialize() called successfully');
     } catch (error) {
       this.logger.error('Failed to initialize WhatsApp Web client:', error);
     }
@@ -74,6 +89,8 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy, Before
   }
 
   private setupEventHandlers() {
+    this.logger.log(`Setting up event handlers on client...`);
+    
     // QR Code generation for authentication
     this.client.on('qr', (qr) => {
       this.logger.log('QR Code received, scan with WhatsApp:');
@@ -94,13 +111,14 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy, Before
     });
 
     // Client ready
-    this.client.on('ready', () => {
-      this.logger.log('WhatsApp Web client is ready!');
+    this.client.on('ready', async () => {
+      this.logger.log('🟢 WhatsApp Web client is ready!');
       this.isReady = true;
 
       // Log the connected phone number
       const info = this.client.info;
-      this.logger.log(`Connected as: ${info.pushname} (${info.wid.user})`);
+      this.logger.log(`✅ Connected as: ${info.pushname} (${info.wid.user})`);
+      this.logger.log('✅ Bot is now ready to receive messages');
     });
 
     // Disconnection
@@ -122,6 +140,7 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy, Before
       try {
         // Log ALL available properties on the message object
         this.logger.debug('=== INCOMING MESSAGE DEBUG ===');
+        this.logger.debug(`Client ready state: ${this.isReady}`);
         this.logger.debug(`Message type: ${msg.type}`);
         this.logger.debug(`From: ${msg.from}`);
         this.logger.debug(`Body: ${msg.body}`);
@@ -133,8 +152,15 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy, Before
           return;
         }
 
+        // Check if client is ready
+        if (!this.isReady) {
+          this.logger.warn('Received message but client is not ready yet');
+          return;
+        }
+
         // Ignore messages from self
         if (msg.fromMe) {
+          this.logger.debug('Ignoring message from self');
           return;
         }
 
@@ -163,7 +189,7 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy, Before
         );
 
         // Enhanced logging to capture all message types
-        this.logger.log(`Received message from ${msg.from}: "${msg.body}"`);
+        this.logger.log(`📨 Received message from ${msg.from}: "${msg.body}"`);
         this.logger.debug(`Message type: ${msg.type}`);
         this.logger.debug(`Has media: ${msg.hasMedia}`);
         this.logger.debug(`Message data keys: ${Object.keys(msg).join(', ')}`);
@@ -371,6 +397,289 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy, Before
   }
 
   /**
+   * Disconnect the current WhatsApp session
+   */
+  async disconnect(logout: boolean = true): Promise<void> {
+    try {
+      this.logger.log('Disconnecting WhatsApp session...');
+      
+      if (this.client) {
+        this.isReady = false;
+        if (logout) {
+          await this.client.logout();
+          this.logger.log('WhatsApp session logged out successfully');
+        } else {
+          // Just mark as not ready without logging out
+          this.logger.log('WhatsApp session disconnected (session preserved)');
+        }
+      }
+    } catch (error) {
+      this.logger.error('Error disconnecting WhatsApp session:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Clear the session data and prepare for reconnection
+   */
+  async clearSession(): Promise<void> {
+    try {
+      this.logger.log('Clearing WhatsApp session data...');
+      
+      // First disconnect if connected (with logout to clear session)
+      if (this.isReady) {
+        await this.disconnect(true);
+      }
+      
+      // Clear the session directory
+      const fs = require('fs').promises;
+      const path = require('path');
+      const sessionPath = path.join(process.cwd(), 'whatsapp-sessions');
+      
+      try {
+        await fs.rm(sessionPath, { recursive: true, force: true });
+        this.logger.log('Session data cleared successfully');
+      } catch (err) {
+        this.logger.warn('Session directory may not exist:', err);
+      }
+      
+      // Destroy and recreate the client
+      await this.cleanup();
+      
+      // Reinitialize with fresh client
+      this.client = new Client({
+        authStrategy: new LocalAuth({
+          dataPath: './whatsapp-sessions',
+        }),
+        puppeteer: {
+          headless: true,
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process',
+            '--disable-gpu',
+          ],
+        },
+        authTimeoutMs: 60000,
+      });
+      
+      this.setupEventHandlers();
+      this.logger.log('WhatsApp client recreated, ready for new connection');
+    } catch (error) {
+      this.logger.error('Error clearing session:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Reconnect with a new number (requires QR scan)
+   */
+  async reconnect(): Promise<void> {
+    try {
+      this.logger.log('Initiating WhatsApp reconnection...');
+      
+      // Clear existing session first
+      await this.clearSession();
+      
+      // Initialize the client to generate new QR
+      await this.client.initialize();
+      this.logger.log('WhatsApp client initialized, scan QR code to connect new number');
+    } catch (error) {
+      this.logger.error('Error reconnecting WhatsApp:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Prepare for reconnection (sends message before disconnecting)
+   */
+  async prepareReconnect(whatsappId: string): Promise<void> {
+    try {
+      // Store admin number for welcome message after reconnection
+      this.reconnectingAdminNumber = whatsappId.replace('@c.us', '');
+      
+      const reconnectMessage = `🔄 *WhatsApp Reconnection Initiated*\n\n1. I'll generate and send you the QR code\n2. Open WhatsApp on your NEW phone/number\n3. Go to Settings → Linked Devices\n4. Tap "Link a Device"\n5. Scan the QR code I send you\n\n⚠️ *IMPORTANT REMINDER:*\nAfter connecting the new number, I'll send a welcome message to confirm the connection.\n\n⏱️ Generating QR code now...`;
+      
+      // Send message if client is ready
+      if (this.isReady) {
+        await this.sendMessage(whatsappId, reconnectMessage);
+        // Wait to ensure message is sent
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      // Store the current client for sending QR
+      const oldClient = this.client;
+      const wasReady = this.isReady;
+      
+      // Create a new client WITHOUT destroying the old one yet
+      const newClient = new Client({
+        authStrategy: new LocalAuth({
+          dataPath: './whatsapp-sessions-new', // Temporary new session path
+        }),
+        puppeteer: {
+          headless: true,
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process',
+            '--disable-gpu',
+          ],
+        },
+        authTimeoutMs: 60000,
+      });
+      
+      // Set up QR handler on new client
+      let qrCodeSent = false;
+      const qrHandler = async (qr: string) => {
+        if (!qrCodeSent && wasReady && oldClient) {
+          qrCodeSent = true;
+          try {
+            // Generate QR code image
+            const qrCodeBuffer = await this.qrCodeService.generateQrCode(qr);
+            
+            // Send via old client which is still connected
+            const { MessageMedia } = await import('whatsapp-web.js');
+            const chatId = whatsappId.includes('@') ? whatsappId : `${whatsappId}@c.us`;
+            const media = new MessageMedia('image/png', qrCodeBuffer.toString('base64'), 'qrcode.png');
+            await oldClient.sendMessage(chatId, media, { 
+              caption: '📱 Scan this QR code with WhatsApp on your NEW device\n\n⏱️ This code expires in 60 seconds!\n\n🔌 I will disconnect the old session once you scan this.' 
+            });
+            this.logger.log('QR code sent to admin via existing connection');
+            
+            // Give time for the QR to be sent before we start cleanup
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          } catch (error) {
+            this.logger.error('Failed to send QR code:', error);
+          }
+        }
+      };
+      
+      // Store reference to this service for use in handlers
+      const whatsappWebService = this;
+      
+      // Set up ready handler to switch clients
+      const readyHandler = async () => {
+        this.logger.log('New client is ready, switching over...');
+        
+        // Get the new client info for welcome message
+        const info = newClient.info;
+        this.logger.log(`✅ New connection established as: ${info.pushname} (${info.wid.user})`);
+        
+        // Switch to the new client FIRST before sending messages
+        whatsappWebService.client = newClient;
+        whatsappWebService.isReady = true;
+        
+        // Wait for client to stabilize after switching
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        // Send welcome message using the service method (not direct client)
+        if (whatsappWebService.reconnectingAdminNumber) {
+          try {
+            const welcomeMessage = `🎉 *Reconnection Successful!*\n\n✅ Bot is now connected to the new number: ${info.wid.user}\n✅ Bot name: ${info.pushname || 'Pulse'}\n\n📱 *Important Reminders:*\n• The old number is no longer connected\n• All messages should now be sent to this new number\n• Your admin privileges have been maintained\n\nType \`admin status\` to verify the connection.`;
+            
+            await whatsappWebService.sendMessage(whatsappWebService.reconnectingAdminNumber, welcomeMessage);
+            this.logger.log(`Welcome message sent to admin: ${whatsappWebService.reconnectingAdminNumber}`);
+            
+            // Clear the admin number after sending
+            whatsappWebService.reconnectingAdminNumber = null;
+          } catch (error) {
+            this.logger.error('Failed to send welcome message to admin:', error);
+          }
+        }
+        
+        // Clean up the old client AFTER everything is working
+        if (oldClient) {
+          // Delay cleanup to ensure smooth transition
+          setTimeout(async () => {
+            try {
+              oldClient.removeAllListeners();
+              await oldClient.destroy();
+              this.logger.log('Old client destroyed');
+            } catch (error) {
+              this.logger.error('Error destroying old client:', error);
+            }
+          }, 5000);
+        }
+        
+        // Remove old session directory and rename new one
+        const fs = require('fs').promises;
+        const path = require('path');
+        try {
+          await fs.rm(path.join(process.cwd(), 'whatsapp-sessions'), { recursive: true, force: true });
+          await fs.rename(
+            path.join(process.cwd(), 'whatsapp-sessions-new'), 
+            path.join(process.cwd(), 'whatsapp-sessions')
+          );
+          this.logger.log('Session directories switched');
+        } catch (error) {
+          this.logger.error('Error switching session directories:', error);
+        }
+        
+        // Clean up temporary handlers first
+        newClient.off('qr', qrHandler);
+        newClient.off('ready', readyHandler);
+        
+        // Re-setup all event handlers on the new client BEFORE we start using it
+        whatsappWebService.setupEventHandlers();
+        
+        // Test the new client by getting its state
+        try {
+          const state = await newClient.getState();
+          this.logger.log(`✅ Client switch complete, bot is ready to receive messages. State: ${state}`);
+        } catch (error) {
+          this.logger.error('Error checking client state:', error);
+          this.logger.log('✅ Client switch complete, bot is ready to receive messages');
+        }
+      };
+      
+      newClient.on('qr', qrHandler);
+      newClient.on('ready', readyHandler);
+      
+      // Initialize the new client
+      await newClient.initialize();
+      this.logger.log('New WhatsApp client initialized, waiting for QR scan...');
+      
+      // Clean up handlers after timeout
+      setTimeout(() => {
+        newClient.off('qr', qrHandler);
+        newClient.off('ready', readyHandler);
+      }, 65000);
+      
+    } catch (error) {
+      this.logger.error('Error preparing reconnection:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get current connection status
+   */
+  getStatus(): { connected: boolean; number?: string; name?: string } {
+    if (!this.isReady || !this.client) {
+      return { connected: false };
+    }
+    
+    try {
+      const info = this.client.info;
+      return {
+        connected: true,
+        number: info?.wid?.user || 'Unknown',
+        name: info?.pushname || 'Unknown',
+      };
+    } catch (error) {
+      return { connected: false };
+    }
+  }
+
+  /**
    * Send a text message
    */
   async sendMessage(to: string, message: string): Promise<void> {
@@ -381,11 +690,20 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy, Before
     try {
       // Ensure the number has @c.us suffix
       const chatId = to.includes('@') ? to : `${to}@c.us`;
+      
+      // Check if client is properly initialized
+      if (!this.client) {
+        throw new Error('WhatsApp client is not initialized');
+      }
 
       await this.client.sendMessage(chatId, message);
       this.logger.log(`Message sent to ${to}`);
     } catch (error) {
       this.logger.error(`Failed to send message to ${to}:`, error);
+      // Log more details about the error
+      if (error.message && error.message.includes('Evaluation failed')) {
+        this.logger.error('This appears to be a puppeteer context error. The client may need reinitialization.');
+      }
       throw error;
     }
   }

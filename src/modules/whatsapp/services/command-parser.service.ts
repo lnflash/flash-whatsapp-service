@@ -10,10 +10,14 @@ export enum CommandType {
   REFRESH = 'refresh',
   USERNAME = 'username',
   PRICE = 'price',
+  SEND = 'send',
   RECEIVE = 'receive',
   HISTORY = 'history',
   REQUEST = 'request',
   CONTACTS = 'contacts',
+  PAY = 'pay',
+  VYBZ = 'vybz',
+  ADMIN = 'admin',
   UNKNOWN = 'unknown',
 }
 
@@ -37,10 +41,14 @@ export class CommandParserService {
     { type: CommandType.REFRESH, pattern: /^refresh$/i },
     { type: CommandType.USERNAME, pattern: /^username(?:\s+(.+))?$/i },
     { type: CommandType.PRICE, pattern: /^price|^rate|^btc$/i },
+    { type: CommandType.SEND, pattern: /^send\s+(\d+(?:\.\d+)?)\s+to\s+(?:@?(\w+)|(\+?\d{10,})|(\w+))(?:\s+(.*))?$/i },
     { type: CommandType.RECEIVE, pattern: /^receive(?:\s+(\d+(?:\.\d+)?))?\s*(.*)$/i },
     { type: CommandType.HISTORY, pattern: /^history|^transactions|^txs$/i },
     { type: CommandType.REQUEST, pattern: /^request\s+(\d+(?:\.\d+)?)\s+from\s+(?:@?(\w+)|(\+?\d{10,}))(?:\s+(.+))?$/i },
     { type: CommandType.CONTACTS, pattern: /^contacts(?:\s+(add|list|remove|history))?(?:\s+(\w+))?(?:\s+(.+))?$/i },
+    { type: CommandType.PAY, pattern: /^pay(?:\s+(confirm|cancel|list|\d+))?(?:\s+(all))?$/i },
+    { type: CommandType.VYBZ, pattern: /^(?:vybz|vybe|vibes|vibe|post|share|drop)(?:\s+(status|check))?$/i },
+    { type: CommandType.ADMIN, pattern: /^admin\s+(disconnect|reconnect|status|clear-session)$/i },
   ];
 
   /**
@@ -115,6 +123,27 @@ export class CommandParserService {
         }
         break;
 
+      case CommandType.SEND:
+        // Extract amount and recipient (username, phone, or contact name)
+        if (match[1]) {
+          args.amount = match[1];
+        }
+        if (match[2]) {
+          // Username (with or without @)
+          args.username = match[2];
+        } else if (match[3]) {
+          // Phone number
+          args.phoneNumber = match[3];
+        } else if (match[4]) {
+          // Contact name or Lightning address
+          args.recipient = match[4];
+        }
+        if (match[5]) {
+          // Optional memo/note
+          args.memo = match[5].trim();
+        }
+        break;
+
       case CommandType.RECEIVE:
         // Extract amount and memo if provided
         if (match[1]) {
@@ -155,6 +184,31 @@ export class CommandParserService {
         }
         if (match[3]) {
           args.phoneNumber = match[3].trim();
+        }
+        break;
+
+      case CommandType.PAY:
+        // Extract action: confirm, cancel, list, or a number
+        if (match[1]) {
+          args.action = match[1].toLowerCase();
+        }
+        // Check for "all" modifier (e.g., "pay cancel all")
+        if (match[2]) {
+          args.modifier = match[2].toLowerCase();
+        }
+        break;
+
+      case CommandType.VYBZ:
+        // Extract status/check action
+        if (match[1]) {
+          args.action = match[1].toLowerCase();
+        }
+        break;
+
+      case CommandType.ADMIN:
+        // Extract admin action
+        if (match[1]) {
+          args.action = match[1].toLowerCase();
         }
         break;
     }

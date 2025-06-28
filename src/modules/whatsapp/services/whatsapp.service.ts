@@ -9,6 +9,7 @@ import { UsernameService } from '../../flash-api/services/username.service';
 import { PriceService } from '../../flash-api/services/price.service';
 import { InvoiceService } from '../../flash-api/services/invoice.service';
 import { TransactionService } from '../../flash-api/services/transaction.service';
+import { PaymentService, PaymentSendResult } from '../../flash-api/services/payment.service';
 import { GeminiAiService } from '../../gemini-ai/gemini-ai.service';
 import { ACCOUNT_DEFAULT_WALLET_QUERY } from '../../flash-api/graphql/queries';
 import { QrCodeService } from './qr-code.service';
@@ -45,6 +46,7 @@ export class WhatsappService {
     private readonly priceService: PriceService,
     private readonly invoiceService: InvoiceService,
     private readonly transactionService: TransactionService,
+    private readonly paymentService: PaymentService,
     private readonly geminiAiService: GeminiAiService,
     private readonly qrCodeService: QrCodeService,
     private readonly commandParserService: CommandParserService,
@@ -124,6 +126,9 @@ export class WhatsappService {
         case CommandType.PRICE:
           return this.handlePriceCommand(whatsappId, session);
 
+        case CommandType.SEND:
+          return this.handleSendCommand(command, whatsappId, session);
+
         case CommandType.RECEIVE:
           return this.handleReceiveCommand(command, whatsappId, session);
 
@@ -138,6 +143,15 @@ export class WhatsappService {
 
         case CommandType.CONSENT:
           return this.handleConsentCommand(command, whatsappId, session);
+
+        case CommandType.PAY:
+          return this.handlePayCommand(command, whatsappId, session);
+
+        case CommandType.VYBZ:
+          return this.handleVybzCommand(command, whatsappId, session);
+
+        case CommandType.ADMIN:
+          return this.handleAdminCommand(command, whatsappId, phoneNumber);
 
         case CommandType.UNKNOWN:
         default:
@@ -171,8 +185,29 @@ export class WhatsappService {
             }
           }
           
-          // If user has a linked account, try to use AI to respond
+          // Check if the message contains a Lightning invoice
+          const invoiceMatch = command.rawText.match(/\b(lnbc[a-z0-9]+)\b/i);
+          if (invoiceMatch) {
+            if (session?.isVerified) {
+              return this.handleInvoiceDetected(invoiceMatch[1], whatsappId, session);
+            } else {
+              // User not linked but received an invoice
+              return `⚡ *Lightning Invoice Detected*\n\nTo pay this invoice, you need to connect your Flash account first.\n\n👉 Type \`link\` to get started!\n\nOnce connected, you'll be able to:\n• Pay Lightning invoices instantly\n• Send money to other Flash users\n• Check your balance\n• And much more!`;
+            }
+          }
+          
+          // Check if user has an active vybz session
           if (session?.isVerified) {
+            const vybzQueueKey = `vybz_waiting:${whatsappId}`;
+            const waitingForContent = await this.redisService.get(vybzQueueKey);
+            
+            if (waitingForContent) {
+              // User is responding to vybz prompt with content
+              await this.redisService.del(vybzQueueKey); // Clear the waiting flag
+              return this.processVybzContent(whatsappId, command.rawText, 'text', session);
+            }
+            
+            // Otherwise, use AI to respond
             return this.handleAiQuery(command.rawText, session);
           } else {
             return this.getUnknownCommandMessage(session);
@@ -667,14 +702,59 @@ export class WhatsappService {
    */
   private getHelpMessage(session: UserSession | null): string {
     if (!session) {
-      return 'Welcome to the Flash WhatsApp service! Here are the available commands:\n\n• price - Check current Bitcoin price\n• link - Connect your Flash account\n• help - Show available commands\n\nTo get started, please link your Flash account by typing "link".';
+      return `🌟 *Welcome to Pulse!*
+
+*Getting Started:*
+• \`link\` - Connect your Flash account
+• \`price\` - Check current Bitcoin price
+• \`help\` - Show this help message
+
+💡 Type \`link\` to connect your Flash account and unlock all features!`;
     }
 
     if (!session.isVerified) {
-      return 'Here are the available commands:\n\n• price - Check current Bitcoin price\n• link - Connect your Flash account\n• verify [code] - Enter verification code\n• help - Show available commands\n\nPlease complete the account linking process to access more features.';
+      return `📱 *Pulse*
+
+*Available Commands:*
+• \`verify [code]\` - Enter your 6-digit verification code
+• \`price\` - Check current Bitcoin price
+• \`link\` - Start account connection
+• \`help\` - Show this help message
+
+⏳ Please complete verification to access all features.`;
     }
 
-    return "Here are the available commands for Flash:\n\n• balance - Check your Bitcoin and fiat balance\n• refresh - Refresh your balance (clear cache)\n• receive [amount] [memo] - Create USD Lightning invoice\n• request [amount] from [target] - Request payment\n• contacts - Manage saved contacts\n• history - View recent transactions\n• price - Check current Bitcoin price\n• username - View or set your username\n• link - Connect your Flash account\n• unlink - Disconnect your Flash account\n• consent [yes/no] - Manage your AI support consent\n• help - Show available commands\n\nYou can also ask me questions about Flash services and I'll do my best to assist you!";
+    return `⚡ *Pulse Commands*
+
+*💰 Money Management:*
+• \`balance\` - Check your Bitcoin & USD balance
+• \`send [amount] to [@username]\` - Send money to Flash users
+• \`send [amount] to [invoice]\` - Pay Lightning invoices
+• \`pay\` - Quick pay detected invoices
+• \`receive [amount] [memo]\` - Create Lightning invoice
+• \`request [amount] from [@username]\` - Request payment
+• \`history\` - View recent transactions
+• \`vybz\` - Share content & earn sats!
+
+*👥 Contacts:*
+• \`contacts list\` - Show saved contacts
+• \`contacts add [name] [phone]\` - Add new contact
+• \`contacts remove [name]\` - Remove contact
+
+*⚙️ Account:*
+• \`username\` - View/set your username
+• \`refresh\` - Force refresh balance
+• \`price\` - Current Bitcoin price
+• \`consent [yes/no]\` - AI support preferences
+• \`unlink\` - Disconnect account
+
+*📖 Examples:*
+• Send $10: \`send 10 to @alice\`
+• Request $5: \`request 5 from @bob\`
+• Receive $20: \`receive 20 for dinner\`
+• Pay invoice: \`send 10 to lnbc...\`
+
+💬 You can also ask questions in plain English!`;
   }
 
   /**
@@ -775,6 +855,147 @@ export class WhatsappService {
       
       // Generic error message for unexpected errors
       return { text: 'Failed to create invoice. Please try again later.' };
+    }
+  }
+
+  /**
+   * Handle send command - send Lightning payment
+   */
+  private async handleSendCommand(
+    command: ParsedCommand,
+    whatsappId: string,
+    session: UserSession | null,
+  ): Promise<string> {
+    try {
+      // Check if user has a linked account
+      if (!session || !session.isVerified || !session.flashAuthToken) {
+        return 'Please link your Flash account first to send payments. Type "link" to get started.';
+      }
+
+      // Parse amount
+      const amountStr = command.args.amount;
+      if (!amountStr) {
+        return 'Please specify amount. Usage: send [amount] to [recipient]';
+      }
+
+      const parsedResult = parseAndValidateAmount(amountStr);
+      if (parsedResult.error) {
+        return parsedResult.error;
+      }
+      const amount = parsedResult.amount!;
+
+      // Determine recipient type
+      let targetUsername = command.args.username;
+      let targetPhone = command.args.phoneNumber;
+      let lightningAddress = command.args.recipient;
+      let isContactPayment = false;
+
+      // Check if recipient might be a saved contact
+      if (lightningAddress && !lightningAddress.includes('@') && !lightningAddress.includes('lnbc')) {
+        const contactsKey = `contacts:${whatsappId}`;
+        const savedContacts = await this.redisService.get(contactsKey);
+        
+        if (savedContacts) {
+          const contacts = JSON.parse(savedContacts);
+          const contactKey = lightningAddress.toLowerCase();
+          
+          if (contacts[contactKey]) {
+            // Found a saved contact
+            isContactPayment = true;
+            this.logger.log(`Using saved contact ${lightningAddress} for payment`);
+            
+            // For contacts, we can't send directly - need to create a request
+            return `❌ Direct payments to contacts are not yet supported.\n\nUse: request ${amount} from ${lightningAddress}\n\nThis will send them a payment request they can pay.`;
+          }
+        }
+      }
+
+      // Check if it's a Lightning invoice/address
+      if (lightningAddress && (lightningAddress.startsWith('lnbc') || lightningAddress.includes('@'))) {
+        try {
+          this.logger.log(`Attempting Lightning payment to: ${lightningAddress.substring(0, 20)}...`);
+          
+          // Determine payment type and execute
+          let result;
+          if (lightningAddress.startsWith('lnbc')) {
+            // It's a Lightning invoice
+            // Get user's wallets
+            const wallets = await this.paymentService.getUserWallets(session.flashAuthToken);
+            
+            result = await this.paymentService.sendLightningPayment(
+              {
+                walletId: wallets.usdWallet?.id || wallets.defaultWalletId,
+                paymentRequest: lightningAddress,
+                memo: command.args.memo,
+              },
+              session.flashAuthToken,
+            );
+          } else if (lightningAddress.includes('@')) {
+            // It's a Lightning address - need to get invoice first
+            return `❌ Lightning address payments coming soon!\n\nFor now, ask ${lightningAddress} to send you an invoice using:\nreceive ${amount}`;
+          }
+
+          if (result?.status === PaymentSendResult.Success) {
+            return `✅ Payment sent!\n\nAmount: $${amount.toFixed(2)} USD\nTo: ${lightningAddress.substring(0, 30)}...\n\nPayment successful!`;
+          } else {
+            return `❌ Payment failed: ${result?.errors?.[0]?.message || 'Unknown error'}`;
+          }
+        } catch (error) {
+          this.logger.error(`Lightning payment error: ${error.message}`);
+          return `❌ Payment failed: ${error.message}`;
+        }
+      }
+
+      // Check if it's a username
+      if (targetUsername) {
+        try {
+          // Verify username exists
+          const walletCheck = await this.flashApiService.executeQuery<any>(
+            ACCOUNT_DEFAULT_WALLET_QUERY,
+            { username: targetUsername },
+            session.flashAuthToken,
+          );
+
+          if (walletCheck?.accountDefaultWallet?.id) {
+            // Intraledger payment
+            const walletId = walletCheck.accountDefaultWallet.id;
+            
+            // Get user's wallets
+            const userWallets = await this.paymentService.getUserWallets(session.flashAuthToken);
+            
+            const result = await this.paymentService.sendIntraLedgerUsdPayment(
+              {
+                walletId: userWallets.usdWallet?.id || userWallets.defaultWalletId,
+                recipientWalletId: walletId,
+                amount: amount * 100, // Convert to cents
+                memo: command.args.memo,
+              },
+              session.flashAuthToken,
+            );
+
+            if (result?.status === PaymentSendResult.Success) {
+              return `✅ Payment sent to @${targetUsername}!\n\nAmount: $${amount.toFixed(2)} USD\n${command.args.memo ? `Memo: ${command.args.memo}` : ''}\n\nPayment successful!`;
+            } else {
+              return `❌ Payment failed: ${result?.errors?.[0]?.message || 'Unknown error'}`;
+            }
+          } else {
+            return `❌ Username @${targetUsername} not found.`;
+          }
+        } catch (error) {
+          this.logger.error(`Username payment error: ${error.message}`);
+          return `❌ Unable to send to @${targetUsername}: ${error.message}`;
+        }
+      }
+
+      // If phone number provided
+      if (targetPhone) {
+        return `❌ Phone number payments are not yet supported.\n\nTo send to this number:\n1. Ask them to create a Flash account\n2. Get their username\n3. Use: send ${amount} to @username`;
+      }
+
+      return 'Please specify a valid recipient:\n• @username (Flash user)\n• Lightning invoice (lnbc...)\n• Lightning address (user@domain.com)';
+    } catch (error) {
+      this.logger.error(`Error handling send command: ${error.message}`, error.stack);
+      return '❌ Failed to send payment. Please try again later.';
     }
   }
 
@@ -1253,10 +1474,23 @@ export class WhatsappService {
    */
   private getUnknownCommandMessage(session: UserSession | null): string {
     if (!session || !session.isVerified) {
-      return "Welcome to Flash Connect! To get started, type 'link' to connect your Flash account. Type 'help' to see available commands.";
+      return `👋 Welcome to Pulse!
+
+I didn't understand that command. To get started:
+• Type \`link\` to connect your Flash account
+• Type \`help\` to see all commands
+
+💡 Once linked, you can send money, check balances, and more!`;
     }
 
-    return "I'm not sure what you're asking. You can type 'help' to see available commands, or ask me questions about Flash services.";
+    return `❓ I didn't understand that command.
+
+Type \`help\` to see available commands, or try:
+• \`balance\` - Check your balance
+• \`send 10 to @username\` - Send money
+• \`receive 20\` - Create invoice
+
+💬 You can also ask questions in plain English!`;
   }
 
   /**
@@ -1373,6 +1607,678 @@ export class WhatsappService {
       }
     } catch (error) {
       this.logger.error('Failed to send payment notification:', error);
+    }
+  }
+
+  /**
+   * Handle detected Lightning invoice in message
+   */
+  private async handleInvoiceDetected(
+    invoice: string,
+    whatsappId: string,
+    session: UserSession,
+  ): Promise<string> {
+    try {
+      // Parse the invoice to get details
+      const invoiceDetails = await this.parseInvoiceDetails(invoice);
+      
+      // Store the invoice for quick payment
+      // Use a list to support multiple pending payments
+      const pendingPaymentsKey = `pending_payments:${whatsappId}`;
+      
+      // Get existing pending payments
+      const existingPayments = await this.redisService.get(pendingPaymentsKey);
+      let payments = existingPayments ? JSON.parse(existingPayments) : [];
+      
+      // Add new payment (avoid duplicates)
+      const isDuplicate = payments.some((p: any) => p.invoice === invoice);
+      if (!isDuplicate) {
+        payments.push({
+          invoice,
+          details: invoiceDetails,
+          timestamp: new Date().toISOString(),
+          id: payments.length + 1,
+        });
+        
+        // Keep only last 10 payments
+        if (payments.length > 10) {
+          payments = payments.slice(-10);
+        }
+        
+        await this.redisService.set(pendingPaymentsKey, JSON.stringify(payments), 300); // 5 minute expiry
+      }
+
+      // Format the response message
+      let message = `⚡ *Lightning Invoice Detected*\n\n`;
+      
+      if (invoiceDetails.amount) {
+        message += `Amount: $${invoiceDetails.amount.toFixed(2)} USD\n`;
+      } else if (invoiceDetails.satoshis) {
+        message += `Amount: ${invoiceDetails.satoshis.toLocaleString()} sats\n`;
+      } else {
+        message += `Amount: Any amount\n`;
+      }
+      
+      if (invoiceDetails.description) {
+        message += `Description: ${invoiceDetails.description}\n`;
+      }
+      
+      message += `\n💳 *Quick Payment Options:*\n`;
+      
+      if (payments.length === 1) {
+        message += `• Type \`pay confirm\` to pay this invoice\n`;
+        message += `• Type \`pay cancel\` to dismiss\n`;
+      } else {
+        message += `• Type \`pay ${payments.length}\` to pay this invoice\n`;
+        message += `• Type \`pay list\` to see all ${payments.length} pending invoices\n`;
+        message += `• Type \`pay cancel all\` to dismiss all\n`;
+      }
+      
+      const suggestedAmount = invoiceDetails.amount || (invoiceDetails.satoshis ? `${invoiceDetails.satoshis} sats` : '[amount]');
+      message += `• Or use: \`send ${suggestedAmount} to ${invoice.substring(0, 20)}...\`\n`;
+      
+      if (invoiceDetails.expiresIn) {
+        message += `\n⏱️ Expires in: ${invoiceDetails.expiresIn}`;
+      }
+
+      return message;
+    } catch (error) {
+      this.logger.error(`Error handling detected invoice: ${error.message}`);
+      return `⚡ Lightning invoice detected!\n\nTo pay it, use:\n\`send [amount] to ${invoice.substring(0, 30)}...\``;
+    }
+  }
+
+  /**
+   * Handle pay command for quick invoice payment
+   */
+  private async handlePayCommand(
+    command: ParsedCommand,
+    whatsappId: string,
+    session: UserSession | null,
+  ): Promise<string> {
+    try {
+      // Check if user has a linked account
+      if (!session || !session.isVerified || !session.flashAuthToken) {
+        return 'Please link your Flash account first to make payments. Type "link" to get started.';
+      }
+
+      const action = command.args.action;
+      const modifier = command.args.modifier;
+      
+      // Get pending payments
+      const pendingPaymentsKey = `pending_payments:${whatsappId}`;
+      const pendingData = await this.redisService.get(pendingPaymentsKey);
+      
+      if (!pendingData) {
+        return '❌ No pending payments found.\n\nTo pay a Lightning invoice, either:\n• Share or paste the invoice to detect it automatically\n• Use: `send [amount] to [invoice]`';
+      }
+
+      let payments = JSON.parse(pendingData);
+      
+      // Handle list command
+      if (action === 'list') {
+        let message = `📋 *Pending Lightning Invoices* (${payments.length})\n\n`;
+        payments.forEach((payment: any, index: number) => {
+          const num = index + 1;
+          message += `${num}. `;
+          if (payment.details?.amount) {
+            message += `$${payment.details.amount.toFixed(2)} USD`;
+          } else if (payment.details?.satoshis) {
+            message += `${payment.details.satoshis.toLocaleString()} sats`;
+          } else {
+            message += `Any amount`;
+          }
+          if (payment.details?.description) {
+            message += ` - ${payment.details.description.substring(0, 30)}${payment.details.description.length > 30 ? '...' : ''}`;
+          }
+          message += `\n`;
+        });
+        message += `\n💳 *Payment Options:*\n`;
+        message += `• Type \`pay [number]\` to pay a specific invoice\n`;
+        message += `• Type \`pay cancel all\` to dismiss all`;
+        return message;
+      }
+      
+      // Handle cancel with optional "all" modifier
+      if (action === 'cancel') {
+        if (modifier === 'all' || payments.length === 1) {
+          await this.redisService.del(pendingPaymentsKey);
+          return `❌ ${payments.length === 1 ? 'Payment' : `All ${payments.length} payments`} cancelled.`;
+        } else {
+          return `❌ Please specify which payment to cancel:\n• Type \`pay cancel all\` to cancel all\n• Or pay a specific invoice with \`pay [number]\``;
+        }
+      }
+
+      // Determine which payment to process
+      let selectedPayment = null;
+      let paymentIndex = -1;
+      
+      if (action === 'confirm' && payments.length === 1) {
+        // Single payment, confirm pays it
+        selectedPayment = payments[0];
+        paymentIndex = 0;
+      } else if (action && !isNaN(parseInt(action))) {
+        // Numeric selection
+        const num = parseInt(action);
+        if (num >= 1 && num <= payments.length) {
+          selectedPayment = payments[num - 1];
+          paymentIndex = num - 1;
+        } else {
+          return `❌ Invalid payment number. Please select 1-${payments.length}`;
+        }
+      } else if (action === 'confirm' && payments.length > 1) {
+        // Multiple payments, need selection
+        return `❌ Multiple payments pending. Please specify which one:\n• Type \`pay [number]\` to pay a specific invoice\n• Type \`pay list\` to see all pending invoices`;
+      }
+      
+      // Process selected payment
+      if (selectedPayment) {
+        try {
+          // Get user's wallets
+          const wallets = await this.paymentService.getUserWallets(session.flashAuthToken);
+          
+          // Send the payment
+          const result = await this.paymentService.sendLightningPayment(
+            {
+              walletId: wallets.usdWallet?.id || wallets.defaultWalletId,
+              paymentRequest: selectedPayment.invoice,
+            },
+            session.flashAuthToken,
+          );
+
+          // Remove the paid invoice from pending list
+          payments.splice(paymentIndex, 1);
+          if (payments.length > 0) {
+            await this.redisService.set(pendingPaymentsKey, JSON.stringify(payments), 300);
+          } else {
+            await this.redisService.del(pendingPaymentsKey);
+          }
+
+          if (result?.status === PaymentSendResult.Success) {
+            let successMessage = `✅ Payment sent successfully!\n\n`;
+            if (selectedPayment.details?.amount) {
+              successMessage += `Amount: $${selectedPayment.details.amount.toFixed(2)} USD\n`;
+            } else if (selectedPayment.details?.satoshis) {
+              successMessage += `Amount: ${selectedPayment.details.satoshis.toLocaleString()} sats\n`;
+            }
+            if (selectedPayment.details?.description) {
+              successMessage += `Description: ${selectedPayment.details.description}\n`;
+            }
+            
+            if (payments.length > 0) {
+              successMessage += `\n📋 You have ${payments.length} more pending payment${payments.length > 1 ? 's' : ''}.`;
+              successMessage += `\nType \`pay list\` to see them.`;
+            }
+            
+            return successMessage;
+          } else if (result?.status === PaymentSendResult.AlreadyPaid) {
+            return '❌ This invoice has already been paid.';
+          } else {
+            return `❌ Payment failed: ${result?.errors?.[0]?.message || 'Unknown error'}`;
+          }
+        } catch (error) {
+          this.logger.error(`Payment error: ${error.message}`);
+          return `❌ Payment failed: ${error.message}`;
+        }
+      }
+
+      // No action specified, show payment options
+      if (payments.length === 1) {
+        // Single payment
+        const payment = payments[0];
+        let message = `⚡ *Pending Payment*\n\n`;
+        
+        if (payment.details?.amount) {
+          message += `Amount: $${payment.details.amount.toFixed(2)} USD\n`;
+        } else if (payment.details?.satoshis) {
+          message += `Amount: ${payment.details.satoshis.toLocaleString()} sats\n`;
+        } else {
+          message += `Amount: Any amount\n`;
+        }
+        
+        if (payment.details?.description) {
+          message += `Description: ${payment.details.description}\n`;
+        }
+        
+        message += `\n💳 *Confirm Payment:*\n`;
+        message += `• Type \`pay confirm\` to proceed\n`;
+        message += `• Type \`pay cancel\` to dismiss`;
+        
+        return message;
+      } else {
+        // Multiple payments
+        let message = `⚡ *Multiple Pending Payments* (${payments.length})\n\n`;
+        message += `You have ${payments.length} Lightning invoices waiting.\n\n`;
+        message += `💳 *Payment Options:*\n`;
+        message += `• Type \`pay list\` to see all invoices\n`;
+        message += `• Type \`pay [number]\` to pay a specific one\n`;
+        message += `• Type \`pay cancel all\` to dismiss all`;
+        
+        return message;
+      }
+    } catch (error) {
+      this.logger.error(`Error handling pay command: ${error.message}`, error.stack);
+      return '❌ Failed to process payment. Please try again.';
+    }
+  }
+
+  /**
+   * Parse Lightning invoice details
+   */
+  private async parseInvoiceDetails(invoice: string): Promise<{
+    amount?: number;
+    satoshis?: number;
+    description?: string;
+    expiresIn?: string;
+  }> {
+    try {
+      // Import bolt11 dynamically
+      const bolt11 = require('bolt11');
+      const decoded = bolt11.decode(invoice);
+      
+      const details: any = {};
+      
+      // Extract amount (in millisatoshis)
+      if (decoded.millisatoshis) {
+        // Convert millisatoshis to satoshis
+        const satoshis = decoded.millisatoshis / 1000;
+        
+        // For USD invoices created by Flash, the amount tag often contains cents
+        // Check if this looks like a USD amount (common pattern)
+        if (decoded.tags) {
+          const amountTag = decoded.tags.find((tag: any) => tag.tagName === 'amount');
+          if (amountTag && amountTag.data) {
+            // This might be USD cents
+            details.amount = parseInt(amountTag.data) / 100;
+          }
+        }
+        
+        // If no USD amount found, show in sats
+        if (!details.amount && satoshis > 0) {
+          details.satoshis = Math.round(satoshis);
+        }
+      }
+      
+      // Extract description
+      const descTag = decoded.tags.find((tag: any) => tag.tagName === 'description');
+      if (descTag) {
+        details.description = descTag.data;
+      }
+      
+      // Calculate expiry
+      if (decoded.timeExpireDate) {
+        const expiresAt = new Date(decoded.timeExpireDate * 1000);
+        const now = new Date();
+        const diffMs = expiresAt.getTime() - now.getTime();
+        
+        if (diffMs > 0) {
+          const diffMins = Math.floor(diffMs / 60000);
+          if (diffMins > 60) {
+            details.expiresIn = `${Math.floor(diffMins / 60)} hours`;
+          } else {
+            details.expiresIn = `${diffMins} minutes`;
+          }
+        } else {
+          details.expiresIn = 'Expired';
+        }
+      }
+      
+      return details;
+    } catch (error) {
+      this.logger.warn(`Failed to parse invoice details: ${error.message}`);
+      return {};
+    }
+  }
+
+  /**
+   * Handle vybz command - share content to earn sats
+   */
+  private async handleVybzCommand(
+    command: ParsedCommand,
+    whatsappId: string,
+    session: UserSession | null,
+  ): Promise<string | { text: string; media?: Buffer }> {
+    try {
+      // Check if user has a linked account
+      if (!session || !session.isVerified || !session.flashAuthToken) {
+        return `🎯 *Share Your Vybz & Earn Sats!*
+
+To start earning, you need to link your Flash account first.
+
+👉 Type \`link\` to get started!
+
+Once connected, you can:
+• Share jokes, thoughts, or photos
+• Get zapped (paid) by people who like your content
+• Build your Lightning wallet balance
+• Connect with the global community`;
+      }
+
+      const action = command.args.action;
+      
+      // Check status of previous posts
+      if (action === 'status' || action === 'check') {
+        return this.getVybzStatus(whatsappId, session);
+      }
+
+      // Check daily post limit
+      const dailyPostsKey = `vybz_daily:${whatsappId}:${new Date().toDateString()}`;
+      const dailyPosts = await this.redisService.get(dailyPostsKey);
+      const postCount = dailyPosts ? parseInt(dailyPosts) : 0;
+      
+      if (postCount >= 3) {
+        return `❌ You've reached your daily limit of 3 posts.
+
+Try again tomorrow to share more vybz!
+
+Type \`vybz status\` to check your earnings.`;
+      }
+
+      // Show options for sharing
+      const vybzQueueKey = `vybz_queue:${whatsappId}`;
+      const activeVybz = await this.redisService.get(vybzQueueKey);
+      
+      if (activeVybz) {
+        return `⏳ You already have content being processed.
+
+Please wait for it to be posted before sharing something new.
+
+Type \`vybz status\` to check progress.`;
+      }
+
+      // Get user's username
+      const username = await this.usernameService.getUsername(session.flashAuthToken) || 'Pulse user';
+      
+      // Set waiting flag for content
+      const vybzWaitingKey = `vybz_waiting:${whatsappId}`;
+      await this.redisService.set(vybzWaitingKey, 'true', 300); // 5 minute expiry
+      
+      return `🎤 *Share Your Vybz!*
+
+What's on your mind, @${username}?
+
+Just send me:
+• 💭 A thought or joke (text)
+• 📸 A photo 
+• 🎤 A voice note
+• 🎬 A short video
+
+Your content will be posted on Nostr, and any zaps (Lightning tips) will go directly to your wallet!
+
+_Tip: Be creative, funny, or insightful to get more zaps!_`;
+    } catch (error) {
+      this.logger.error(`Error handling vybz command: ${error.message}`, error.stack);
+      return '❌ Something went wrong. Please try again later.';
+    }
+  }
+
+  /**
+   * Get vybz earning status
+   */
+  private async getVybzStatus(
+    whatsappId: string,
+    session: UserSession,
+  ): Promise<string> {
+    try {
+      // Get user's posts history
+      const postsKey = `vybz_posts:${whatsappId}`;
+      const postsData = await this.redisService.get(postsKey);
+      const posts = postsData ? JSON.parse(postsData) : [];
+      
+      if (posts.length === 0) {
+        return `📊 *Your Vybz Status*
+
+No posts yet! 
+
+Type \`vybz\` to share something and start earning sats!`;
+      }
+
+      // Calculate totals
+      let totalZaps = 0;
+      let totalSats = 0;
+      const recentPosts = posts.slice(-5); // Last 5 posts
+      
+      posts.forEach((post: any) => {
+        totalZaps += post.zaps || 0;
+        totalSats += post.satsReceived || 0;
+      });
+
+      let message = `📊 *Your Vybz Status*\n\n`;
+      message += `Total Posts: ${posts.length}\n`;
+      message += `Total Zaps: ${totalZaps}\n`;
+      message += `Total Sats Earned: ⚡${totalSats.toLocaleString()}\n\n`;
+      
+      if (recentPosts.length > 0) {
+        message += `*Recent Posts:*\n`;
+        recentPosts.forEach((post: any, index: number) => {
+          const timeAgo = this.getTimeAgo(new Date(post.timestamp));
+          message += `${index + 1}. "${post.preview}" - ${post.satsReceived || 0} sats (${timeAgo})\n`;
+        });
+      }
+
+      // Check today's limit
+      const dailyPostsKey = `vybz_daily:${whatsappId}:${new Date().toDateString()}`;
+      const dailyPosts = await this.redisService.get(dailyPostsKey);
+      const postCount = dailyPosts ? parseInt(dailyPosts) : 0;
+      
+      message += `\n📝 Posts today: ${postCount}/3`;
+      
+      if (postCount < 3) {
+        message += `\n\nType \`vybz\` to share something new!`;
+      }
+
+      return message;
+    } catch (error) {
+      this.logger.error(`Error getting vybz status: ${error.message}`);
+      return '❌ Unable to fetch your status. Please try again later.';
+    }
+  }
+
+  /**
+   * Get human-readable time ago
+   */
+  private getTimeAgo(date: Date): string {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffDays > 0) {
+      return `${diffDays}d ago`;
+    } else if (diffHours > 0) {
+      return `${diffHours}h ago`;
+    } else if (diffMins > 0) {
+      return `${diffMins}m ago`;
+    } else {
+      return 'just now';
+    }
+  }
+
+  /**
+   * Process content submission for vybz
+   * This would be called when user sends text/media after the vybz command
+   */
+  async processVybzContent(
+    whatsappId: string,
+    content: string | Buffer,
+    contentType: 'text' | 'image' | 'voice' | 'video',
+    session: UserSession,
+  ): Promise<string> {
+    try {
+      // Pre-moderation check using AI
+      if (contentType === 'text') {
+        const moderationResult = await this.moderateContent(content as string);
+        if (!moderationResult.approved) {
+          return `❌ Your content couldn't be posted.
+
+Reason: ${moderationResult.reason}
+
+Please share something else that follows community guidelines.`;
+        }
+      }
+
+      // TODO: Implement image/voice/video moderation
+
+      // Store in processing queue
+      const vybzQueueKey = `vybz_queue:${whatsappId}`;
+      const queueData = {
+        content: contentType === 'text' ? content : 'media_url_placeholder', // TODO: Upload media
+        contentType,
+        timestamp: new Date().toISOString(),
+        username: await this.usernameService.getUsername(session.flashAuthToken!) || 'Pulse user',
+        country: 'Jamaica', // TODO: Get from user profile
+      };
+      
+      await this.redisService.set(vybzQueueKey, JSON.stringify(queueData), 300); // 5 min expiry
+
+      // TODO: Post to Nostr
+      // TODO: Set up zap forwarding
+
+      // Update daily count
+      const dailyPostsKey = `vybz_daily:${whatsappId}:${new Date().toDateString()}`;
+      const dailyPosts = await this.redisService.get(dailyPostsKey);
+      const newCount = (dailyPosts ? parseInt(dailyPosts) : 0) + 1;
+      await this.redisService.set(dailyPostsKey, newCount.toString(), 86400); // 24 hour expiry
+
+      return `✅ *Your vybz is live!*
+
+Your ${contentType} has been posted to Nostr.
+
+🎯 Share this with friends to get more zaps!
+
+Track your earnings: \`vybz status\`
+
+_All zaps will be automatically forwarded to your Flash wallet._`;
+    } catch (error) {
+      this.logger.error(`Error processing vybz content: ${error.message}`);
+      return '❌ Failed to process your content. Please try again.';
+    }
+  }
+
+  /**
+   * Moderate content using AI
+   */
+  private async moderateContent(content: string): Promise<{
+    approved: boolean;
+    reason?: string;
+  }> {
+    try {
+      // Use Gemini AI to check content
+      const prompt = `Check if this content is appropriate for public posting. 
+Content should not contain:
+- Illegal activities
+- Hate speech or discrimination
+- Explicit sexual content
+- Violence or threats
+- Personal information (addresses, phone numbers, etc)
+- Spam or scams
+
+Content: "${content}"
+
+Respond with JSON: { "approved": true/false, "reason": "brief explanation if rejected" }`;
+
+      const aiResponse = await this.geminiAiService.processQuery(prompt, { context: 'content_moderation' });
+      
+      try {
+        const result = JSON.parse(aiResponse);
+        return result;
+      } catch {
+        // If AI response isn't valid JSON, approve by default but log
+        this.logger.warn(`Invalid moderation response: ${aiResponse}`);
+        return { approved: true };
+      }
+    } catch (error) {
+      this.logger.error(`Content moderation error: ${error.message}`);
+      // Err on the side of caution
+      return { 
+        approved: false, 
+        reason: 'Content moderation unavailable. Please try again later.' 
+      };
+    }
+  }
+
+  /**
+   * Handle admin commands for WhatsApp session management
+   */
+  private async handleAdminCommand(
+    command: ParsedCommand,
+    whatsappId: string,
+    phoneNumber: string,
+  ): Promise<string> {
+    try {
+      // Check if user is admin (you can customize this check)
+      const adminNumbers = this.configService.get<string>('ADMIN_PHONE_NUMBERS')?.split(',') || [];
+      const isAdmin = adminNumbers.includes(phoneNumber) || 
+                      phoneNumber === '13059244435' || // Your current number
+                      process.env.NODE_ENV === 'development'; // Allow in dev mode
+
+      if (!isAdmin) {
+        return '❌ Unauthorized. Admin commands are restricted.';
+      }
+
+      const action = command.args.action;
+
+      if (!this.whatsappWebService) {
+        return '❌ WhatsApp Web service not available.';
+      }
+
+      switch (action) {
+        case 'status':
+          const status = this.whatsappWebService.getStatus();
+          if (status.connected) {
+            return `✅ *WhatsApp Status*\n\nConnected: Yes\nNumber: ${status.number}\nName: ${status.name || 'Unknown'}`;
+          } else {
+            return `❌ *WhatsApp Status*\n\nConnected: No\n\nUse \`admin reconnect\` to connect a new number.`;
+          }
+
+        case 'disconnect':
+          try {
+            // Send the message first before disconnecting
+            const message = `✅ WhatsApp session will be disconnected.\n\nThis number is being logged out.\n\n⚠️ After disconnection, this number can no longer receive messages from the bot.\n\nUse \`admin reconnect\` on a different device to connect a new number.\n\n🔌 Disconnecting in 3 seconds...`;
+            
+            // We need to send this message directly since we're about to disconnect
+            if (this.whatsappWebService) {
+              await this.whatsappWebService.sendMessage(whatsappId, message);
+              
+              // Wait a bit to ensure message is sent
+              await new Promise(resolve => setTimeout(resolve, 3000));
+              
+              // Now disconnect with logout
+              await this.whatsappWebService.disconnect(true);
+            }
+            
+            // This response won't be sent via WhatsApp, but will show in logs
+            return 'WhatsApp session disconnected successfully.';
+          } catch (error) {
+            return `❌ Failed to disconnect: ${error.message}`;
+          }
+
+        case 'clear-session':
+          try {
+            await this.whatsappWebService.clearSession();
+            return `✅ WhatsApp session cleared successfully.\n\nAll session data has been removed. Use \`admin reconnect\` to connect a new number.`;
+          } catch (error) {
+            return `❌ Failed to clear session: ${error.message}`;
+          }
+
+        case 'reconnect':
+          try {
+            // Use the new prepareReconnect method that handles messaging
+            await this.whatsappWebService.prepareReconnect(whatsappId);
+            
+            // This response won't be sent via WhatsApp, but will show in logs
+            return 'WhatsApp reconnection initiated. Check terminal for QR code.';
+          } catch (error) {
+            return `❌ Failed to reconnect: ${error.message}`;
+          }
+
+        default:
+          return `❓ Unknown admin command.\n\nAvailable commands:\n• \`admin status\` - Check connection status\n• \`admin disconnect\` - Disconnect current number\n• \`admin clear-session\` - Clear all session data\n• \`admin reconnect\` - Connect a new number`;
+      }
+    } catch (error) {
+      this.logger.error(`Error handling admin command: ${error.message}`, error.stack);
+      return '❌ Admin command failed. Check logs for details.';
     }
   }
 }
