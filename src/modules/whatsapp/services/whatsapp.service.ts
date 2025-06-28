@@ -141,6 +141,36 @@ export class WhatsappService {
 
         case CommandType.UNKNOWN:
         default:
+          // Check if this might be a response to a pending contact request
+          const pendingKey = `pending_request:${whatsappId}`;
+          const pendingData = await this.redisService.get(pendingKey);
+          
+          if (pendingData) {
+            const pending = JSON.parse(pendingData);
+            if (pending.type === 'payment_request') {
+              // Check if the message matches "contactname phonenumber" pattern
+              const parts = command.rawText.trim().split(/\s+/);
+              if (parts.length >= 2) {
+                const possibleName = parts[0];
+                const possiblePhone = parts.slice(1).join('');
+                
+                // Check if this matches the pending contact name
+                if (possibleName.toLowerCase() === pending.contactName.toLowerCase()) {
+                  // Process as contact addition with pending request
+                  const response = await this.checkAndProcessPendingRequest(
+                    whatsappId,
+                    possibleName,
+                    possiblePhone,
+                  );
+                  
+                  if (response) {
+                    return response;
+                  }
+                }
+              }
+            }
+          }
+          
           // If user has a linked account, try to use AI to respond
           if (session?.isVerified) {
             return this.handleAiQuery(command.rawText, session);
@@ -815,6 +845,7 @@ export class WhatsappService {
 
       // Check if username might be a saved contact name
       let isFromSavedContact = false;
+      let contactNotFound = false;
       if (targetUsername && !targetUsername.includes('@') && !targetPhone) {
         const contactsKey = `contacts:${whatsappId}`;
         const savedContacts = await this.redisService.get(contactsKey);
@@ -828,7 +859,13 @@ export class WhatsappService {
             targetPhone = contacts[contactKey].phone;
             isFromSavedContact = true;
             this.logger.log(`Using saved contact ${targetUsername}: ${targetPhone}`);
+          } else {
+            // Contact name provided but not found
+            contactNotFound = true;
           }
+        } else {
+          // No contacts saved yet, but a name was provided
+          contactNotFound = true;
         }
       }
 
@@ -838,6 +875,23 @@ export class WhatsappService {
         return { text: parsedResult.error };
       }
       const amount = parsedResult.amount;
+
+      // If contact not found, prompt user to add it
+      if (contactNotFound) {
+        // Store the pending request in Redis
+        const pendingKey = `pending_request:${whatsappId}`;
+        const pendingData = {
+          type: 'payment_request',
+          contactName: targetUsername,
+          amount: amount,
+          timestamp: new Date().toISOString(),
+        };
+        await this.redisService.set(pendingKey, JSON.stringify(pendingData), 300); // 5 minute expiry
+
+        return {
+          text: `❓ Contact "${targetUsername}" not found.\n\nTo create this contact and send the payment request for $${amount!.toFixed(2)}:\n\n• Share the contact from your phone's contact list\n• OR reply with: ${targetUsername} [phone number]\n\nExample: ${targetUsername} +18765551234`,
+        };
+      }
 
       // Validate target username if provided (skip if it's a saved contact)
       if (targetUsername && !isFromSavedContact) {
@@ -916,6 +970,16 @@ export class WhatsappService {
           // Send the actual payment request with QR
           await this.whatsappWebService.sendImage(whatsappNumber, qrBuffer, requestMessage);
           
+          // Track the request in contact history
+          if (isFromSavedContact && targetUsername) {
+            await this.trackContactRequest(whatsappId, targetUsername, {
+              type: 'request_sent',
+              amount: amount!,
+              invoice: invoice.paymentRequest,
+              timestamp: new Date().toISOString(),
+            });
+          }
+
           return {
             text: `✅ Payment request sent to ${recipientIdentifier} via WhatsApp!\n\nThey will receive your request for $${amount!.toFixed(2)} USD.`,
           };
@@ -1013,6 +1077,38 @@ export class WhatsappService {
 
           return `✅ Contact "${contactName}" removed.`;
 
+        case 'history':
+          if (!contactName) {
+            return 'Please provide contact name. Usage: contacts history [name]';
+          }
+
+          const historyKey = `contact_history:${whatsappId}:${contactName.toLowerCase()}`;
+          const contactHistory = await this.redisService.get(historyKey);
+          
+          if (!contactHistory) {
+            return `No payment history found for contact "${contactName}".`;
+          }
+
+          const history = JSON.parse(contactHistory);
+          let historyMessage = `📊 *Payment History for ${contactName}*\n\n`;
+          
+          history.slice(-10).reverse().forEach((req: any) => {
+            const date = new Date(req.timestamp);
+            const dateStr = date.toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+            
+            if (req.type === 'request_sent') {
+              historyMessage += `💸 Requested $${req.amount.toFixed(2)} - ${dateStr}\n`;
+            }
+          });
+          
+          historyMessage += `\n_Showing last 10 requests_`;
+          return historyMessage;
+
         case 'list':
         default:
           const savedContacts = await this.redisService.get(contactsKey);
@@ -1032,16 +1128,123 @@ export class WhatsappService {
           }
 
           let message = '📇 *Your Saved Contacts*\n\n';
-          contactEntries.forEach((contact) => {
-            message += `• ${contact.name}: ${contact.phone}\n`;
-          });
-          message += '\n_Use these names in payment requests!_';
+          for (const contact of contactEntries) {
+            message += `• ${contact.name}: ${contact.phone}`;
+            
+            // Check if there's history for this contact
+            const histKey = `contact_history:${whatsappId}:${contact.name.toLowerCase()}`;
+            const hist = await this.redisService.get(histKey);
+            if (hist) {
+              const histData = JSON.parse(hist);
+              message += ` (${histData.length} requests)`;
+            }
+            message += '\n';
+          }
+          message += '\n_Type "contacts history [name]" to see request history_';
 
           return message;
       }
     } catch (error) {
       this.logger.error(`Error handling contacts command: ${error.message}`, error.stack);
       return '❌ Failed to manage contacts. Please try again later.';
+    }
+  }
+
+  /**
+   * Check for pending requests and process them with new contact info
+   */
+  async checkAndProcessPendingRequest(
+    whatsappId: string,
+    contactName: string,
+    phoneNumber: string,
+  ): Promise<string | { text: string; media?: Buffer } | null> {
+    try {
+      const pendingKey = `pending_request:${whatsappId}`;
+      const pendingData = await this.redisService.get(pendingKey);
+
+      if (!pendingData) {
+        return null; // No pending request
+      }
+
+      const pending = JSON.parse(pendingData);
+      
+      // Check if this contact matches the pending request
+      if (pending.type === 'payment_request' && 
+          pending.contactName?.toLowerCase() === contactName.toLowerCase().replace(/\s+/g, '_')) {
+        
+        // Delete the pending request
+        await this.redisService.del(pendingKey);
+
+        // First save the contact
+        const session = await this.sessionService.getSessionByWhatsappId(whatsappId);
+        if (!session || !session.isVerified) {
+          return 'Please link your Flash account first to manage contacts.';
+        }
+
+        // Save contact
+        const contactsKey = `contacts:${whatsappId}`;
+        const existingContacts = await this.redisService.get(contactsKey);
+        const contacts = existingContacts ? JSON.parse(existingContacts) : {};
+        
+        const normalizedName = contactName.replace(/\s+/g, '_');
+        contacts[normalizedName.toLowerCase()] = {
+          name: normalizedName,
+          phone: phoneNumber.replace(/\D/g, ''),
+          addedAt: new Date().toISOString(),
+        };
+        
+        await this.redisService.set(contactsKey, JSON.stringify(contacts), 365 * 24 * 60 * 60);
+
+        // Now process the payment request
+        const command: ParsedCommand = {
+          type: CommandType.REQUEST,
+          args: {
+            amount: pending.amount.toString(),
+            username: normalizedName,
+          },
+          rawText: `request ${pending.amount} from ${normalizedName}`,
+        };
+
+        const result = await this.handleRequestCommand(command, whatsappId, session);
+        
+        // Add message about contact being saved
+        if (typeof result === 'object' && result.text && result.text.includes('✅')) {
+          result.text = `✅ Contact saved: ${normalizedName} (${phoneNumber})\n\n${result.text}`;
+        }
+
+        return result;
+      }
+
+      return null;
+    } catch (error) {
+      this.logger.error(`Error processing pending request: ${error.message}`, error.stack);
+      return null;
+    }
+  }
+
+  /**
+   * Track payment requests for a contact
+   */
+  private async trackContactRequest(
+    whatsappId: string,
+    contactName: string,
+    requestData: any,
+  ): Promise<void> {
+    try {
+      const historyKey = `contact_history:${whatsappId}:${contactName.toLowerCase()}`;
+      const existingHistory = await this.redisService.get(historyKey);
+      const history = existingHistory ? JSON.parse(existingHistory) : [];
+      
+      history.push(requestData);
+      
+      // Keep only last 50 requests per contact
+      if (history.length > 50) {
+        history.shift();
+      }
+      
+      await this.redisService.set(historyKey, JSON.stringify(history), 365 * 24 * 60 * 60);
+    } catch (error) {
+      this.logger.error(`Error tracking contact request: ${error.message}`);
     }
   }
 

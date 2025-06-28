@@ -224,28 +224,48 @@ export class WhatsAppWebService implements OnModuleInit, OnModuleDestroy, Before
             });
             
             if (fullName && phoneNumber) {
-              // Process as a contact add command
-              const response = await this.whatsappService.processCloudMessage({
-                from: msg.from.replace('@c.us', ''),
-                text: `contacts add ${fullName.replace(/\s+/g, '_')} ${phoneNumber}`,
-                messageId: msg.id._serialized,
-                timestamp: msg.timestamp.toString(),
-                name: (await msg.getContact()).pushname,
-              });
-              
-              if (response) {
-                // Send the response
-                if (typeof response === 'string') {
-                  await this.sendMessage(msg.from, response);
-                } else if (typeof response === 'object' && 'text' in response) {
-                  await this.sendMessage(msg.from, response.text);
+              // Check if there's a pending request for this contact
+              const pendingResponse = await this.whatsappService.checkAndProcessPendingRequest(
+                msg.from.replace('@c.us', ''),
+                fullName,
+                phoneNumber,
+              );
+
+              if (pendingResponse) {
+                // There was a pending request, it's been processed
+                if (typeof pendingResponse === 'string') {
+                  await this.sendMessage(msg.from, pendingResponse);
+                } else if (typeof pendingResponse === 'object' && 'text' in pendingResponse) {
+                  if (pendingResponse.media) {
+                    await this.sendImage(msg.from, pendingResponse.media, pendingResponse.text);
+                  } else {
+                    await this.sendMessage(msg.from, pendingResponse.text);
+                  }
                 }
+              } else {
+                // No pending request, just save the contact
+                const response = await this.whatsappService.processCloudMessage({
+                  from: msg.from.replace('@c.us', ''),
+                  text: `contacts add ${fullName.replace(/\s+/g, '_')} ${phoneNumber}`,
+                  messageId: msg.id._serialized,
+                  timestamp: msg.timestamp.toString(),
+                  name: (await msg.getContact()).pushname,
+                });
                 
-                // Offer to create a payment request
-                await this.sendMessage(
-                  msg.from, 
-                  `💡 Tip: You can now request payment from ${fullName} by typing:\n\`request [amount] from ${fullName.replace(/\s+/g, '_')}\``
-                );
+                if (response) {
+                  // Send the response
+                  if (typeof response === 'string') {
+                    await this.sendMessage(msg.from, response);
+                  } else if (typeof response === 'object' && 'text' in response) {
+                    await this.sendMessage(msg.from, response.text);
+                  }
+                  
+                  // Offer to create a payment request
+                  await this.sendMessage(
+                    msg.from, 
+                    `💡 Tip: You can now request payment from ${fullName} by typing:\n\`request [amount] from ${fullName.replace(/\s+/g, '_')}\``
+                  );
+                }
               }
             } else {
               await this.sendMessage(msg.from, "❌ Unable to save contact. Missing name or phone number.");

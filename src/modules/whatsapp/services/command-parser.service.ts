@@ -40,7 +40,7 @@ export class CommandParserService {
     { type: CommandType.RECEIVE, pattern: /^receive(?:\s+(\d+(?:\.\d+)?))?\s*(.*)$/i },
     { type: CommandType.HISTORY, pattern: /^history|^transactions|^txs$/i },
     { type: CommandType.REQUEST, pattern: /^request\s+(\d+(?:\.\d+)?)\s+from\s+(?:@?(\w+)|(\+?\d{10,}))(?:\s+(.+))?$/i },
-    { type: CommandType.CONTACTS, pattern: /^contacts(?:\s+(add|list|remove))?(?:\s+(\w+))?(?:\s+(.+))?$/i },
+    { type: CommandType.CONTACTS, pattern: /^contacts(?:\s+(add|list|remove|history))?(?:\s+(\w+))?(?:\s+(.+))?$/i },
   ];
 
   /**
