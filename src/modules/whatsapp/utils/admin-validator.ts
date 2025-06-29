@@ -18,22 +18,22 @@ export class AdminValidator {
    */
   private static normalizePhoneNumber(id: string): string {
     if (!id) return '';
-    
+
     // Remove WhatsApp suffixes
     let normalized = id
       .replace(/@c\.us$/, '')
       .replace(/@lid$/, '')
       .replace(/@s\.whatsapp\.net$/, '')
       .replace(/@g\.us$/, '');
-    
+
     // Remove common country code prefixes
     normalized = normalized.replace(/^\+/, '');
-    
+
     // Handle US numbers (remove leading 1)
     if (normalized.length === 11 && normalized.startsWith('1')) {
       normalized = normalized.substring(1);
     }
-    
+
     return normalized;
   }
 
@@ -44,7 +44,7 @@ export class AdminValidator {
   static validateAdminStatus(
     groupId: string,
     userId: string,
-    adminIds: string[]
+    adminIds: string[],
   ): AdminValidationResult {
     // Validate inputs
     const sanitizedGroupId = sanitizeGroupId(groupId);
@@ -53,7 +53,7 @@ export class AdminValidator {
       return {
         isValid: false,
         isAdmin: false,
-        reason: 'Invalid group ID format'
+        reason: 'Invalid group ID format',
       };
     }
 
@@ -63,7 +63,7 @@ export class AdminValidator {
       return {
         isValid: false,
         isAdmin: false,
-        reason: 'Empty user ID'
+        reason: 'Empty user ID',
       };
     }
 
@@ -77,31 +77,31 @@ export class AdminValidator {
         return {
           isValid: false,
           isAdmin: false,
-          reason: 'Invalid user ID format'
+          reason: 'Invalid user ID format',
         };
       }
     }
 
     // Normalize all IDs for comparison
     const normalizedUserId = this.normalizePhoneNumber(sanitizedUserId || userId);
-    const normalizedAdminIds = adminIds.map(id => this.normalizePhoneNumber(id));
+    const normalizedAdminIds = adminIds.map((id) => this.normalizePhoneNumber(id));
 
     // Check if user is admin using exact matching on normalized IDs
-    const isAdmin = normalizedAdminIds.some(adminId => {
+    const isAdmin = normalizedAdminIds.some((adminId) => {
       // Exact match on normalized phone numbers
       return adminId === normalizedUserId;
     });
 
     // Log admin check for audit purposes
     this.logger.debug(
-      `Admin check for user ${normalizedUserId} in group ${sanitizedGroupId}: ${isAdmin ? 'GRANTED' : 'DENIED'}`
+      `Admin check for user ${normalizedUserId} in group ${sanitizedGroupId}: ${isAdmin ? 'GRANTED' : 'DENIED'}`,
     );
 
     return {
       isValid: true,
       isAdmin,
       normalizedUserId,
-      normalizedAdminIds
+      normalizedAdminIds,
     };
   }
 
@@ -112,25 +112,25 @@ export class AdminValidator {
     groupId: string,
     userId: string,
     action: string,
-    adminIds: string[]
+    adminIds: string[],
   ): AdminValidationResult & { shouldLog: boolean } {
     const result = this.validateAdminStatus(groupId, userId, adminIds);
-    
+
     if (result.isAdmin) {
       // Log important admin actions
       this.logger.log(
-        `Admin action '${action}' performed by ${result.normalizedUserId} in group ${groupId}`
+        `Admin action '${action}' performed by ${result.normalizedUserId} in group ${groupId}`,
       );
     } else if (result.isValid) {
       // Log failed admin attempts for security monitoring
       this.logger.warn(
-        `Unauthorized admin action '${action}' attempted by ${result.normalizedUserId} in group ${groupId}`
+        `Unauthorized admin action '${action}' attempted by ${result.normalizedUserId} in group ${groupId}`,
       );
     }
 
     return {
       ...result,
-      shouldLog: true
+      shouldLog: true,
     };
   }
 }

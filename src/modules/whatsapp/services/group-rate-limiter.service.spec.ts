@@ -95,7 +95,7 @@ describe('GroupRateLimiterService', () => {
       expect(mockRedisService.set).toHaveBeenCalledWith(
         expect.stringContaining('block'),
         expect.any(String),
-        expect.any(Number)
+        expect.any(Number),
       );
     });
 
@@ -120,7 +120,7 @@ describe('GroupRateLimiterService', () => {
       const oldTimestamp = now - 120000; // 2 minutes ago
       const recentTimestamp = now - 30000; // 30 seconds ago
       const timestamps = [oldTimestamp, recentTimestamp];
-      
+
       mockRedisService.get.mockImplementation((key) => {
         if (key.includes('all')) {
           // Group has 1 recent request
@@ -139,7 +139,7 @@ describe('GroupRateLimiterService', () => {
       expect(mockRedisService.set).toHaveBeenCalledWith(
         expect.stringContaining(userId),
         expect.stringContaining(recentTimestamp.toString()),
-        expect.any(Number)
+        expect.any(Number),
       );
     });
 
@@ -157,12 +157,8 @@ describe('GroupRateLimiterService', () => {
     it('should clear user rate limit data', async () => {
       await service.clearUserLimit('group123@g.us', 'user123');
 
-      expect(mockRedisService.del).toHaveBeenCalledWith(
-        'group-rate:group123@g.us:user123:*'
-      );
-      expect(mockRedisService.del).toHaveBeenCalledWith(
-        'group-rate:block:group123@g.us:user123'
-      );
+      expect(mockRedisService.del).toHaveBeenCalledWith('group-rate:group123@g.us:user123:*');
+      expect(mockRedisService.del).toHaveBeenCalledWith('group-rate:block:group123@g.us:user123');
     });
   });
 

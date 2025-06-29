@@ -11,11 +11,7 @@ describe('AdminValidator', () => {
     ];
 
     it('should validate admin with exact match', () => {
-      const result = AdminValidator.validateAdminStatus(
-        validGroupId,
-        '1234567890@c.us',
-        adminIds
-      );
+      const result = AdminValidator.validateAdminStatus(validGroupId, '1234567890@c.us', adminIds);
 
       expect(result.isValid).toBe(true);
       expect(result.isAdmin).toBe(true);
@@ -26,7 +22,7 @@ describe('AdminValidator', () => {
       const result = AdminValidator.validateAdminStatus(
         validGroupId,
         '0987654321@c.us', // Different suffix than in adminIds
-        adminIds
+        adminIds,
       );
 
       expect(result.isValid).toBe(true);
@@ -35,11 +31,7 @@ describe('AdminValidator', () => {
     });
 
     it('should validate admin without suffix', () => {
-      const result = AdminValidator.validateAdminStatus(
-        validGroupId,
-        '5555555555',
-        adminIds
-      );
+      const result = AdminValidator.validateAdminStatus(validGroupId, '5555555555', adminIds);
 
       expect(result.isValid).toBe(true);
       expect(result.isAdmin).toBe(true);
@@ -47,11 +39,7 @@ describe('AdminValidator', () => {
     });
 
     it('should handle US numbers with country code', () => {
-      const result = AdminValidator.validateAdminStatus(
-        validGroupId,
-        '11234567890@c.us',
-        adminIds
-      );
+      const result = AdminValidator.validateAdminStatus(validGroupId, '11234567890@c.us', adminIds);
 
       expect(result.isValid).toBe(true);
       expect(result.isAdmin).toBe(true);
@@ -59,11 +47,7 @@ describe('AdminValidator', () => {
     });
 
     it('should reject non-admin users', () => {
-      const result = AdminValidator.validateAdminStatus(
-        validGroupId,
-        '9999999999@c.us',
-        adminIds
-      );
+      const result = AdminValidator.validateAdminStatus(validGroupId, '9999999999@c.us', adminIds);
 
       expect(result.isValid).toBe(true);
       expect(result.isAdmin).toBe(false);
@@ -71,11 +55,7 @@ describe('AdminValidator', () => {
 
     it('should reject partial matches', () => {
       // This should NOT match '1234567890@c.us'
-      const result = AdminValidator.validateAdminStatus(
-        validGroupId,
-        '234567890@c.us',
-        adminIds
-      );
+      const result = AdminValidator.validateAdminStatus(validGroupId, '234567890@c.us', adminIds);
 
       expect(result.isValid).toBe(true);
       expect(result.isAdmin).toBe(false);
@@ -83,11 +63,7 @@ describe('AdminValidator', () => {
 
     it('should reject substring matches', () => {
       // This should NOT match any admin
-      const result = AdminValidator.validateAdminStatus(
-        validGroupId,
-        '123@c.us',
-        adminIds
-      );
+      const result = AdminValidator.validateAdminStatus(validGroupId, '123@c.us', adminIds);
 
       expect(result.isValid).toBe(true);
       expect(result.isAdmin).toBe(false);
@@ -97,7 +73,7 @@ describe('AdminValidator', () => {
       const result = AdminValidator.validateAdminStatus(
         'invalid-group-id',
         '1234567890@c.us',
-        adminIds
+        adminIds,
       );
 
       expect(result.isValid).toBe(false);
@@ -109,7 +85,7 @@ describe('AdminValidator', () => {
       const result = AdminValidator.validateAdminStatus(
         validGroupId,
         'not-a-phone-number',
-        adminIds
+        adminIds,
       );
 
       expect(result.isValid).toBe(false);
@@ -118,22 +94,14 @@ describe('AdminValidator', () => {
     });
 
     it('should handle empty admin list', () => {
-      const result = AdminValidator.validateAdminStatus(
-        validGroupId,
-        '1234567890@c.us',
-        []
-      );
+      const result = AdminValidator.validateAdminStatus(validGroupId, '1234567890@c.us', []);
 
       expect(result.isValid).toBe(true);
       expect(result.isAdmin).toBe(false);
     });
 
     it('should handle null/undefined inputs safely', () => {
-      const result = AdminValidator.validateAdminStatus(
-        validGroupId,
-        '',
-        adminIds
-      );
+      const result = AdminValidator.validateAdminStatus(validGroupId, '', adminIds);
 
       expect(result.isValid).toBe(false);
       expect(result.isAdmin).toBe(false);
@@ -146,18 +114,18 @@ describe('AdminValidator', () => {
 
     it('should log admin actions', () => {
       const logSpy = jest.spyOn(AdminValidator['logger'], 'log').mockImplementation();
-      
+
       const result = AdminValidator.validateAdminAction(
         validGroupId,
         '1234567890@c.us',
         'updateSettings',
-        adminIds
+        adminIds,
       );
 
       expect(result.isAdmin).toBe(true);
       expect(result.shouldLog).toBe(true);
       expect(logSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Admin action 'updateSettings' performed")
+        expect.stringContaining("Admin action 'updateSettings' performed"),
       );
 
       logSpy.mockRestore();
@@ -165,18 +133,18 @@ describe('AdminValidator', () => {
 
     it('should log unauthorized attempts', () => {
       const warnSpy = jest.spyOn(AdminValidator['logger'], 'warn').mockImplementation();
-      
+
       const result = AdminValidator.validateAdminAction(
         validGroupId,
         '9999999999@c.us',
         'updateSettings',
-        adminIds
+        adminIds,
       );
 
       expect(result.isAdmin).toBe(false);
       expect(result.shouldLog).toBe(true);
       expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Unauthorized admin action 'updateSettings' attempted")
+        expect.stringContaining("Unauthorized admin action 'updateSettings' attempted"),
       );
 
       warnSpy.mockRestore();

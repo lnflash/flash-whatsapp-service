@@ -183,16 +183,20 @@ describe('AnonymousPaymentService', () => {
 
       // Mock existing stats
       mockRedisService.get
-        .mockResolvedValueOnce(JSON.stringify({
-          totalTips: 5,
-          totalAmount: 25,
-          lastTipDate: '2024-01-01',
-        }))
-        .mockResolvedValueOnce(JSON.stringify({
-          totalTipsReceived: 3,
-          totalAmountReceived: 15,
-          groups: {},
-        }));
+        .mockResolvedValueOnce(
+          JSON.stringify({
+            totalTips: 5,
+            totalAmount: 25,
+            lastTipDate: '2024-01-01',
+          }),
+        )
+        .mockResolvedValueOnce(
+          JSON.stringify({
+            totalTipsReceived: 3,
+            totalAmountReceived: 15,
+            groups: {},
+          }),
+        );
 
       await service.processAnonymousTip(mockRequest);
 
@@ -263,8 +267,8 @@ describe('AnonymousPaymentService', () => {
         totalTipsReceived: 5,
         totalAmountReceived: 25,
         groups: {
-          'group123': 3,
-          'group456': 2,
+          group123: 3,
+          group456: 2,
         },
       };
 

@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -46,21 +46,24 @@ async function bootstrap() {
 
   // Start the application
   await app.listen(port);
-  console.log(`Application is running on: ${await app.getUrl()}`);
+  const logger = new Logger('Bootstrap');
+  logger.log(`Application is running on: ${await app.getUrl()}`);
 
   // Handle graceful shutdown
+  const logger = new Logger('Bootstrap');
   process.on('SIGTERM', async () => {
-    console.log('SIGTERM signal received: closing HTTP server');
+    logger.log('SIGTERM signal received: closing HTTP server');
     await app.close();
   });
 
   process.on('SIGINT', async () => {
-    console.log('SIGINT signal received: closing HTTP server');
+    logger.log('SIGINT signal received: closing HTTP server');
     await app.close();
   });
 }
 
+const logger = new Logger('Bootstrap');
 bootstrap().catch((err) => {
-  console.error('Error starting application:', err);
+  logger.error('Error starting application:', err);
   process.exit(1);
 });

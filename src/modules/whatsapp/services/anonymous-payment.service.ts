@@ -47,14 +47,14 @@ export class AnonymousPaymentService {
       // Validate recipient exists
       const recipientWallet = await this.validateRecipient(
         request.recipientUsername,
-        request.senderAuthToken
+        request.senderAuthToken,
       );
-      
+
       if (!recipientWallet) {
         return {
           success: false,
           message: `❌ User @${request.recipientUsername} not found or doesn't have a Flash account.`,
-          errorCode: 'RECIPIENT_NOT_FOUND'
+          errorCode: 'RECIPIENT_NOT_FOUND',
         };
       }
 
@@ -64,7 +64,7 @@ export class AnonymousPaymentService {
         return {
           success: false,
           message: '❌ Unable to access your wallet. Please try again.',
-          errorCode: 'WALLET_ERROR'
+          errorCode: 'WALLET_ERROR',
         };
       }
 
@@ -90,7 +90,11 @@ export class AnonymousPaymentService {
           success: true,
           tipId,
           message: `💸 Anonymous tip sent to @${request.recipientUsername}!`,
-          recipientMessage: this.formatRecipientMessage(request.amount, request.groupName, request.memo),
+          recipientMessage: this.formatRecipientMessage(
+            request.amount,
+            request.groupName,
+            request.memo,
+          ),
         };
       } else {
         const errorMessage = paymentResult?.errors?.[0]?.message || 'Unknown error';
@@ -101,20 +105,20 @@ export class AnonymousPaymentService {
           return {
             success: false,
             message: `❌ Insufficient balance. You need at least $${request.amount.toFixed(2)} USD.`,
-            errorCode: 'INSUFFICIENT_BALANCE'
+            errorCode: 'INSUFFICIENT_BALANCE',
           };
         } else if (errorMessage.includes('limit')) {
           return {
             success: false,
             message: '❌ Transaction limit reached. Check your account limits.',
-            errorCode: 'LIMIT_EXCEEDED'
+            errorCode: 'LIMIT_EXCEEDED',
           };
         }
 
         return {
           success: false,
           message: `❌ Tip failed: ${errorMessage}`,
-          errorCode: 'PAYMENT_FAILED'
+          errorCode: 'PAYMENT_FAILED',
         };
       }
     } catch (error) {
@@ -122,7 +126,7 @@ export class AnonymousPaymentService {
       return {
         success: false,
         message: '❌ An error occurred. Please try again.',
-        errorCode: 'SYSTEM_ERROR'
+        errorCode: 'SYSTEM_ERROR',
       };
     }
   }
@@ -132,7 +136,7 @@ export class AnonymousPaymentService {
    */
   private async validateRecipient(
     username: string,
-    authToken: string
+    authToken: string,
   ): Promise<{ id: string } | null> {
     try {
       const accountDefaultWalletQuery = `
@@ -143,7 +147,7 @@ export class AnonymousPaymentService {
           }
         }
       `;
-      
+
       const walletCheck = await this.flashApiService.executeQuery<any>(
         accountDefaultWalletQuery,
         { username },
@@ -174,7 +178,7 @@ export class AnonymousPaymentService {
     await this.redisService.set(
       `${this.TIP_TRACKING_PREFIX}${tipId}`,
       JSON.stringify(tipData),
-      this.TIP_TTL
+      this.TIP_TTL,
     );
   }
 
@@ -184,18 +188,20 @@ export class AnonymousPaymentService {
   private async updateTipStats(
     groupId: string,
     recipientUsername: string,
-    amount: number
+    amount: number,
   ): Promise<void> {
     try {
       // Update group stats
       const groupStatsKey = `${this.TIP_STATS_PREFIX}group:${groupId}`;
       const groupStats = await this.redisService.get(groupStatsKey);
-      
-      let stats = groupStats ? JSON.parse(groupStats) : {
-        totalTips: 0,
-        totalAmount: 0,
-        lastTipDate: null,
-      };
+
+      let stats = groupStats
+        ? JSON.parse(groupStats)
+        : {
+            totalTips: 0,
+            totalAmount: 0,
+            lastTipDate: null,
+          };
 
       stats.totalTips += 1;
       stats.totalAmount += amount;
@@ -206,12 +212,14 @@ export class AnonymousPaymentService {
       // Update recipient stats
       const recipientStatsKey = `${this.TIP_STATS_PREFIX}user:${recipientUsername}`;
       const recipientStats = await this.redisService.get(recipientStatsKey);
-      
-      let userStats = recipientStats ? JSON.parse(recipientStats) : {
-        totalTipsReceived: 0,
-        totalAmountReceived: 0,
-        groups: {},
-      };
+
+      let userStats = recipientStats
+        ? JSON.parse(recipientStats)
+        : {
+            totalTipsReceived: 0,
+            totalAmountReceived: 0,
+            groups: {},
+          };
 
       userStats.totalTipsReceived += 1;
       userStats.totalAmountReceived += amount;
@@ -229,11 +237,13 @@ export class AnonymousPaymentService {
    */
   private formatRecipientMessage(amount: number, groupName: string, memo?: string): string {
     const isFromDM = groupName === 'Direct Message';
-    return `🎁 *Anonymous Tip Received!*\n\n` +
-           `You received a $${amount.toFixed(2)} USD tip${isFromDM ? '' : ` from someone in *${groupName}*`}!\n\n` +
-           `${memo ? `💬 Message: "${memo}"\n\n` : ''}` +
-           `The sender chose to remain anonymous. 🤫\n\n` +
-           `_Your balance has been updated._`;
+    return (
+      `🎁 *Anonymous Tip Received!*\n\n` +
+      `You received a $${amount.toFixed(2)} USD tip${isFromDM ? '' : ` from someone in *${groupName}*`}!\n\n` +
+      `${memo ? `💬 Message: "${memo}"\n\n` : ''}` +
+      `The sender chose to remain anonymous. 🤫\n\n` +
+      `_Your balance has been updated._`
+    );
   }
 
   /**
