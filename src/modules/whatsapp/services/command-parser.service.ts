@@ -45,13 +45,13 @@ export class CommandParserService {
     {
       type: CommandType.SEND,
       pattern:
-        /^(?:send|sent)\s+(\d+(?:\.\d+)?)\s+to\s+(?:@?(\w+)|(\+?\d{10,})|(\w+))(?:\s+(.*))?$/i,
+        /^(?:send|sent)\s+(\d*\.?\d+)\s+to\s+(?:@?(\w+)|(\+?\d{10,})|(\w+))(?:\s+(.*))?$/i,
     },
-    { type: CommandType.RECEIVE, pattern: /^receive(?:\s+(\d+(?:\.\d+)?))?\s*(.*)$/i },
+    { type: CommandType.RECEIVE, pattern: /^receive(?:\s+(\d*\.?\d+))?\s*(.*)$/i },
     { type: CommandType.HISTORY, pattern: /^history|^transactions|^txs$/i },
     {
       type: CommandType.REQUEST,
-      pattern: /^request\s+(\d+(?:\.\d+)?)\s+from\s+(?:@?(\w+)|(\+?\d{10,}))(?:\s+(.+))?$/i,
+      pattern: /^request\s+(\d*\.?\d+)\s+from\s+(?:@?(\w+)|(\+?\d{10,}))(?:\s+(.+))?$/i,
     },
     {
       type: CommandType.CONTACTS,
@@ -73,11 +73,20 @@ export class CommandParserService {
     try {
       const trimmedText = text.trim();
 
+      // Log for debugging send commands
+      if (trimmedText.toLowerCase().startsWith('send')) {
+        this.logger.log(`Parsing potential send command: "${trimmedText}"`);
+      }
+
       for (const { type, pattern } of this.commandPatterns) {
         const match = trimmedText.match(pattern);
 
         if (match) {
-          return this.extractCommand(type, match, trimmedText);
+          const result = this.extractCommand(type, match, trimmedText);
+          if (type === CommandType.SEND) {
+            this.logger.log(`SEND command matched: amount=${result.args.amount}, username=${result.args.username}, recipient=${result.args.recipient}`);
+          }
+          return result;
         }
       }
 
