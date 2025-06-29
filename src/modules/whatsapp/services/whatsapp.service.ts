@@ -12,6 +12,7 @@ import { TransactionService } from '../../flash-api/services/transaction.service
 import { PaymentService, PaymentSendResult } from '../../flash-api/services/payment.service';
 import { PendingPaymentService } from '../../flash-api/services/pending-payment.service';
 import { GeminiAiService } from '../../gemini-ai/gemini-ai.service';
+import { EventsService } from '../../events/events.service';
 import { ACCOUNT_DEFAULT_WALLET_QUERY } from '../../flash-api/graphql/queries';
 import { QrCodeService } from './qr-code.service';
 import { CommandParserService, CommandType, ParsedCommand } from './command-parser.service';
@@ -51,6 +52,7 @@ export class WhatsappService {
     private readonly paymentService: PaymentService,
     private readonly pendingPaymentService: PendingPaymentService,
     private readonly geminiAiService: GeminiAiService,
+    private readonly eventsService: EventsService,
     private readonly qrCodeService: QrCodeService,
     private readonly commandParserService: CommandParserService,
     private readonly balanceTemplate: BalanceTemplate,
@@ -340,6 +342,10 @@ export class WhatsappService {
       // User confirmed, proceed with unlinking
       await this.authService.unlinkAccount(whatsappId);
 
+      // Emit user unlinked event to unsubscribe from payment notifications
+      await this.eventsService.publishEvent('user_unlinked', { whatsappId });
+      this.logger.log(`User ${whatsappId} unsubscribed from payment notifications`);
+
       return 'Your Flash account has been successfully unlinked from WhatsApp.\n\nTo use Flash services through WhatsApp again, you\'ll need to type "link" to reconnect your account.\n\nThank you for using Flash!';
     } catch (error) {
       this.logger.error(`Error handling unlink command: ${error.message}`, error.stack);
@@ -374,9 +380,20 @@ export class WhatsappService {
 
       await this.authService.verifyAccountLinking(verifyDto);
 
+      // Get the updated session with auth token
+      const updatedSession = await this.sessionService.getSessionByWhatsappId(whatsappId);
+
+      // Emit user verified event for payment notifications
+      if (updatedSession && updatedSession.isVerified && updatedSession.flashAuthToken) {
+        await this.eventsService.publishEvent('user_verified', {
+          whatsappId: updatedSession.whatsappId,
+          authToken: updatedSession.flashAuthToken,
+        });
+        this.logger.log(`User ${whatsappId} subscribed to payment notifications`);
+      }
+
       // Check for pending payments to auto-claim
       try {
-        const updatedSession = await this.sessionService.getSessionByWhatsappId(whatsappId);
         if (updatedSession && updatedSession.isVerified && updatedSession.phoneNumber) {
           const pendingPayments = await this.pendingPaymentService.getPendingPaymentsByPhone(
             updatedSession.phoneNumber,

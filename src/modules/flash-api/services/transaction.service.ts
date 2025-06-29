@@ -45,6 +45,41 @@ export class TransactionService {
   constructor(private readonly flashApiService: FlashApiService) {}
 
   /**
+   * Get transaction by payment hash
+   */
+  async getTransactionByPaymentHash(paymentHash: string, authToken: string): Promise<any> {
+    try {
+      const query = `
+        query GetTransactionByPaymentHash($paymentHash: String!) {
+          transaction(paymentHash: $paymentHash) {
+            id
+            status
+            direction
+            amount
+            memo
+            createdAt
+            userId
+            senderUsername: initiatedBy {
+              username
+            }
+          }
+        }
+      `;
+
+      const result = await this.flashApiService.executeQuery<any>(
+        query,
+        { paymentHash },
+        authToken,
+      );
+
+      return result.transaction;
+    } catch (error) {
+      this.logger.error(`Error fetching transaction by payment hash: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
    * Get recent transactions for the user
    */
   async getRecentTransactions(

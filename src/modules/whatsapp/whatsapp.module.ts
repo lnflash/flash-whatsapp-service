@@ -24,9 +24,10 @@ import { RedisModule } from '../redis/redis.module';
 import { AuthModule } from '../auth/auth.module';
 import { FlashApiModule } from '../flash-api/flash-api.module';
 import { GeminiAiModule } from '../gemini-ai/gemini-ai.module';
+import { EventsModule } from '../events/events.module';
 
 @Module({
-  imports: [ConfigModule, RedisModule, AuthModule, FlashApiModule, GeminiAiModule],
+  imports: [ConfigModule, RedisModule, AuthModule, FlashApiModule, GeminiAiModule, EventsModule],
   controllers: [
     // WhatsappController,    // Cloud API Controller (disabled for prototype)
     WhatsAppWebController, // WhatsApp Web.js Controller

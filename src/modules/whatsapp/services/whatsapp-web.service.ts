@@ -162,7 +162,6 @@ export class WhatsAppWebService
     // Message handling
     this.client.on('message', async (msg: Message) => {
       try {
-
         // Ignore messages during startup grace period
         if (this.isInGracePeriod) {
           return;
@@ -354,7 +353,6 @@ export class WhatsAppWebService
 
         // Send response if we have one
         if (response) {
-
           // Check if response is an object with text property
           if (typeof response === 'object' && 'text' in response) {
             // Send image with caption if media is present

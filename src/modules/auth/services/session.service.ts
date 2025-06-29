@@ -1,4 +1,4 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../../redis/redis.service';
 import { UserSession } from '../interfaces/user-session.interface';
@@ -261,5 +261,31 @@ export class SessionService {
    */
   private generateSessionId(): string {
     return crypto.randomBytes(16).toString('hex');
+  }
+
+  /**
+   * Get all active sessions
+   */
+  async getAllActiveSessions(): Promise<UserSession[]> {
+    try {
+      const sessions: UserSession[] = [];
+      const pattern = 'session:*';
+      const keys = await this.redisService.keys(pattern);
+
+      for (const key of keys) {
+        const sessionData = await this.redisService.getEncrypted(key) as UserSession | null;
+        if (sessionData) {
+          // Only include verified sessions with auth tokens
+          if (sessionData.isVerified && sessionData.flashAuthToken) {
+            sessions.push(sessionData);
+          }
+        }
+      }
+
+      return sessions;
+    } catch (error) {
+      this.logger.error('Error getting all active sessions:', error);
+      return [];
+    }
   }
 }

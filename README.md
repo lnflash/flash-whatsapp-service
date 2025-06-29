@@ -262,6 +262,29 @@ Send tips anonymously through direct messages:
 - `tip group "Flash Users" 20` - Split $20 among all Flash users in the group
 - `tip group "Dev Team" 50 thanks everyone` - Group tip with message
 
+## Push Notifications
+
+The service implements real-time payment notifications with a hybrid approach:
+
+### How it works:
+1. **WebSocket Subscriptions**: Primary real-time connection to Flash API for instant updates
+2. **RabbitMQ Fallback**: Reliable message queue ensures notifications are never missed
+3. **Automatic Setup**: Users are subscribed when they link their account
+4. **Smart Deduplication**: Prevents duplicate notifications across both channels
+5. **Rich Notifications**: Shows amount in BTC and fiat, sender info, and updated balance
+
+### Notification Features:
+- Instant WhatsApp message when payment is received
+- Shows payment amount in both BTC and user's preferred currency
+- Displays sender's username and memo if provided
+- Includes updated wallet balance
+- Works whether app is active or not
+
+### Technical Architecture:
+```
+Flash API → WebSocket/RabbitMQ → PaymentNotificationService → WhatsApp Message
+```
+
 ## Roadmap
 
 - [x] Payment sending functionality
@@ -270,7 +293,7 @@ Send tips anonymously through direct messages:
 - [x] Contact management
 - [x] Admin session management
 - [x] Pending payments for non-Flash users
-- [ ] Push notifications for received payments
+- [x] Push notifications for received payments
 - [ ] Multi-language support
 - [ ] WhatsApp Business API migration
 - [ ] Group chat support

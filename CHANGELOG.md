@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2025-06-29
+
+### Added
+- Real-time push notifications for received payments via hybrid WebSocket/RabbitMQ approach
+- Automatic subscription to payment updates when users link their accounts
+- Deduplication system to prevent duplicate payment notifications
+- Automatic balance display in payment notifications
+- Support for both WebSocket subscriptions and RabbitMQ event fallback
+
+### Fixed
+- Decimal number handling in command patterns (now supports .01 format)
+- Debug logging removed from send command parser
+
 ## [0.4.0] - 2025-06-29
 
 ### Added
