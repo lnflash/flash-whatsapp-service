@@ -72,10 +72,6 @@ export class CommandParserService {
     try {
       const trimmedText = text.trim();
 
-      // Log for debugging send commands
-      if (trimmedText.toLowerCase().startsWith('send')) {
-        this.logger.log(`Parsing potential send command: "${trimmedText}"`);
-      }
 
       for (const { type, pattern } of this.commandPatterns) {
         const match = trimmedText.match(pattern);

@@ -214,7 +214,7 @@ export class WhatsAppWebService
           5 * 60 * 1000,
         );
 
-        this.logger.log(`📨 Received message from ${msg.from}: "${msg.body}"`);
+        this.logger.log(`📨 Received message from ${msg.from}`);
 
         // Check for vCard (contact sharing)
         if (msg.type === 'vcard' || msg.vCards?.length > 0) {

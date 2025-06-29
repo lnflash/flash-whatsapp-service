@@ -49,30 +49,43 @@ export class TransactionService {
    */
   async getTransactionByPaymentHash(paymentHash: string, authToken: string): Promise<any> {
     try {
-      const query = `
-        query GetTransactionByPaymentHash($paymentHash: String!) {
-          transaction(paymentHash: $paymentHash) {
-            id
-            status
-            direction
-            amount
-            memo
-            createdAt
-            userId
-            senderUsername: initiatedBy {
-              username
-            }
-          }
-        }
-      `;
-
+      // Fetch recent transactions (50 should be enough to find recent payments)
       const result = await this.flashApiService.executeQuery<any>(
-        query,
-        { paymentHash },
+        TRANSACTION_LIST_QUERY,
+        { first: 50 },
         authToken,
       );
 
-      return result.transaction;
+      if (!result?.me?.defaultAccount?.transactions?.edges) {
+        this.logger.warn('No transactions found');
+        return null;
+      }
+
+      // Find transaction with matching payment hash
+      const transactionEdge = result.me.defaultAccount.transactions.edges.find((edge: any) => {
+        const tx = edge.node;
+        // Check if this is a Lightning transaction with matching payment hash
+        return tx.initiationVia?.paymentHash === paymentHash;
+      });
+
+      if (!transactionEdge) {
+        this.logger.warn(`Transaction not found for payment hash`);
+        return null;
+      }
+
+      const transaction = transactionEdge.node;
+      
+      // Transform to expected format for notification service
+      return {
+        id: transaction.id,
+        status: transaction.status,
+        direction: transaction.direction,
+        amount: transaction.settlementAmount, // Amount in sats
+        memo: transaction.memo,
+        createdAt: transaction.createdAt,
+        userId: result.me.id,
+        senderUsername: transaction.initiationVia?.counterPartyUsername,
+      };
     } catch (error) {
       this.logger.error(`Error fetching transaction by payment hash: ${error.message}`);
       throw error;
@@ -93,9 +106,6 @@ export class TransactionService {
         authToken,
       );
 
-      this.logger.debug(
-        `Transaction query result structure: ${JSON.stringify(Object.keys(result || {}))}`,
-      );
 
       if (result?.me?.defaultAccount?.transactions) {
         return result.me.defaultAccount.transactions;

@@ -1,8 +1,12 @@
 export const MY_LN_UPDATES_SUBSCRIPTION = `
   subscription myLnUpdates {
     myUpdates {
+      errors {
+        message
+      }
       update {
         ... on LnUpdate {
+          __typename
           paymentHash
           status
         }

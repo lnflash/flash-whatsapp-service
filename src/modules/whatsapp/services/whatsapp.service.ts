@@ -93,7 +93,7 @@ export class WhatsappService {
       const whatsappId = this.extractWhatsappId(messageData.from);
       const phoneNumber = this.normalizePhoneNumber(messageData.from);
 
-      this.logger.log(`Processing Cloud API message from ${whatsappId}: ${messageData.text}`);
+      this.logger.log(`Processing Cloud API message from ${whatsappId}`);
 
       // Store the incoming message for traceability
       await this.storeCloudMessage(messageData);
@@ -855,14 +855,81 @@ export class WhatsappService {
    */
   private getHelpMessage(session: UserSession | null): string {
     if (!session) {
-      return `Welcome! Type 'link' to connect Flash account. 'price' for BTC price.`;
+      return `🌟 *Welcome to Flash WhatsApp Bot!*
+
+Flash is your gateway to instant Bitcoin payments through the Lightning Network.
+
+📱 *Getting Started:*
+Type \`link\` to connect your Flash account
+
+⚡ *Available Commands:*
+• \`price\` - Check current Bitcoin price
+• \`help\` - Show this help message
+
+Once linked, you'll unlock features like:
+✅ Send & receive payments instantly
+✅ Check your balance
+✅ View transaction history
+✅ Create payment requests
+✅ And much more!
+
+Ready? Type \`link\` to begin! 🚀`;
     }
 
     if (!session.isVerified) {
-      return `Enter code: verify 123456. Or type 'price' for BTC price.`;
+      return `📲 *Complete Your Verification*
+
+Please enter the 6-digit code sent to your phone:
+Type: \`verify 123456\` (replace with your code)
+
+⚡ *Available Commands:*
+• \`price\` - Check current Bitcoin price
+• \`help\` - Show this help message
+
+Need a new code? Type \`link\` again.`;
     }
 
-    return `Commands: balance, send 5 to @user, receive 10, history, pending, price`;
+    return `⚡ *Flash WhatsApp Bot Commands*
+
+💰 *Wallet & Balance:*
+• \`balance\` - Check your USD balance
+• \`refresh\` - Refresh balance (clear cache)
+• \`username\` - View or set your Lightning username
+• \`history\` - View recent transactions
+
+💸 *Send Money:*
+• \`send 10 to @username\` - Send to Flash user
+• \`send 5.50 to ayanna\` - Send to saved contact
+• \`send 25 to lnbc...\` - Pay Lightning invoice
+
+📥 *Receive Money:*
+• \`receive 10\` - Create $10 invoice
+• \`receive 50 Coffee payment\` - Invoice with memo
+
+📱 *Payment Requests:*
+• \`request 20 from @john\` - Request from Flash user
+• \`request 15 from ayanna\` - Request from contact
+
+👥 *Contacts:*
+• \`contacts\` - List saved contacts
+• \`contacts add john 18765551234\` - Add contact
+• \`contacts remove john\` - Remove contact
+
+💳 *Pending Payments:*
+• \`pending\` - View pending payments to claim
+• \`pending sent\` - View sent pending payments
+• \`pay 12345\` - Claim with code
+
+📊 *Other:*
+• \`price\` - Current Bitcoin price
+• \`help\` - Show this message
+
+💡 *Tips:*
+• Set your username to get a Lightning address!
+• Save contacts for easier payments
+• All amounts are in USD by default
+
+Need help? Type "support" to reach our team! 🤝`;
   }
 
   /**
@@ -998,42 +1065,80 @@ export class WhatsappService {
       let lightningAddress = command.args.recipient;
       let isContactPayment = false;
 
-      // If recipient doesn't have @ and it's not a phone/lightning address,
-      // it could be either a username or contact name
-      let possibleContactName = null;
+      // Check if recipient might be a saved contact FIRST
+      // This takes precedence over username lookup
       if (
-        lightningAddress &&
-        !lightningAddress.includes('@') &&
-        !lightningAddress.includes('lnbc') &&
-        !lightningAddress.match(/^\+?\d{10,}$/)
+        (targetUsername || lightningAddress) &&
+        !lightningAddress?.includes('@') &&
+        !lightningAddress?.includes('lnbc')
       ) {
-        possibleContactName = lightningAddress;
-        // Try as username first
-        if (!targetUsername) {
-          targetUsername = lightningAddress;
-        }
-      }
-
-      // Check if recipient might be a saved contact
-      if (
-        lightningAddress &&
-        !lightningAddress.includes('@') &&
-        !lightningAddress.includes('lnbc')
-      ) {
+        const possibleContactName = targetUsername || lightningAddress;
         const contactsKey = `contacts:${whatsappId}`;
         const savedContacts = await this.redisService.get(contactsKey);
 
         if (savedContacts) {
           const contacts = JSON.parse(savedContacts);
-          const contactKey = lightningAddress.toLowerCase();
+          const contactKey = possibleContactName.toLowerCase();
 
           if (contacts[contactKey]) {
             // Found a saved contact
             isContactPayment = true;
-            this.logger.log(`Using saved contact ${lightningAddress} for payment`);
+            const contactInfo = contacts[contactKey];
+            // Handle both string format (legacy) and object format
+            const contactPhone = typeof contactInfo === 'string' ? contactInfo : contactInfo.phone;
+            this.logger.log(`Using saved contact ${possibleContactName}: ${contactPhone}`);
 
-            // For contacts, we can't send directly - need to create a request
-            return `❌ Direct payments to contacts are not yet supported.\n\nUse: request ${amount} from ${lightningAddress}\n\nThis will send them a payment request they can pay.`;
+            // Check if this contact has a linked Flash account
+            // Try multiple WhatsApp ID formats
+            const possibleWhatsappIds = [
+              contactPhone + '@c.us',
+              contactPhone, // Raw phone number
+              '+' + contactPhone, // With + prefix
+              '+' + contactPhone + '@c.us' // With + prefix and @c.us
+            ];
+            
+            let contactSession = null;
+            for (const whatsappId of possibleWhatsappIds) {
+              this.logger.log(`Trying to find session for ${possibleContactName} with WhatsApp ID: ${whatsappId}`);
+              contactSession = await this.sessionService.getSessionByWhatsappId(whatsappId);
+              if (contactSession) {
+                this.logger.log(`Found session for ${possibleContactName} using WhatsApp ID: ${whatsappId}`);
+                break;
+              }
+            }
+            
+            if (contactSession?.isVerified && contactSession.flashUserId && contactSession.flashAuthToken) {
+              // Contact has a linked Flash account, get their username
+              this.logger.log(`Found linked Flash account for ${possibleContactName}, fetching username...`);
+              try {
+                const contactUsername = await this.usernameService.getUsername(contactSession.flashAuthToken);
+                this.logger.log(`Username lookup result for ${possibleContactName}: ${contactUsername || 'no username'}`);
+                if (contactUsername) {
+                  // Use their Flash username for the payment
+                  targetUsername = contactUsername;
+                  lightningAddress = ''; // Clear this so we use username payment flow
+                  this.logger.log(`Contact ${possibleContactName} has Flash username: @${contactUsername}`);
+                  // Continue with the payment flow
+                } else {
+                  // Contact has Flash but no username, use escrow
+                  targetPhone = contactPhone;
+                  targetUsername = ''; // Clear username to prevent lookup
+                  lightningAddress = ''; // Clear this too
+                  this.logger.log(`Contact ${possibleContactName} has Flash but no username, using escrow`);
+                }
+              } catch (error) {
+                this.logger.error(`Failed to get contact's Flash username: ${error.message}`);
+                targetPhone = contactPhone;
+                targetUsername = ''; // Clear username to prevent lookup
+                lightningAddress = ''; // Clear this too
+              }
+            } else {
+              // Contact doesn't have Flash, use escrow
+              targetPhone = contactPhone;
+              targetUsername = ''; // Clear username to prevent lookup
+              lightningAddress = ''; // Clear this too
+              this.logger.log(`Contact ${possibleContactName} doesn't have Flash, using escrow`);
+            }
           }
         }
       }
@@ -1255,9 +1360,83 @@ export class WhatsappService {
         }
       }
 
-      // If phone number provided
+      // If phone number provided (escrow payment for contacts without Flash)
       if (targetPhone) {
-        return `❌ Phone number payments are not yet supported.\n\nTo send to this number:\n1. Ask them to create a Flash account\n2. Get their username\n3. Use: send ${amount} to @username`;
+        try {
+          // Get admin token from config
+          const adminToken = this.configService.get<string>('flashApi.apiKey');
+          if (!adminToken) {
+            return `❌ Unable to process pending payment. Please try again later.`;
+          }
+
+          // Get admin wallet
+          const adminWallets = await this.paymentService.getUserWallets(adminToken);
+          const adminWalletId = adminWallets.usdWallet?.id || adminWallets.defaultWalletId;
+
+          if (!adminWalletId) {
+            this.logger.error('Admin wallet not found');
+            return `❌ Unable to process pending payment. Please try again later.`;
+          }
+
+          // Get user's wallets
+          const userWallets = await this.paymentService.getUserWallets(session.flashAuthToken);
+          const senderWalletId = userWallets.usdWallet?.id || userWallets.defaultWalletId;
+
+          // First generate the claim code that will be used
+          const claimCode = this.generateClaimCode();
+
+          // Determine recipient name for the escrow memo
+          const recipientName = isContactPayment ? 
+            command.args.username || command.args.recipient || 'contact' : 
+            targetPhone;
+
+          // Send payment to admin wallet (escrow) with claim code in memo
+          const escrowMemo = `Pending payment for ${recipientName} (${targetPhone}) - Claim: ${claimCode}`;
+          const escrowResult = await this.paymentService.sendIntraLedgerUsdPayment(
+            {
+              walletId: senderWalletId,
+              recipientWalletId: adminWalletId,
+              amount: amount * 100, // Convert to cents
+              memo: escrowMemo,
+            },
+            session.flashAuthToken,
+          );
+
+          if (escrowResult?.status !== PaymentSendResult.Success) {
+            const errorMessage = escrowResult?.errors?.[0]?.message || 'Failed to create pending payment';
+            return `❌ ${errorMessage}`;
+          }
+
+          // Create pending payment record with the same claim code
+          const senderUsername = (await this.usernameService.getUsername(session.flashAuthToken)) || 'Flash user';
+          const pendingPayment = await this.pendingPaymentService.createPendingPaymentWithCode({
+            senderId: session.flashUserId!,
+            senderUsername,
+            senderPhone: session.phoneNumber,
+            recipientPhone: targetPhone,
+            recipientName,
+            amountCents: amount * 100,
+            memo: command.args.memo,
+            claimCode: claimCode,
+            escrowTransactionId: undefined, // Transaction ID not available in response
+          });
+
+          // Send notification to recipient if we have WhatsApp Web service
+          if (this.whatsappWebService) {
+            try {
+              const recipientWhatsApp = `${targetPhone}@c.us`;
+              const notificationMsg = this.pendingPaymentService.formatPendingPaymentMessage(pendingPayment);
+              await this.whatsappWebService.sendMessage(recipientWhatsApp, notificationMsg);
+            } catch (notifyError) {
+              this.logger.error(`Failed to notify recipient: ${notifyError.message}`);
+            }
+          }
+
+          return `✅ Payment sent successfully!\n\n💰 $${amount.toFixed(2)} USD is waiting for ${recipientName}\n📱 They've been notified via WhatsApp\n🔑 Claim code: ${pendingPayment.claimCode}\n⏱️ Expires in 30 days\n\n${recipientName} will receive the money automatically when they create their Flash account.`;
+        } catch (error) {
+          this.logger.error(`Error creating pending payment: ${error.message}`, error.stack);
+          return `❌ Failed to create pending payment. Please try again.`;
+        }
       }
 
       return 'Please specify a valid recipient:\n• @username (Flash user)\n• Lightning invoice (lnbc...)\n• Lightning address (user@domain.com)';

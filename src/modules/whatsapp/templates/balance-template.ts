@@ -27,9 +27,9 @@ export class BalanceTemplate {
     const lastUpdated = this.formatDateTime(data.lastUpdated);
 
     return (
-      `${greeting}*Your Flash Balance*\n\n` +
+      `${greeting}💰 *Your Flash Balance*\n\n` +
       `${fiatFormatted}\n\n` +
-      `Last updated: ${lastUpdated}`
+      `_Updated: ${lastUpdated}_`
     );
   }
 
@@ -99,12 +99,32 @@ export class BalanceTemplate {
   /**
    * Format date time for display
    */
-  private formatDateTime(date: Date): string {
-    return date.toLocaleString('en-US', {
+  private formatDateTime(date: Date | string): string {
+    // Ensure we have a Date object
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    
+    // Check if date is valid
+    if (isNaN(dateObj.getTime())) {
+      return 'Just now';
+    }
+    
+    const now = new Date();
+    const isToday = dateObj.toDateString() === now.toDateString();
+    
+    if (isToday) {
+      return `Today at ${dateObj.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      })}`;
+    }
+    
+    return dateObj.toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
-      hour: '2-digit',
+      hour: 'numeric',
       minute: '2-digit',
+      hour12: true,
     });
   }
 }

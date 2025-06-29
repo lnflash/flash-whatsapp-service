@@ -27,7 +27,9 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
   private readonly logger = new Logger(PaymentNotificationService.name);
   private activeSubscriptions = new Map<string, string>(); // whatsappId -> subscriptionId
   private notificationDedupePrefix = 'payment_notif_sent:';
-  private readonly dedupeTimeout = 300; // 5 minutes
+  private readonly dedupeTimeout = 24 * 60 * 60; // 24 hours
+  private pollingIntervals = new Map<string, NodeJS.Timeout>(); // whatsappId -> interval
+  private readonly lastTxPrefix = 'last_tx_id:'; // Redis key prefix for last transaction IDs
 
   constructor(
     private readonly configService: ConfigService,
@@ -43,6 +45,7 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
   ) {}
 
   async onModuleInit() {
+    this.logger.log('PaymentNotificationService module initializing...');
     await this.initialize();
   }
 
@@ -58,11 +61,19 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
       // Subscribe to RabbitMQ events as backup
       await this.subscribeToRabbitMQEvents();
 
-      // Try to enable WebSocket subscriptions but don't fail if they don't work
-      try {
-        await this.enableWebSocketSubscriptions();
-      } catch (wsError) {
-        this.logger.warn('WebSocket subscriptions failed, relying on RabbitMQ events:', wsError);
+      // Check if WebSocket subscriptions are enabled
+      const wsEnabled = this.configService.get<boolean>('notifications.enableWebSocket', true);
+      
+      if (wsEnabled) {
+        // Try to enable WebSocket subscriptions but don't fail if they don't work
+        try {
+          await this.enableWebSocketSubscriptions();
+        } catch (wsError) {
+          this.logger.warn('WebSocket subscriptions failed, relying on RabbitMQ events');
+          this.logger.debug('WebSocket error details:', wsError.message);
+        }
+      } else {
+        this.logger.log('WebSocket subscriptions disabled by configuration');
       }
 
       this.logger.log('Payment notification service initialized');
@@ -147,7 +158,7 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
         return;
       }
 
-      // Subscribe to Lightning updates
+      // Subscribe to Lightning updates (only works for Lightning payments)
       const subscriptionId = await this.subscriptionService.subscribeLnUpdates(
         whatsappId,
         authToken,
@@ -159,7 +170,11 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
       );
 
       this.activeSubscriptions.set(whatsappId, subscriptionId);
-      this.logger.log(`User ${whatsappId} subscribed to real-time payment updates`);
+      
+      // Start polling for intraledger transfers (Flash-to-Flash payments)
+      this.startPollingForIntraledgerPayments(whatsappId, authToken);
+      
+      this.logger.log(`User ${whatsappId} subscribed to real-time payment updates (Lightning + polling for intraledger)`);
     } catch (error) {
       this.logger.error(`Failed to subscribe user ${whatsappId} to payments:`, error);
     }
@@ -169,12 +184,24 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
    * Unsubscribe a user from payment updates
    */
   async unsubscribeUserFromPayments(whatsappId: string): Promise<void> {
+    // Unsubscribe from WebSocket
     const subscriptionId = this.activeSubscriptions.get(whatsappId);
     if (subscriptionId) {
       this.subscriptionService.unsubscribe(subscriptionId);
       this.activeSubscriptions.delete(whatsappId);
-      this.logger.log(`User ${whatsappId} unsubscribed from payment updates`);
     }
+    
+    // Stop polling
+    const interval = this.pollingIntervals.get(whatsappId);
+    if (interval) {
+      clearInterval(interval);
+      this.pollingIntervals.delete(whatsappId);
+    }
+    
+    // Clear last transaction ID from Redis
+    await this.clearLastTransactionId(whatsappId);
+    
+    this.logger.log(`User ${whatsappId} unsubscribed from payment updates`);
   }
 
   /**
@@ -186,6 +213,8 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
     authToken: string,
   ): Promise<void> {
     try {
+      this.logger.log(`Processing WebSocket payment notification for [HASH:${paymentHash.substring(0, 8)}...]`);
+      
       // Check if we've already sent this notification
       if (await this.isNotificationSent(paymentHash)) {
         return;
@@ -197,7 +226,14 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
         authToken,
       );
 
-      if (!transaction || transaction.direction !== 'RECEIVE') {
+      if (!transaction) {
+        // WebSocket subscription only works for Lightning payments
+        // IntraLedger transfers don't have payment hashes, so they won't be found
+        this.logger.warn(`Transaction not found for payment hash. This might be an intraledger transfer which is not supported by the Lightning subscription.`);
+        return;
+      }
+
+      if (transaction.direction !== 'RECEIVE') {
         return;
       }
 
@@ -231,7 +267,7 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
       // Mark as sent
       await this.markNotificationSent(paymentHash);
 
-      this.logger.log(`WebSocket payment notification sent for ${paymentHash}`);
+      this.logger.log(`WebSocket payment notification sent for [HASH:${paymentHash.substring(0, 8)}...]`);
     } catch (error) {
       this.logger.error('Error handling WebSocket payment:', error);
     }
@@ -242,9 +278,16 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
    */
   private async handleRabbitMQPayment(data: any): Promise<void> {
     try {
+      this.logger.log(`Received RabbitMQ payment event`);
+      
       const paymentHash = data.paymentHash || data.payment_hash || data.hash;
 
-      if (!paymentHash || (await this.isNotificationSent(paymentHash))) {
+      if (!paymentHash) {
+        this.logger.warn(`No payment hash in RabbitMQ event`);
+        return;
+      }
+      
+      if (await this.isNotificationSent(paymentHash)) {
         return;
       }
 
@@ -281,7 +324,7 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
       // Mark as sent
       await this.markNotificationSent(paymentHash);
 
-      this.logger.log(`RabbitMQ payment notification sent for ${paymentHash}`);
+      this.logger.log(`RabbitMQ payment notification sent`);
     } catch (error) {
       this.logger.error('Error handling RabbitMQ payment:', error);
     }
@@ -299,9 +342,23 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
     try {
       // Format notification message
       let message = `💰 *Payment Received!*\n\n`;
-      message += `You've received *${btcAmount} BTC* (~${fiatAmount} ${fiatCurrency})\n`;
+      
+      // Check if this is a USD payment (notification.currency would be 'USD')
+      if (notification.currency === 'USD') {
+        const currencySymbol = fiatCurrency === 'USD' ? '$' : '';
+        message += `Amount: *${currencySymbol}${fiatAmount} ${fiatCurrency}*`;
+        if (btcAmount && btcAmount !== '?') {
+          message += ` _(~${btcAmount} BTC)_`;
+        }
+        message += '\n';
+      } else {
+        // BTC payment
+        message += `Amount: *${btcAmount} BTC*`;
+        const fiatSymbol = fiatCurrency === 'USD' ? '$' : '';
+        message += ` _(~${fiatSymbol}${fiatAmount} ${fiatCurrency})_\n`;
+      }
 
-      if (notification.senderName) {
+      if (notification.senderName && notification.senderName !== 'Someone') {
         message += `From: *${notification.senderName}*\n`;
       }
 
@@ -309,18 +366,37 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
         message += `Memo: _${notification.memo}_\n`;
       }
 
-      message += `\n⚡ Payment confirmed instantly via Lightning Network`;
+      message += `\n✅ Payment confirmed instantly`;
 
       // Get current balance
       const session = await this.sessionService.getSessionByWhatsappId(notification.whatsappId);
       if (session?.flashAuthToken) {
         try {
           if (session.flashUserId) {
+            // Clear balance cache to ensure we get the latest balance
+            await this.balanceService.clearBalanceCache(session.flashUserId);
+            
             const balance = await this.balanceService.getUserBalance(
               session.flashUserId,
               session.flashAuthToken,
             );
-            message += `\n💼 New balance: *${this.formatBtcAmount(balance.btcBalance)} BTC*`;
+            
+            // Show the appropriate balance based on what the user has
+            if (balance.fiatBalance > 0 || balance.btcBalance === 0) {
+              // User has USD balance or only USD wallet
+              // Note: fiatBalance is already in dollars from BalanceService, not cents
+              const balanceAmount = balance.fiatBalance.toFixed(2);
+              
+              // For display currency (e.g., JMD), we need to show the USD amount
+              if (balance.fiatCurrency !== 'USD') {
+                message += `\n💼 New balance: *$${balanceAmount} USD*`;
+              } else {
+                message += `\n💼 New balance: *$${balanceAmount} USD*`;
+              }
+            } else if (balance.btcBalance > 0) {
+              // User has BTC balance
+              message += `\n💼 New balance: *${this.formatBtcAmount(balance.btcBalance)} BTC*`;
+            }
           }
         } catch (error) {
           // Balance fetch failed, skip it
@@ -394,6 +470,196 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
   }
 
   /**
+   * Start polling for intraledger payments
+   */
+  private startPollingForIntraledgerPayments(whatsappId: string, authToken: string): void {
+    // Clear any existing interval
+    const existingInterval = this.pollingIntervals.get(whatsappId);
+    if (existingInterval) {
+      clearInterval(existingInterval);
+    }
+
+    // Poll every 10 seconds for new transactions
+    const interval = setInterval(async () => {
+      try {
+        await this.checkForNewIntraledgerPayments(whatsappId, authToken);
+      } catch (error) {
+        this.logger.error(`Error polling for payments for ${whatsappId}:`, error);
+      }
+    }, 10000); // 10 seconds
+
+    this.pollingIntervals.set(whatsappId, interval);
+    
+    // Do an immediate check
+    this.checkForNewIntraledgerPayments(whatsappId, authToken).catch(error => {
+      this.logger.error(`Error in initial payment check for ${whatsappId}:`, error);
+    });
+  }
+
+  /**
+   * Check for new intraledger payments
+   */
+  private async checkForNewIntraledgerPayments(whatsappId: string, authToken: string): Promise<void> {
+    try {
+      // Get recent transactions
+      const transactions = await this.transactionService.getRecentTransactions(authToken, 10);
+      
+      if (!transactions?.edges || transactions.edges.length === 0) {
+        return;
+      }
+
+      // Get the last processed transaction ID from Redis
+      const lastProcessedId = await this.getLastTransactionId(whatsappId);
+      
+      // Find new receive transactions
+      const newReceiveTransactions = [];
+      for (const edge of transactions.edges) {
+        const tx = edge.node;
+        
+        // Stop if we've reached a transaction we've already processed
+        if (lastProcessedId && tx.id === lastProcessedId) {
+          break;
+        }
+        
+        // Only process successful receive transactions
+        if (tx.status === 'SUCCESS' && tx.direction === 'RECEIVE') {
+          newReceiveTransactions.push(tx);
+        }
+      }
+
+      // Process new transactions (in reverse order to process oldest first)
+      for (const tx of newReceiveTransactions.reverse()) {
+        // Skip if we've already sent a notification for this transaction
+        const notificationKey = `tx_${tx.id}`;
+        if (await this.isNotificationSent(notificationKey)) {
+          continue;
+        }
+
+        // Get sender information
+        const senderName = tx.initiationVia?.counterPartyUsername || 
+                          tx.settlementVia?.counterPartyUsername || 
+                          'Someone';
+
+        // Format amounts based on currency
+        let btcAmount: string;
+        let fiatAmount: string;
+        let fiatCurrency: string;
+
+        if (tx.settlementCurrency === 'USD') {
+          // USD transaction
+          fiatAmount = tx.settlementAmount.toString();
+          fiatCurrency = 'USD';
+          // Calculate BTC equivalent if available
+          if (tx.settlementPrice) {
+            const btcValue = this.calculateBtcFromUsd(parseFloat(tx.settlementAmount.toString()), tx.settlementPrice);
+            btcAmount = btcValue || '?';
+          } else {
+            btcAmount = '?';
+          }
+        } else {
+          // BTC transaction
+          btcAmount = this.formatBtcAmount(tx.settlementAmount);
+          const fiatEquiv = await this.getFiatEquivalent(tx.settlementAmount, whatsappId, authToken);
+          fiatAmount = fiatEquiv.fiatAmount;
+          fiatCurrency = fiatEquiv.fiatCurrency;
+        }
+
+        // Create notification
+        const notification: PaymentNotification = {
+          paymentHash: notificationKey, // Use transaction ID as unique key
+          userId: tx.id,
+          whatsappId,
+          amount: tx.settlementAmount,
+          currency: tx.settlementCurrency,
+          senderName,
+          memo: tx.memo,
+          timestamp: tx.createdAt,
+          type: 'received',
+        };
+
+        // Send notification
+        await this.sendPaymentNotification(notification, btcAmount, fiatAmount, fiatCurrency);
+
+        // Mark as sent
+        await this.markNotificationSent(notificationKey);
+
+        this.logger.log(`Intraledger payment notification sent for transaction ${tx.id}`);
+      }
+
+      // Update last processed transaction ID in Redis
+      if (transactions.edges.length > 0) {
+        await this.setLastTransactionId(whatsappId, transactions.edges[0].node.id);
+      }
+    } catch (error) {
+      this.logger.error(`Error checking for new intraledger payments:`, error);
+    }
+  }
+
+  /**
+   * Calculate BTC amount from USD and price
+   */
+  private calculateBtcFromUsd(usdAmount: number, price: any): string | null {
+    if (!price || !price.base || price.offset === undefined) {
+      return null;
+    }
+
+    try {
+      // Calculate BTC amount using price
+      const priceValue = price.base / Math.pow(10, price.offset);
+      const btcAmount = usdAmount / priceValue;
+
+      // Format based on amount size
+      if (btcAmount < 0.00001) {
+        const sats = Math.round(btcAmount * 100000000);
+        return `${sats} sats`;
+      } else {
+        return btcAmount.toFixed(8).replace(/\.?0+$/, '');
+      }
+    } catch (error) {
+      this.logger.error('Error calculating BTC amount from USD:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get last processed transaction ID from Redis
+   */
+  private async getLastTransactionId(whatsappId: string): Promise<string | null> {
+    try {
+      const key = `${this.lastTxPrefix}${whatsappId}`;
+      return await this.redisService.get(key);
+    } catch (error) {
+      this.logger.error(`Error getting last transaction ID for ${whatsappId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Set last processed transaction ID in Redis
+   */
+  private async setLastTransactionId(whatsappId: string, transactionId: string): Promise<void> {
+    try {
+      const key = `${this.lastTxPrefix}${whatsappId}`;
+      // Store for 30 days
+      await this.redisService.set(key, transactionId, 30 * 24 * 60 * 60);
+    } catch (error) {
+      this.logger.error(`Error setting last transaction ID for ${whatsappId}:`, error);
+    }
+  }
+
+  /**
+   * Clear last processed transaction ID from Redis
+   */
+  private async clearLastTransactionId(whatsappId: string): Promise<void> {
+    try {
+      const key = `${this.lastTxPrefix}${whatsappId}`;
+      await this.redisService.del(key);
+    } catch (error) {
+      this.logger.error(`Error clearing last transaction ID for ${whatsappId}:`, error);
+    }
+  }
+
+  /**
    * Cleanup subscriptions
    */
   private async cleanup() {
@@ -402,6 +668,15 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
       this.subscriptionService.unsubscribe(subscriptionId);
     }
     this.activeSubscriptions.clear();
+    
+    // Clear all polling intervals
+    for (const [whatsappId, interval] of this.pollingIntervals) {
+      clearInterval(interval);
+    }
+    this.pollingIntervals.clear();
+    
+    // Note: Last transaction IDs are persisted in Redis, no need to clear here
+    
     this.logger.log('Payment notification service cleaned up');
   }
 }

@@ -26,11 +26,11 @@ export interface CommandInfo {
 export const FLASH_COMMANDS: CommandInfo[] = [
   {
     command: 'balance',
-    description: 'Check your Bitcoin and fiat balance',
+    description: 'Check your USD balance',
     usage: 'balance',
     examples: ['balance'],
     requiresAuth: true,
-    notes: 'Shows both BTC and JMD balances',
+    notes: 'Shows your USD balance. BTC balances are hidden by default as BTC wallets are non-custodial.',
   },
   {
     command: 'refresh',
@@ -179,7 +179,7 @@ export const TRAINING_EXAMPLES: TrainingExample[] = [
   {
     question: 'How do I check my balance?',
     answer:
-      'To check your balance, simply type "balance". You\'ll see both your Bitcoin (BTC) and Jamaican Dollar (JMD) balances.',
+      'To check your balance, simply type "balance". You\'ll see your USD balance and its equivalent in your local currency (JMD).',
     category: 'balance',
     keywords: ['balance', 'check', 'money', 'funds', 'account'],
   },
@@ -189,6 +189,20 @@ export const TRAINING_EXAMPLES: TrainingExample[] = [
       'If your balance isn\'t updating, type "refresh" to clear the cache and get the latest balance. This forces a fresh fetch from the server.',
     category: 'balance',
     keywords: ['balance', 'update', 'refresh', 'cache', 'not updating'],
+  },
+  {
+    question: 'Why don\'t I see my BTC balance?',
+    answer:
+      'The WhatsApp bot shows your USD balance by default for simplicity and safety. BTC wallets are non-custodial, meaning Flash cannot see or control them. For BTC balance details, please use the Flash mobile app.',
+    category: 'balance',
+    keywords: ['btc', 'bitcoin', 'balance', 'wallet', 'non-custodial'],
+  },
+  {
+    question: 'Can I see my Bitcoin balance?',
+    answer:
+      'The WhatsApp bot focuses on USD balances for ease of use. BTC wallets are non-custodial (Flash cannot access them), so for complete wallet details including BTC, please use the Flash mobile app.',
+    category: 'balance',
+    keywords: ['bitcoin', 'btc', 'balance', 'see', 'check'],
   },
 
   // Receive/Invoice related
@@ -919,6 +933,10 @@ export const CONVERSATION_CONTEXT = {
     'Be clear about current limitations (e.g., USD-only invoices)',
     'Encourage users to use the mobile app for features not available on WhatsApp',
     'Provide specific examples when explaining commands',
+    'CRITICAL: Always focus on USD wallets - BTC wallets are non-custodial and Flash cannot see or control them',
+    'NEVER show or mention BTC balances unless explicitly asked - always show USD balance',
+    'When users check balance, only show their USD balance, not BTC',
+    'Default all operations to USD unless user specifically requests BTC',
   ],
 
   common_mistakes: [

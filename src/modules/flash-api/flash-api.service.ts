@@ -33,12 +33,7 @@ export class FlashApiService {
       const timestamp = Date.now().toString();
       const headers = this.generateSecureHeaders(query, variables, timestamp, authToken);
 
-      // Debug log the request details
-      this.logger.debug(`API Request URL: ${this.apiUrl}`);
-      this.logger.debug(`API Request Headers: ${JSON.stringify(headers)}`);
-      this.logger.debug(
-        `API Request Body: ${JSON.stringify({ query: query.replace(/\s+/g, ' ').trim(), variables })}`,
-      );
+      // Only log non-sensitive request info
 
       const response = await fetch(this.apiUrl, {
         method: 'POST',
@@ -56,8 +51,6 @@ export class FlashApiService {
 
       const data = await response.json();
 
-      // Log the full response for debugging
-      this.logger.debug(`GraphQL Response: ${JSON.stringify(data)}`);
 
       if (data.errors && data.errors.length > 0) {
         throw new Error(`GraphQL error: ${JSON.stringify(data.errors)}`);
