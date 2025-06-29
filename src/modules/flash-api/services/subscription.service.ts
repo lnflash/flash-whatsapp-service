@@ -55,11 +55,10 @@ export class SubscriptionService implements OnModuleDestroy {
 
     return new Promise((resolve, reject) => {
       try {
-        this.ws = new WebSocket(this.wsUrl, {
+        this.ws = new WebSocket(this.wsUrl, 'graphql-ws', {
           headers: {
             Authorization: `Bearer ${authToken}`,
             'User-Agent': 'Flash-WhatsApp-Service/1.0',
-            'Sec-WebSocket-Protocol': 'graphql-ws',
           },
         });
 
@@ -91,7 +90,10 @@ export class SubscriptionService implements OnModuleDestroy {
         this.ws.on('error', (error) => {
           this.logger.error('WebSocket error:', error);
           this.logger.error(`Failed to connect to: ${this.wsUrl}`);
-          reject(error);
+          // Don't reject on error if we're already connected
+          if (this.ws?.readyState !== WebSocket.OPEN) {
+            reject(error);
+          }
         });
 
         this.ws.on('close', (code, reason) => {

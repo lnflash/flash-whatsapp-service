@@ -273,12 +273,17 @@ export class SessionService {
       const keys = await this.redisService.keys(pattern);
 
       for (const key of keys) {
-        const sessionData = await this.redisService.getEncrypted(key) as UserSession | null;
-        if (sessionData) {
-          // Only include verified sessions with auth tokens
-          if (sessionData.isVerified && sessionData.flashAuthToken) {
-            sessions.push(sessionData);
+        try {
+          const sessionData = await this.redisService.getEncrypted(key) as UserSession | null;
+          if (sessionData) {
+            // Only include verified sessions with auth tokens
+            if (sessionData.isVerified && sessionData.flashAuthToken) {
+              sessions.push(sessionData);
+            }
           }
+        } catch (error) {
+          // Skip sessions that can't be decrypted (old encryption keys)
+          this.logger.debug(`Skipping session ${key}: ${error.message}`);
         }
       }
 
