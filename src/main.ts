@@ -8,6 +8,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { Request, Response } from 'express';
 
 async function bootstrap() {
+  const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
   const port = configService.get<number>('port') || 3000;
@@ -46,11 +47,9 @@ async function bootstrap() {
 
   // Start the application
   await app.listen(port);
-  const logger = new Logger('Bootstrap');
   logger.log(`Application is running on: ${await app.getUrl()}`);
 
   // Handle graceful shutdown
-  const logger = new Logger('Bootstrap');
   process.on('SIGTERM', async () => {
     logger.log('SIGTERM signal received: closing HTTP server');
     await app.close();
