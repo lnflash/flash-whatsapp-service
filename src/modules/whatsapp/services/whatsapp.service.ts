@@ -17,6 +17,7 @@ import { QrCodeService } from './qr-code.service';
 import { CommandParserService, CommandType, ParsedCommand } from './command-parser.service';
 import { WhatsAppWebService } from './whatsapp-web.service';
 import { InvoiceTrackerService } from './invoice-tracker.service';
+import { SupportModeService } from './support-mode.service';
 import { validateUsername, getUsernameErrorMessage } from '../utils/username-validation';
 import {
   validateMemo,
@@ -53,12 +54,28 @@ export class WhatsappService {
     private readonly qrCodeService: QrCodeService,
     private readonly commandParserService: CommandParserService,
     private readonly balanceTemplate: BalanceTemplate,
+    private readonly supportModeService: SupportModeService,
     // private readonly whatsAppCloudService: WhatsAppCloudService, // Disabled for prototype branch
     @Inject(forwardRef(() => WhatsAppWebService))
     private readonly whatsappWebService?: WhatsAppWebService,
     @Inject(forwardRef(() => InvoiceTrackerService))
     private readonly invoiceTrackerService?: InvoiceTrackerService,
   ) {}
+
+  /**
+   * Get recent conversation history for support context
+   */
+  private async getRecentConversation(whatsappId: string): Promise<string[]> {
+    try {
+      const messages: string[] = [];
+      // Get last 10 messages from Redis or wherever they're stored
+      // For now, return empty array as a placeholder
+      return messages;
+    } catch (error) {
+      this.logger.error(`Error getting recent conversation: ${error.message}`);
+      return [];
+    }
+  }
 
   /**
    * Process incoming message from WhatsApp Cloud API
@@ -84,6 +101,26 @@ export class WhatsappService {
 
       // Get session if it exists
       let session = await this.sessionService.getSessionByWhatsappId(whatsappId);
+
+      // Check if user is in support mode
+      if (await this.supportModeService.isInSupportMode(whatsappId)) {
+        const result = await this.supportModeService.routeMessage(whatsappId, messageData.text);
+        if (result.routed) {
+          return result.response || '✉️ Message sent to support...';
+        }
+      }
+
+      // Check if message is requesting support
+      if (this.supportModeService.isRequestingSupport(messageData.text)) {
+        // Store recent conversation context
+        const recentMessages = await this.getRecentConversation(whatsappId);
+        const supportResult = await this.supportModeService.initiateSupportMode(
+          whatsappId,
+          session,
+          recentMessages
+        );
+        return supportResult.message;
+      }
 
       // Handle the command
       return this.handleCommand(command, whatsappId, phoneNumber, session);

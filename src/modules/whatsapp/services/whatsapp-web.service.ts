@@ -11,6 +11,7 @@ import * as qrcode from 'qrcode-terminal';
 import { WhatsappService } from './whatsapp.service';
 import { QrCodeService } from './qr-code.service';
 import { RedisService } from '../../redis/redis.service';
+import { SupportModeService } from './support-mode.service';
 
 @Injectable()
 export class WhatsAppWebService
@@ -30,11 +31,13 @@ export class WhatsAppWebService
     private readonly whatsappService: WhatsappService,
     private readonly qrCodeService: QrCodeService,
     private readonly redisService: RedisService,
+    private readonly supportModeService: SupportModeService,
   ) {
     this.logger.log('WhatsAppWebService constructor called');
     // Initialize WhatsApp Web client with persistent session
     this.client = new Client({
       authStrategy: new LocalAuth({
+        clientId: 'pulse-bot',
         dataPath: './whatsapp-sessions',
       }),
       puppeteer: {
@@ -100,11 +103,12 @@ export class WhatsAppWebService
         this.isReady = false;
         // Remove all listeners to prevent memory leaks
         this.client.removeAllListeners();
-        await this.client.destroy();
-        this.logger.log('WhatsApp Web client destroyed successfully');
+        // Don't destroy the client on normal shutdown to preserve session
+        // Only destroy when explicitly logging out
+        this.logger.log('WhatsApp Web client cleanup completed (session preserved)');
       }
     } catch (error) {
-      this.logger.error('Error destroying WhatsApp Web client:', error);
+      this.logger.error('Error during WhatsApp Web client cleanup:', error);
     }
   }
 
@@ -344,6 +348,19 @@ export class WhatsAppWebService
         if (msg.type !== 'chat') {
           this.logger.log(`Non-chat message type received: ${msg.type}`);
           this.logger.debug(`Full message object: ${JSON.stringify(msg, null, 2)}`);
+        }
+
+        // Check if this is a message from support
+        const supportPhone = this.configService.get<string>('SUPPORT_PHONE_NUMBER') || '18762909250';
+        const fromNumber = msg.from.replace('@c.us', '');
+        
+        if (fromNumber === supportPhone) {
+          // This is a message from support, route it to the user
+          const result = await this.supportModeService.routeMessage(msg.from, msg.body, true);
+          if (!result.routed) {
+            this.logger.warn('Support message could not be routed');
+          }
+          return;
         }
 
         // Process regular text messages

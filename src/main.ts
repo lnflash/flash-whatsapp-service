@@ -41,9 +41,26 @@ async function bootstrap() {
     res.status(200).send({ status: 'ok' });
   });
 
+  // Enable shutdown hooks
+  app.enableShutdownHooks();
+
   // Start the application
   await app.listen(port);
   console.log(`Application is running on: ${await app.getUrl()}`);
+
+  // Handle graceful shutdown
+  process.on('SIGTERM', async () => {
+    console.log('SIGTERM signal received: closing HTTP server');
+    await app.close();
+  });
+
+  process.on('SIGINT', async () => {
+    console.log('SIGINT signal received: closing HTTP server');
+    await app.close();
+  });
 }
 
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('Error starting application:', err);
+  process.exit(1);
+});
