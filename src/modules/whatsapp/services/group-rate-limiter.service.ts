@@ -19,7 +19,7 @@ export interface RateLimitResult {
 @Injectable()
 export class GroupRateLimiterService {
   private readonly logger = new Logger(GroupRateLimiterService.name);
-  
+
   // Default configurations for different command types
   private readonly configs: Record<string, GroupRateLimitConfig> = {
     default: {
@@ -59,7 +59,7 @@ export class GroupRateLimiterService {
   async checkRateLimit(
     groupId: string,
     userId: string,
-    commandType: string = 'default'
+    commandType: string = 'default',
   ): Promise<RateLimitResult> {
     try {
       const config = this.configs[commandType] || this.configs.default;
@@ -93,7 +93,7 @@ export class GroupRateLimiterService {
           await this.redisService.set(
             blockKey,
             blockUntil.toString(),
-            Math.ceil(config.blockDuration / 1000)
+            Math.ceil(config.blockDuration / 1000),
           );
         }
 
@@ -141,14 +141,14 @@ export class GroupRateLimiterService {
       if (!timestamps) return 0;
 
       const parsedTimestamps: number[] = JSON.parse(timestamps);
-      const recentTimestamps = parsedTimestamps.filter(ts => ts > windowStart);
-      
+      const recentTimestamps = parsedTimestamps.filter((ts) => ts > windowStart);
+
       // Update Redis with only recent timestamps if some were filtered out
       if (recentTimestamps.length !== parsedTimestamps.length) {
         await this.redisService.set(
           key,
           JSON.stringify(recentTimestamps),
-          3600 // 1 hour TTL
+          3600, // 1 hour TTL
         );
       }
 
@@ -166,16 +166,16 @@ export class GroupRateLimiterService {
     try {
       const existing = await this.redisService.get(key);
       const timestamps: number[] = existing ? JSON.parse(existing) : [];
-      
+
       // Add new timestamp and keep only recent ones
       timestamps.push(timestamp);
       const windowStart = timestamp - windowMs;
-      const recentTimestamps = timestamps.filter(ts => ts > windowStart);
+      const recentTimestamps = timestamps.filter((ts) => ts > windowStart);
 
       await this.redisService.set(
         key,
         JSON.stringify(recentTimestamps),
-        Math.ceil(windowMs / 1000) + 60 // TTL slightly longer than window
+        Math.ceil(windowMs / 1000) + 60, // TTL slightly longer than window
       );
     } catch (error) {
       this.logger.error(`Error recording request: ${error.message}`);
@@ -206,7 +206,7 @@ export class GroupRateLimiterService {
   async getRateLimitStatus(
     groupId: string,
     userId: string,
-    commandType: string = 'default'
+    commandType: string = 'default',
   ): Promise<{
     userCount: number;
     groupCount: number;

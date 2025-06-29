@@ -117,7 +117,7 @@ export class WhatsappService {
         const supportResult = await this.supportModeService.initiateSupportMode(
           whatsappId,
           session,
-          recentMessages
+          recentMessages,
         );
         return supportResult.message;
       }

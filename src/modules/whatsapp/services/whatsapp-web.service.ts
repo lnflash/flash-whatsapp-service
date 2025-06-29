@@ -162,27 +162,14 @@ export class WhatsAppWebService
     // Message handling
     this.client.on('message', async (msg: Message) => {
       try {
-        // Log ALL available properties on the message object
-        this.logger.debug('=== INCOMING MESSAGE DEBUG ===');
-        this.logger.debug(`Client ready state: ${this.isReady}`);
-        this.logger.debug(`Message type: ${msg.type}`);
-        this.logger.debug(`From: ${msg.from}`);
-        this.logger.debug(`Body: ${msg.body}`);
-        this.logger.debug(`Has vCards: ${!!msg.vCards}`);
-        this.logger.debug(`vCards count: ${msg.vCards?.length || 0}`);
-        this.logger.debug(`Message timestamp: ${msg.timestamp}`);
 
         // Ignore messages during startup grace period
         if (this.isInGracePeriod) {
-          this.logger.debug('Ignoring message during startup grace period');
           return;
         }
 
         // Ignore messages from before server startup
         if (msg.timestamp && msg.timestamp * 1000 < this.serverStartTime.getTime()) {
-          this.logger.debug(
-            `Ignoring old message from before server startup: ${msg.id._serialized} (${new Date(msg.timestamp * 1000).toISOString()})`,
-          );
           return;
         }
 
@@ -199,13 +186,11 @@ export class WhatsAppWebService
 
         // Ignore messages from self
         if (msg.fromMe) {
-          this.logger.debug('Ignoring message from self');
           return;
         }
 
         // Ignore empty messages (unless it's a vCard)
         if ((!msg.body || msg.body.trim() === '') && msg.type !== 'vcard') {
-          this.logger.debug(`Ignoring empty message from ${msg.from}`);
           return;
         }
 
@@ -215,7 +200,6 @@ export class WhatsAppWebService
         const isProcessed = await this.redisService.get(processedKey);
 
         if (isProcessed || this.processedMessages.has(messageKey)) {
-          this.logger.debug(`Skipping duplicate message: ${messageKey}`);
           return;
         }
 
@@ -231,11 +215,7 @@ export class WhatsAppWebService
           5 * 60 * 1000,
         );
 
-        // Enhanced logging to capture all message types
         this.logger.log(`📨 Received message from ${msg.from}: "${msg.body}"`);
-        this.logger.debug(`Message type: ${msg.type}`);
-        this.logger.debug(`Has media: ${msg.hasMedia}`);
-        this.logger.debug(`Message data keys: ${Object.keys(msg).join(', ')}`);
 
         // Check for vCard (contact sharing)
         if (msg.type === 'vcard' || msg.vCards?.length > 0) {
@@ -347,13 +327,13 @@ export class WhatsAppWebService
         // Log other message types for debugging
         if (msg.type !== 'chat') {
           this.logger.log(`Non-chat message type received: ${msg.type}`);
-          this.logger.debug(`Full message object: ${JSON.stringify(msg, null, 2)}`);
         }
 
         // Check if this is a message from support
-        const supportPhone = this.configService.get<string>('SUPPORT_PHONE_NUMBER') || '18762909250';
+        const supportPhone =
+          this.configService.get<string>('SUPPORT_PHONE_NUMBER') || '18762909250';
         const fromNumber = msg.from.replace('@c.us', '');
-        
+
         if (fromNumber === supportPhone) {
           // This is a message from support, route it to the user
           const result = await this.supportModeService.routeMessage(msg.from, msg.body, true);
@@ -374,9 +354,6 @@ export class WhatsAppWebService
 
         // Send response if we have one
         if (response) {
-          this.logger.debug(
-            `Response type: ${typeof response}, has text: ${typeof response === 'object' && 'text' in response}, has media: ${typeof response === 'object' && 'media' in response}`,
-          );
 
           // Check if response is an object with text property
           if (typeof response === 'object' && 'text' in response) {

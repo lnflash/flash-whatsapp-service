@@ -124,37 +124,32 @@ describe('SupportModeService', () => {
         },
       });
 
-      const result = await service.initiateSupportMode(
-        '1234567890@c.us',
-        mockUserSession,
-        ['User: I need help', 'Bot: How can I help?']
-      );
+      const result = await service.initiateSupportMode('1234567890@c.us', mockUserSession, [
+        'User: I need help',
+        'Bot: How can I help?',
+      ]);
 
       expect(result.success).toBe(true);
       expect(result.message).toContain('Support Mode Activated');
-      
+
       // Verify support was notified
       expect(whatsappWebService.sendMessage).toHaveBeenCalledWith(
         '18762909250@c.us',
-        expect.stringContaining('New Support Request')
+        expect.stringContaining('New Support Request'),
       );
-      
+
       // Verify session was stored
       expect(redisService.set).toHaveBeenCalledWith(
         'support_mode:1234567890@c.us',
         expect.any(String),
-        7200
+        7200,
       );
     });
 
     it('should prevent duplicate support sessions', async () => {
       redisService.get.mockResolvedValue('existing-session'); // Already in support mode
 
-      const result = await service.initiateSupportMode(
-        '1234567890@c.us',
-        mockUserSession,
-        []
-      );
+      const result = await service.initiateSupportMode('1234567890@c.us', mockUserSession, []);
 
       expect(result.success).toBe(false);
       expect(result.message).toContain('already connected to a support agent');
@@ -180,15 +175,15 @@ describe('SupportModeService', () => {
       const result = await service.routeMessage(
         '1234567890@c.us',
         'I have a problem with my payment',
-        false
+        false,
       );
 
       expect(result.routed).toBe(true);
       expect(result.response).toContain('Message sent to support');
-      
+
       expect(whatsappWebService.sendMessage).toHaveBeenCalledWith(
         '18762909250@c.us',
-        expect.stringContaining('From 1234567890:')
+        expect.stringContaining('From 1234567890:'),
       );
     });
 
@@ -200,14 +195,14 @@ describe('SupportModeService', () => {
       const result = await service.routeMessage(
         '+18769202950@c.us',
         'I can help you with that payment issue',
-        true
+        true,
       );
 
       expect(result.routed).toBe(true);
-      
+
       expect(whatsappWebService.sendMessage).toHaveBeenCalledWith(
         '1234567890@c.us',
-        '👨‍💼 *Support Agent*: I can help you with that payment issue'
+        '👨‍💼 *Support Agent*: I can help you with that payment issue',
       );
     });
 
@@ -216,15 +211,11 @@ describe('SupportModeService', () => {
         .mockResolvedValueOnce(JSON.stringify(mockSession))
         .mockResolvedValueOnce(JSON.stringify(mockSession)); // For endSupportSession
 
-      const result = await service.routeMessage(
-        '1234567890@c.us',
-        'exit support',
-        false
-      );
+      const result = await service.routeMessage('1234567890@c.us', 'exit support', false);
 
       expect(result.routed).toBe(true);
       expect(result.response).toContain('Support Session Ended');
-      
+
       // Verify session was deleted
       expect(redisService.del).toHaveBeenCalledWith('support_mode:1234567890@c.us');
     });
@@ -250,18 +241,18 @@ describe('SupportModeService', () => {
 
       expect(result.routed).toBe(true);
       expect(result.response).toContain('Support Session Ended');
-      
+
       // Verify session was archived
       expect(redisService.set).toHaveBeenCalledWith(
         expect.stringContaining('support_session:1234567890@c.us:'),
         expect.any(String),
-        2592000 // 30 days
+        2592000, // 30 days
       );
-      
+
       // Verify support was notified
       expect(whatsappWebService.sendMessage).toHaveBeenCalledWith(
         '18762909250@c.us',
-        expect.stringContaining('Support session ended')
+        expect.stringContaining('Support session ended'),
       );
     });
   });

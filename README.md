@@ -36,6 +36,9 @@ This service uses WhatsApp Web.js to provide a seamless integration between Flas
 - ✅ Content sharing ("vybz") to earn sats
 - ✅ Transaction history viewing
 - ✅ Pending payments for non-Flash users
+- ✅ Human support handoff with intelligent routing
+- ✅ Anonymous tip sending via DM
+- ✅ Group tip splitting for Flash users
 
 ## Prerequisites
 
@@ -120,6 +123,9 @@ REDIS_PASSWORD=optional_password
 
 # Admin Configuration
 ADMIN_PHONE_NUMBERS=13059244435,18764250250
+
+# Support Configuration
+SUPPORT_PHONE_NUMBER=18762909250
 
 # Nostr Configuration (optional - for vybz feature)
 NOSTR_PRIVATE_KEY=your_nsec_here
@@ -222,6 +228,39 @@ The admin reconnection feature allows authorized administrators to change the Wh
 4. **Confirmation**: Bot sends welcome message from new number
 
 This seamless process ensures zero downtime during number changes.
+
+## Support Mode
+
+The AI-powered support mode provides seamless handoff to human agents when users need assistance:
+
+### How it works:
+1. **Automatic Detection**: The AI detects when users request human support (e.g., "speak to an agent", "human help")
+2. **Context Gathering**: Collects user info (username, balance, npub, recent conversation)
+3. **Smart Routing**: Routes messages between multiple users and support simultaneously
+4. **Easy Management**: Support agents reply with `@phone: message` to specific users
+5. **Session Control**: Users type "exit support" to return to normal bot functions
+
+### Support Agent Features:
+- View all active sessions: Type `list` or `sessions`
+- Reply to specific user: `@13059244435: Hello, how can I help?`
+- End support session: `@13059244435: exit support`
+- Automatic session info with each new connection
+
+## Anonymous Tips
+
+Send tips anonymously through direct messages:
+
+### Features:
+- **True Anonymity**: Tips sent via DM ensure sender identity is hidden
+- **Group Tip Splitting**: Distribute tips evenly among Flash users in a group
+- **Flexible Amounts**: Send any amount with optional messages
+- **Privacy First**: Recipients only see "Someone sent you a tip"
+
+### Tip Commands:
+- `tip @username 5` - Send anonymous 5 USD tip
+- `tip @alice 10 great job!` - Include a message with tip
+- `tip group "Flash Users" 20` - Split $20 among all Flash users in the group
+- `tip group "Dev Team" 50 thanks everyone` - Group tip with message
 
 ## Roadmap
 

@@ -21,7 +21,7 @@ const DEFAULT_OPTIONS: SanitizationOptions = {
  */
 export function sanitizeGroupName(
   input: string | undefined | null,
-  options: SanitizationOptions = {}
+  options: SanitizationOptions = {},
 ): string {
   if (!input || typeof input !== 'string') {
     return 'Unknown Group';
@@ -65,10 +65,12 @@ export function sanitizeGroupName(
   // Handle emoji if not allowed
   if (!opts.allowEmoji) {
     // Remove emoji and other symbols
-    sanitized = sanitized.replace(
-      /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu,
-      ''
-    ).trim(); // Trim after removing emoji to clean up leftover spaces
+    sanitized = sanitized
+      .replace(
+        /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu,
+        '',
+      )
+      .trim(); // Trim after removing emoji to clean up leftover spaces
   }
 
   // Enforce maximum length
@@ -89,7 +91,7 @@ export function sanitizeGroupName(
  */
 export function sanitizeSenderName(
   input: string | undefined | null,
-  options: SanitizationOptions = {}
+  options: SanitizationOptions = {},
 ): string {
   if (!input || typeof input !== 'string') {
     return 'Unknown User';
@@ -111,7 +113,7 @@ export function sanitizeSenderName(
  */
 export function sanitizeMessageContent(
   input: string | undefined | null,
-  options: SanitizationOptions = {}
+  options: SanitizationOptions = {},
 ): string {
   if (!input || typeof input !== 'string') {
     return '';
@@ -131,7 +133,7 @@ export function sanitizeGroupId(groupId: string | undefined | null): string | nu
 
   // WhatsApp group IDs should match pattern: number@g.us
   const groupIdPattern = /^[\d-]+@g\.us$/;
-  
+
   if (!groupIdPattern.test(groupId)) {
     return null;
   }
@@ -152,7 +154,7 @@ export function sanitizeUserId(userId: string | undefined | null): string | null
   // - number@lid
   // - number@s.whatsapp.net
   const userIdPattern = /^[\d+]+@(c\.us|lid|s\.whatsapp\.net)$/;
-  
+
   if (!userIdPattern.test(userId)) {
     return null;
   }
