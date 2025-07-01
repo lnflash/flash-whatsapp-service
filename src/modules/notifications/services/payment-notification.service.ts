@@ -389,6 +389,12 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
         }
       }
 
+      // Check if WhatsApp client is ready before sending
+      if (!this.whatsappWebService.isClientReady()) {
+        this.logger.warn(`WhatsApp client not ready, skipping notification for ${notification.whatsappId}`);
+        return;
+      }
+
       // Send WhatsApp message
       await this.whatsappWebService.sendMessage(notification.whatsappId, message);
     } catch (error) {
@@ -497,6 +503,11 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
     authToken: string,
   ): Promise<void> {
     try {
+      // Skip if WhatsApp client is not ready
+      if (!this.whatsappWebService.isClientReady()) {
+        return;
+      }
+
       // Get recent transactions
       const transactions = await this.transactionService.getRecentTransactions(authToken, 10);
 

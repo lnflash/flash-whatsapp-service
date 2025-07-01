@@ -55,6 +55,8 @@ export class WhatsAppWebService
           '--single-process',
           '--disable-gpu',
         ],
+        // Increase browser launch timeout
+        timeout: 60000,
       },
       // Increase timeout for slower systems
       authTimeoutMs: 60000,
@@ -79,9 +81,23 @@ export class WhatsAppWebService
       // Check if session exists
       // Session check happens during client initialization
 
+      this.logger.log('Initializing WhatsApp Web client...');
       await this.client.initialize();
+      this.logger.log('WhatsApp Web client initialized successfully');
     } catch (error) {
       this.logger.error('Failed to initialize WhatsApp Web client:', error);
+      this.logger.error('Stack trace:', error.stack);
+      
+      // Retry initialization after a delay
+      setTimeout(async () => {
+        this.logger.log('Retrying WhatsApp Web client initialization...');
+        try {
+          await this.client.initialize();
+          this.logger.log('WhatsApp Web client initialized successfully on retry');
+        } catch (retryError) {
+          this.logger.error('Failed to initialize WhatsApp Web client on retry:', retryError);
+        }
+      }, 10000); // Retry after 10 seconds
     }
   }
 
