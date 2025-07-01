@@ -31,7 +31,7 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
     if (process.env.NODE_ENV === 'test') {
       return;
     }
-    
+
     try {
       if (!this.rabbitmqUrl || !this.queueName) {
         this.logger.warn('Skipping RabbitMQ connection due to missing configuration');

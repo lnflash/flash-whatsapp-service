@@ -61,6 +61,12 @@ import { SpeechModule } from '../speech/speech.module';
     PaymentConfirmationService,
     UserVoiceSettingsService,
   ],
-  exports: [WhatsappService, WhatsAppWebService, AdminSettingsService, UserVoiceSettingsService],
+  exports: [
+    WhatsappService,
+    WhatsAppWebService,
+    AdminSettingsService,
+    UserVoiceSettingsService,
+    CommandParserService,
+  ],
 })
 export class WhatsappModule {}

@@ -286,4 +286,37 @@ export class SessionService {
       return [];
     }
   }
+
+  /**
+   * Generic key-value operations for admin dashboard
+   */
+  async set(key: string, value: any, ttl?: number): Promise<void> {
+    await this.redisService.setEncrypted(key, value, ttl);
+  }
+
+  async get(key: string): Promise<any> {
+    return this.redisService.getEncrypted(key);
+  }
+
+  async delete(key: string): Promise<void> {
+    await this.redisService.del(key);
+  }
+
+  async getByPattern(pattern: string): Promise<Map<string, any>> {
+    const results = new Map<string, any>();
+    const keys = await this.redisService.keys(pattern);
+
+    for (const key of keys) {
+      try {
+        const value = await this.redisService.getEncrypted(key);
+        if (value) {
+          results.set(key, value);
+        }
+      } catch {
+        // Skip values that can't be decrypted
+      }
+    }
+
+    return results;
+  }
 }

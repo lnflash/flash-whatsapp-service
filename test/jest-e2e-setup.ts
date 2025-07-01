@@ -25,5 +25,5 @@ jest.setTimeout(30000);
 // Global teardown to ensure all resources are cleaned up
 afterAll(async () => {
   // Give time for any pending operations to complete
-  await new Promise(resolve => setTimeout(resolve, 100));
+  await new Promise((resolve) => setTimeout(resolve, 100));
 });

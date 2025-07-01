@@ -29,51 +29,51 @@ const mockRedisClient = {
 // Mock Redis Service
 export class MockRedisService {
   private client = mockRedisClient;
-  
+
   async onModuleInit() {
     // No-op for tests
   }
-  
+
   async onModuleDestroy() {
     // No-op for tests
   }
-  
+
   async get(key: string): Promise<string | null> {
     return this.client.get(key);
   }
-  
+
   async set(key: string, value: string, ttl?: number): Promise<void> {
     await this.client.set(key, value);
     if (ttl) {
       await this.client.expire(key, ttl);
     }
   }
-  
+
   async del(key: string): Promise<void> {
     await this.client.del(key);
   }
-  
+
   async expire(key: string, seconds: number): Promise<void> {
     await this.client.expire(key, seconds);
   }
-  
+
   async ttl(key: string): Promise<number> {
     return this.client.ttl(key);
   }
-  
+
   async keys(pattern: string): Promise<string[]> {
     return this.client.keys(pattern);
   }
-  
+
   async setEncrypted(key: string, value: any, ttl?: number): Promise<void> {
     await this.set(key, JSON.stringify(value), ttl);
   }
-  
+
   async getEncrypted(key: string): Promise<any> {
     const value = await this.get(key);
     return value ? JSON.parse(value) : null;
   }
-  
+
   getMockClient() {
     return mockRedisClient;
   }
@@ -95,7 +95,7 @@ export async function createTestApp(): Promise<INestApplication> {
   process.env.ENABLE_INTRALEDGER_POLLING = 'false';
   process.env.ENABLE_WEBSOCKET_NOTIFICATIONS = 'false';
   process.env.LOG_LEVEL = 'error';
-  
+
   const moduleFixture: TestingModule = await Test.createTestingModule({
     imports: [AppModule],
   })
@@ -138,27 +138,27 @@ export class MockWhatsAppWebService {
   async onModuleInit() {
     // No-op for tests
   }
-  
+
   async onModuleDestroy() {
     // No-op for tests
   }
-  
+
   async sendMessage(to: string, message: string): Promise<void> {
     // No-op for tests
   }
-  
+
   async sendImage(to: string, imageBuffer: Buffer, caption?: string): Promise<void> {
     // No-op for tests
   }
-  
+
   async sendVoiceNote(to: string, audioBuffer: Buffer): Promise<void> {
     // No-op for tests
   }
-  
+
   isClientReady(): boolean {
     return false; // WhatsApp not connected in tests
   }
-  
+
   getStatus() {
     return { connected: false };
   }
@@ -169,20 +169,22 @@ export class MockEventsService {
   async onModuleInit() {
     // No-op for tests
   }
-  
+
   async onModuleDestroy() {
     // No-op for tests
   }
-  
+
   async emit(pattern: string, data: any): Promise<void> {
     // No-op for tests
   }
-  
+
   async subscribe(pattern: string, callback: Function): Promise<void> {
     // No-op for tests
   }
-  
-  async subscribeToEvents(callback: (eventType: string, data: any) => Promise<void>): Promise<void> {
+
+  async subscribeToEvents(
+    callback: (eventType: string, data: any) => Promise<void>,
+  ): Promise<void> {
     // No-op for tests - matches the signature expected by PaymentEventListener
   }
 }
@@ -192,11 +194,11 @@ export class MockSubscriptionService {
   async subscribe(eventType: string, callback: Function): Promise<string> {
     return 'mock-subscription-id';
   }
-  
+
   async unsubscribe(subscriptionId: string): Promise<void> {
     // No-op for tests
   }
-  
+
   async enableWebSocketSubscriptions(authToken: string): Promise<void> {
     // No-op for tests
   }
@@ -207,7 +209,7 @@ export class MockSpeechService {
   isAvailable(): boolean {
     return false;
   }
-  
+
   async speechToText(audioBuffer: Buffer, mimeType: string): Promise<string | null> {
     return null;
   }
