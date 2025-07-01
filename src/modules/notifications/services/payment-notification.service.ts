@@ -63,7 +63,7 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
 
       // Check if WebSocket subscriptions are enabled
       const wsEnabled = this.configService.get<boolean>('notifications.enableWebSocket', true);
-      
+
       if (wsEnabled) {
         // Try to enable WebSocket subscriptions but don't fail if they don't work
         try {
@@ -170,11 +170,13 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
       );
 
       this.activeSubscriptions.set(whatsappId, subscriptionId);
-      
+
       // Start polling for intraledger transfers (Flash-to-Flash payments)
       this.startPollingForIntraledgerPayments(whatsappId, authToken);
-      
-      this.logger.log(`User ${whatsappId} subscribed to real-time payment updates (Lightning + polling for intraledger)`);
+
+      this.logger.log(
+        `User ${whatsappId} subscribed to real-time payment updates (Lightning + polling for intraledger)`,
+      );
     } catch (error) {
       this.logger.error(`Failed to subscribe user ${whatsappId} to payments:`, error);
     }
@@ -190,17 +192,17 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
       this.subscriptionService.unsubscribe(subscriptionId);
       this.activeSubscriptions.delete(whatsappId);
     }
-    
+
     // Stop polling
     const interval = this.pollingIntervals.get(whatsappId);
     if (interval) {
       clearInterval(interval);
       this.pollingIntervals.delete(whatsappId);
     }
-    
+
     // Clear last transaction ID from Redis
     await this.clearLastTransactionId(whatsappId);
-    
+
     this.logger.log(`User ${whatsappId} unsubscribed from payment updates`);
   }
 
@@ -213,8 +215,10 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
     authToken: string,
   ): Promise<void> {
     try {
-      this.logger.log(`Processing WebSocket payment notification for [HASH:${paymentHash.substring(0, 8)}...]`);
-      
+      this.logger.log(
+        `Processing WebSocket payment notification for [HASH:${paymentHash.substring(0, 8)}...]`,
+      );
+
       // Check if we've already sent this notification
       if (await this.isNotificationSent(paymentHash)) {
         return;
@@ -229,7 +233,9 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
       if (!transaction) {
         // WebSocket subscription only works for Lightning payments
         // IntraLedger transfers don't have payment hashes, so they won't be found
-        this.logger.warn(`Transaction not found for payment hash. This might be an intraledger transfer which is not supported by the Lightning subscription.`);
+        this.logger.warn(
+          `Transaction not found for payment hash. This might be an intraledger transfer which is not supported by the Lightning subscription.`,
+        );
         return;
       }
 
@@ -267,7 +273,9 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
       // Mark as sent
       await this.markNotificationSent(paymentHash);
 
-      this.logger.log(`WebSocket payment notification sent for [HASH:${paymentHash.substring(0, 8)}...]`);
+      this.logger.log(
+        `WebSocket payment notification sent for [HASH:${paymentHash.substring(0, 8)}...]`,
+      );
     } catch (error) {
       this.logger.error('Error handling WebSocket payment:', error);
     }
@@ -279,14 +287,14 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
   private async handleRabbitMQPayment(data: any): Promise<void> {
     try {
       this.logger.log(`Received RabbitMQ payment event`);
-      
+
       const paymentHash = data.paymentHash || data.payment_hash || data.hash;
 
       if (!paymentHash) {
         this.logger.warn(`No payment hash in RabbitMQ event`);
         return;
       }
-      
+
       if (await this.isNotificationSent(paymentHash)) {
         return;
       }
@@ -342,7 +350,7 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
     try {
       // Format notification message
       let message = `💰 *Payment Received!*\n\n`;
-      
+
       // Check if this is a USD payment (notification.currency would be 'USD')
       if (notification.currency === 'USD') {
         const currencySymbol = fiatCurrency === 'USD' ? '$' : '';
@@ -375,18 +383,18 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
           if (session.flashUserId) {
             // Clear balance cache to ensure we get the latest balance
             await this.balanceService.clearBalanceCache(session.flashUserId);
-            
+
             const balance = await this.balanceService.getUserBalance(
               session.flashUserId,
               session.flashAuthToken,
             );
-            
+
             // Show the appropriate balance based on what the user has
             if (balance.fiatBalance > 0 || balance.btcBalance === 0) {
               // User has USD balance or only USD wallet
               // Note: fiatBalance is already in dollars from BalanceService, not cents
               const balanceAmount = balance.fiatBalance.toFixed(2);
-              
+
               // For display currency (e.g., JMD), we need to show the USD amount
               if (balance.fiatCurrency !== 'USD') {
                 message += `\n💼 New balance: *$${balanceAmount} USD*`;
@@ -489,9 +497,9 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
     }, 10000); // 10 seconds
 
     this.pollingIntervals.set(whatsappId, interval);
-    
+
     // Do an immediate check
-    this.checkForNewIntraledgerPayments(whatsappId, authToken).catch(error => {
+    this.checkForNewIntraledgerPayments(whatsappId, authToken).catch((error) => {
       this.logger.error(`Error in initial payment check for ${whatsappId}:`, error);
     });
   }
@@ -499,28 +507,31 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
   /**
    * Check for new intraledger payments
    */
-  private async checkForNewIntraledgerPayments(whatsappId: string, authToken: string): Promise<void> {
+  private async checkForNewIntraledgerPayments(
+    whatsappId: string,
+    authToken: string,
+  ): Promise<void> {
     try {
       // Get recent transactions
       const transactions = await this.transactionService.getRecentTransactions(authToken, 10);
-      
+
       if (!transactions?.edges || transactions.edges.length === 0) {
         return;
       }
 
       // Get the last processed transaction ID from Redis
       const lastProcessedId = await this.getLastTransactionId(whatsappId);
-      
+
       // Find new receive transactions
       const newReceiveTransactions = [];
       for (const edge of transactions.edges) {
         const tx = edge.node;
-        
+
         // Stop if we've reached a transaction we've already processed
         if (lastProcessedId && tx.id === lastProcessedId) {
           break;
         }
-        
+
         // Only process successful receive transactions
         if (tx.status === 'SUCCESS' && tx.direction === 'RECEIVE') {
           newReceiveTransactions.push(tx);
@@ -536,9 +547,10 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
         }
 
         // Get sender information
-        const senderName = tx.initiationVia?.counterPartyUsername || 
-                          tx.settlementVia?.counterPartyUsername || 
-                          'Someone';
+        const senderName =
+          tx.initiationVia?.counterPartyUsername ||
+          tx.settlementVia?.counterPartyUsername ||
+          'Someone';
 
         // Format amounts based on currency
         let btcAmount: string;
@@ -551,7 +563,10 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
           fiatCurrency = 'USD';
           // Calculate BTC equivalent if available
           if (tx.settlementPrice) {
-            const btcValue = this.calculateBtcFromUsd(parseFloat(tx.settlementAmount.toString()), tx.settlementPrice);
+            const btcValue = this.calculateBtcFromUsd(
+              parseFloat(tx.settlementAmount.toString()),
+              tx.settlementPrice,
+            );
             btcAmount = btcValue || '?';
           } else {
             btcAmount = '?';
@@ -559,7 +574,11 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
         } else {
           // BTC transaction
           btcAmount = this.formatBtcAmount(tx.settlementAmount);
-          const fiatEquiv = await this.getFiatEquivalent(tx.settlementAmount, whatsappId, authToken);
+          const fiatEquiv = await this.getFiatEquivalent(
+            tx.settlementAmount,
+            whatsappId,
+            authToken,
+          );
           fiatAmount = fiatEquiv.fiatAmount;
           fiatCurrency = fiatEquiv.fiatCurrency;
         }
@@ -668,15 +687,15 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
       this.subscriptionService.unsubscribe(subscriptionId);
     }
     this.activeSubscriptions.clear();
-    
+
     // Clear all polling intervals
     for (const [whatsappId, interval] of this.pollingIntervals) {
       clearInterval(interval);
     }
     this.pollingIntervals.clear();
-    
+
     // Note: Last transaction IDs are persisted in Redis, no need to clear here
-    
+
     this.logger.log('Payment notification service cleaned up');
   }
 }

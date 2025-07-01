@@ -79,10 +79,12 @@ export class SubscriptionService implements OnModuleDestroy {
             },
             closed: (event: WebSocketCloseEvent) => {
               this.logger.warn(`WebSocket closed: ${event?.code} - ${event?.reason}`);
-              
+
               // Don't try to reconnect for certain error codes
               if (event?.code === 4400 || event?.code === 4401 || event?.code === 4403) {
-                this.logger.error('WebSocket closed with unrecoverable error. Disabling WebSocket subscriptions.');
+                this.logger.error(
+                  'WebSocket closed with unrecoverable error. Disabling WebSocket subscriptions.',
+                );
                 this.logger.log('Push notifications will continue working via RabbitMQ events.');
               }
             },
@@ -131,10 +133,12 @@ export class SubscriptionService implements OnModuleDestroy {
         {
           next: (result: LnUpdateResult) => {
             const update = result.data?.myUpdates?.update;
-            
+
             // Check if we have a valid update with paymentHash and status
             if (update && update.paymentHash && update.status) {
-              this.logger.log(`Lightning payment update: [HASH:${update.paymentHash.substring(0, 8)}...] - ${update.status}`);
+              this.logger.log(
+                `Lightning payment update: [HASH:${update.paymentHash.substring(0, 8)}...] - ${update.status}`,
+              );
               callback(update.paymentHash, update.status);
             } else if (update && Object.keys(update).length === 0) {
               // Empty update object - this is just a heartbeat

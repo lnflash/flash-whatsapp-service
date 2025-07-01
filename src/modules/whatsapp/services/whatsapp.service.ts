@@ -32,6 +32,7 @@ import { BalanceTemplate } from '../templates/balance-template';
 import { AccountLinkRequestDto } from '../../auth/dto/account-link-request.dto';
 import { VerifyOtpDto } from '../../auth/dto/verify-otp.dto';
 import { UserSession } from '../../auth/interfaces/user-session.interface';
+import { AdminSettingsService } from './admin-settings.service';
 // import { WhatsAppCloudService } from './whatsapp-cloud.service'; // Disabled for prototype branch
 
 @Injectable()
@@ -57,6 +58,7 @@ export class WhatsappService {
     private readonly commandParserService: CommandParserService,
     private readonly balanceTemplate: BalanceTemplate,
     private readonly supportModeService: SupportModeService,
+    private readonly adminSettingsService: AdminSettingsService,
     // private readonly whatsAppCloudService: WhatsAppCloudService, // Disabled for prototype branch
     @Inject(forwardRef(() => WhatsAppWebService))
     private readonly whatsappWebService?: WhatsAppWebService,
@@ -125,7 +127,19 @@ export class WhatsappService {
       }
 
       // Handle the command
-      return this.handleCommand(command, whatsappId, phoneNumber, session);
+      const response = await this.handleCommand(command, whatsappId, phoneNumber, session);
+
+      // Add hints to text responses
+      if (typeof response === 'string') {
+        return this.addHint(response, session, command);
+      } else if (response && typeof response === 'object' && 'text' in response) {
+        return {
+          ...response,
+          text: this.addHint(response.text, session, command),
+        };
+      }
+
+      return response;
     } catch (error) {
       this.logger.error(`Error processing cloud message: ${error.message}`, error.stack);
       return "I'm sorry, something went wrong. Please try again later.";
@@ -142,6 +156,12 @@ export class WhatsappService {
     session: UserSession | null,
   ): Promise<string | { text: string; media?: Buffer }> {
     try {
+      // Check lockdown status first
+      const lockdownMessage = await this.checkLockdown(whatsappId, command);
+      if (lockdownMessage) {
+        return lockdownMessage;
+      }
+
       switch (command.type) {
         case CommandType.HELP:
           return this.getHelpMessage(session);
@@ -417,7 +437,11 @@ export class WhatsappService {
 
             if (claimedCount > 0) {
               const totalUsd = (totalClaimed / 100).toFixed(2);
-              return `Your Flash account has been successfully linked!\n\n💰 Great news! You had ${claimedCount} pending payment${claimedCount > 1 ? 's' : ''} totaling $${totalUsd} that ${claimedCount > 1 ? 'have' : 'has'} been automatically credited to your account!\n\nType "balance" to see your updated balance.`;
+              const successMessage = `✅ *Account Successfully Linked!*\n\n💰 Great news! You had ${claimedCount} pending payment${claimedCount > 1 ? 's' : ''} totaling $${totalUsd} that ${claimedCount > 1 ? 'have' : 'has'} been automatically credited to your account!`;
+
+              // Add help menu after successful link with pending payments
+              const helpMessage = this.getHelpMessage(updatedSession);
+              return `${successMessage}\n\n${helpMessage}`;
             }
           }
         }
@@ -425,7 +449,12 @@ export class WhatsappService {
         this.logger.error(`Error checking for pending payments: ${error.message}`);
       }
 
-      return 'Your Flash account has been successfully linked! You can now check your balance and use other Flash services through WhatsApp.';
+      const successMessage =
+        '✅ *Account Successfully Linked!*\n\nYour Flash account is now connected to WhatsApp.';
+
+      // Add help menu after successful link
+      const helpMessage = this.getHelpMessage(updatedSession);
+      return `${successMessage}\n\n${helpMessage}`;
     } catch (error) {
       this.logger.error(`Error handling verify command: ${error.message}`, error.stack);
 
@@ -1094,37 +1123,55 @@ Need help? Type "support" to reach our team! 🤝`;
               contactPhone + '@c.us',
               contactPhone, // Raw phone number
               '+' + contactPhone, // With + prefix
-              '+' + contactPhone + '@c.us' // With + prefix and @c.us
+              '+' + contactPhone + '@c.us', // With + prefix and @c.us
             ];
-            
+
             let contactSession = null;
             for (const whatsappId of possibleWhatsappIds) {
-              this.logger.log(`Trying to find session for ${possibleContactName} with WhatsApp ID: ${whatsappId}`);
+              this.logger.log(
+                `Trying to find session for ${possibleContactName} with WhatsApp ID: ${whatsappId}`,
+              );
               contactSession = await this.sessionService.getSessionByWhatsappId(whatsappId);
               if (contactSession) {
-                this.logger.log(`Found session for ${possibleContactName} using WhatsApp ID: ${whatsappId}`);
+                this.logger.log(
+                  `Found session for ${possibleContactName} using WhatsApp ID: ${whatsappId}`,
+                );
                 break;
               }
             }
-            
-            if (contactSession?.isVerified && contactSession.flashUserId && contactSession.flashAuthToken) {
+
+            if (
+              contactSession?.isVerified &&
+              contactSession.flashUserId &&
+              contactSession.flashAuthToken
+            ) {
               // Contact has a linked Flash account, get their username
-              this.logger.log(`Found linked Flash account for ${possibleContactName}, fetching username...`);
+              this.logger.log(
+                `Found linked Flash account for ${possibleContactName}, fetching username...`,
+              );
               try {
-                const contactUsername = await this.usernameService.getUsername(contactSession.flashAuthToken);
-                this.logger.log(`Username lookup result for ${possibleContactName}: ${contactUsername || 'no username'}`);
+                const contactUsername = await this.usernameService.getUsername(
+                  contactSession.flashAuthToken,
+                );
+                this.logger.log(
+                  `Username lookup result for ${possibleContactName}: ${contactUsername || 'no username'}`,
+                );
                 if (contactUsername) {
                   // Use their Flash username for the payment
                   targetUsername = contactUsername;
                   lightningAddress = ''; // Clear this so we use username payment flow
-                  this.logger.log(`Contact ${possibleContactName} has Flash username: @${contactUsername}`);
+                  this.logger.log(
+                    `Contact ${possibleContactName} has Flash username: @${contactUsername}`,
+                  );
                   // Continue with the payment flow
                 } else {
                   // Contact has Flash but no username, use escrow
                   targetPhone = contactPhone;
                   targetUsername = ''; // Clear username to prevent lookup
                   lightningAddress = ''; // Clear this too
-                  this.logger.log(`Contact ${possibleContactName} has Flash but no username, using escrow`);
+                  this.logger.log(
+                    `Contact ${possibleContactName} has Flash but no username, using escrow`,
+                  );
                 }
               } catch (error) {
                 this.logger.error(`Failed to get contact's Flash username: ${error.message}`);
@@ -1386,9 +1433,9 @@ Need help? Type "support" to reach our team! 🤝`;
           const claimCode = this.generateClaimCode();
 
           // Determine recipient name for the escrow memo
-          const recipientName = isContactPayment ? 
-            command.args.username || command.args.recipient || 'contact' : 
-            targetPhone;
+          const recipientName = isContactPayment
+            ? command.args.username || command.args.recipient || 'contact'
+            : targetPhone;
 
           // Send payment to admin wallet (escrow) with claim code in memo
           const escrowMemo = `Pending payment for ${recipientName} (${targetPhone}) - Claim: ${claimCode}`;
@@ -1403,12 +1450,14 @@ Need help? Type "support" to reach our team! 🤝`;
           );
 
           if (escrowResult?.status !== PaymentSendResult.Success) {
-            const errorMessage = escrowResult?.errors?.[0]?.message || 'Failed to create pending payment';
+            const errorMessage =
+              escrowResult?.errors?.[0]?.message || 'Failed to create pending payment';
             return `❌ ${errorMessage}`;
           }
 
           // Create pending payment record with the same claim code
-          const senderUsername = (await this.usernameService.getUsername(session.flashAuthToken)) || 'Flash user';
+          const senderUsername =
+            (await this.usernameService.getUsername(session.flashAuthToken)) || 'Flash user';
           const pendingPayment = await this.pendingPaymentService.createPendingPaymentWithCode({
             senderId: session.flashUserId!,
             senderUsername,
@@ -1425,7 +1474,8 @@ Need help? Type "support" to reach our team! 🤝`;
           if (this.whatsappWebService) {
             try {
               const recipientWhatsApp = `${targetPhone}@c.us`;
-              const notificationMsg = this.pendingPaymentService.formatPendingPaymentMessage(pendingPayment);
+              const notificationMsg =
+                this.pendingPaymentService.formatPendingPaymentMessage(pendingPayment);
               await this.whatsappWebService.sendMessage(recipientWhatsApp, notificationMsg);
             } catch (notifyError) {
               this.logger.error(`Failed to notify recipient: ${notifyError.message}`);
@@ -2914,12 +2964,301 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
             return `❌ Failed to reconnect: ${error.message}`;
           }
 
+        case 'help':
+          return this.getAdminHelpMessage();
+
+        case 'settings':
+          const settings = await this.adminSettingsService.getSettings();
+          return (
+            `⚙️ *Admin Settings*\n\n` +
+            `🔒 Lockdown: ${settings.lockdown ? 'ENABLED' : 'Disabled'}\n` +
+            `👥 Groups: ${settings.groupsEnabled ? 'Enabled' : 'DISABLED'}\n` +
+            `💸 Payments: ${settings.paymentsEnabled ? 'Enabled' : 'Disabled'}\n` +
+            `📥 Requests: ${settings.requestsEnabled ? 'Enabled' : 'Disabled'}\n\n` +
+            `👮 Admins: ${settings.adminNumbers.length}\n` +
+            `🆘 Support: ${settings.supportNumbers.length}\n\n` +
+            `📅 Last updated: ${new Date(settings.lastUpdated).toLocaleDateString()}\n` +
+            `👤 Updated by: ${settings.updatedBy}\n\n` +
+            `💡 Use \`admin help\` to see available commands`
+          );
+
+        case 'lockdown':
+          const mode = command.args.mode;
+          if (!mode || (mode !== 'on' && mode !== 'off')) {
+            const isLockdown = await this.adminSettingsService.isLockdown();
+            return (
+              `🔒 *Lockdown Status*: ${isLockdown ? 'ENABLED' : 'Disabled'}\n\n` +
+              `To change: \`admin lockdown on\` or \`admin lockdown off\``
+            );
+          }
+          const lockdownEnabled = mode === 'on';
+          await this.adminSettingsService.updateSettings(
+            { lockdown: lockdownEnabled },
+            phoneNumber,
+          );
+          return (
+            `${lockdownEnabled ? '🔒' : '🔓'} Lockdown ${lockdownEnabled ? 'ENABLED' : 'DISABLED'}\n\n` +
+            `${lockdownEnabled ? 'Only admin commands are allowed now.' : 'All commands are now available.'}`
+          );
+
+        case 'group':
+          const groupMode = command.args.mode;
+          if (!groupMode || (groupMode !== 'on' && groupMode !== 'off')) {
+            const groupsEnabled = await this.adminSettingsService.areGroupsEnabled();
+            return (
+              `👥 *Groups Status*: ${groupsEnabled ? 'Enabled' : 'DISABLED'}\n\n` +
+              `To change: \`admin group on\` or \`admin group off\``
+            );
+          }
+          const groupsEnabled = groupMode === 'on';
+          await this.adminSettingsService.updateSettings({ groupsEnabled }, phoneNumber);
+          return (
+            `👥 Groups ${groupsEnabled ? 'ENABLED' : 'DISABLED'}\n\n` +
+            `${groupsEnabled ? 'Bot will now respond in group chats.' : 'Bot will ignore group messages.'}`
+          );
+
+        case 'find':
+          const searchTerm = command.args.searchTerm;
+          if (!searchTerm) {
+            return '❌ Please provide a search term.\n\nExample: `admin find john`';
+          }
+          return await this.handleAdminFindCommand(searchTerm);
+
+        case 'add':
+          const addType = command.args.subAction;
+          const addNumber = command.args.phoneNumber;
+          if (!addNumber || !addType || (addType !== 'admin' && addType !== 'support')) {
+            return (
+              '❌ Invalid syntax.\n\n' +
+              'Use:\n' +
+              '• `admin add admin 1234567890`\n' +
+              '• `admin add support 1234567890`'
+            );
+          }
+          if (addType === 'admin') {
+            await this.adminSettingsService.addAdmin(addNumber, phoneNumber);
+            return `✅ Added ${addNumber} as admin\n\n💡 They can now use admin commands.`;
+          } else {
+            await this.adminSettingsService.addSupport(addNumber, phoneNumber);
+            return `✅ Added ${addNumber} as support agent\n\n💡 They will receive support requests.`;
+          }
+
+        case 'remove':
+          const removeType = command.args.subAction;
+          const removeNumber = command.args.phoneNumber;
+          if (
+            !removeNumber ||
+            !removeType ||
+            (removeType !== 'admin' && removeType !== 'support')
+          ) {
+            return (
+              '❌ Invalid syntax.\n\n' +
+              'Use:\n' +
+              '• `admin remove admin 1234567890`\n' +
+              '• `admin remove support 1234567890`'
+            );
+          }
+          const currentSettings = await this.adminSettingsService.getSettings();
+          if (removeType === 'admin') {
+            const newAdmins = currentSettings.adminNumbers.filter((n) => n !== removeNumber);
+            if (newAdmins.length === currentSettings.adminNumbers.length) {
+              return `❌ ${removeNumber} is not an admin`;
+            }
+            await this.adminSettingsService.updateSettings(
+              { adminNumbers: newAdmins },
+              phoneNumber,
+            );
+            return `✅ Removed ${removeNumber} from admins`;
+          } else {
+            const newSupport = currentSettings.supportNumbers.filter((n) => n !== removeNumber);
+            if (newSupport.length === currentSettings.supportNumbers.length) {
+              return `❌ ${removeNumber} is not a support agent`;
+            }
+            await this.adminSettingsService.updateSettings(
+              { supportNumbers: newSupport },
+              phoneNumber,
+            );
+            return `✅ Removed ${removeNumber} from support agents`;
+          }
+
         default:
-          return `❓ Unknown admin command.\n\nAvailable commands:\n• \`admin status\` - Check connection status\n• \`admin disconnect\` - Disconnect current number\n• \`admin clear-session\` - Clear all session data\n• \`admin reconnect\` - Connect a new number`;
+          return this.getAdminHelpMessage();
       }
     } catch (error) {
       this.logger.error(`Error handling admin command: ${error.message}`, error.stack);
       return '❌ Admin command failed. Check logs for details.';
     }
+  }
+
+  /**
+   * Get admin help message
+   */
+  private getAdminHelpMessage(): string {
+    return (
+      `👮 *Admin Commands*\n\n` +
+      `📊 *Status & Info:*\n` +
+      `• \`admin status\` - Check WhatsApp connection\n` +
+      `• \`admin settings\` - View current settings\n` +
+      `• \`admin find <term>\` - Search contacts/sessions\n\n` +
+      `🔧 *Connection:*\n` +
+      `• \`admin disconnect\` - Disconnect current number\n` +
+      `• \`admin clear-session\` - Clear all session data\n` +
+      `• \`admin reconnect\` - Connect a new number\n\n` +
+      `🔒 *System Control:*\n` +
+      `• \`admin lockdown on/off\` - Enable/disable lockdown\n` +
+      `• \`admin group on/off\` - Enable/disable groups\n\n` +
+      `👥 *User Management:*\n` +
+      `• \`admin add admin <phone>\` - Add admin\n` +
+      `• \`admin add support <phone>\` - Add support agent\n` +
+      `• \`admin remove admin <phone>\` - Remove admin\n` +
+      `• \`admin remove support <phone>\` - Remove support\n\n` +
+      `💡 Type any admin command for more details`
+    );
+  }
+
+  /**
+   * Handle admin find command
+   */
+  private async handleAdminFindCommand(searchTerm: string): Promise<string> {
+    try {
+      const results: string[] = [];
+
+      // Search in sessions
+      const sessions = await this.sessionService.getAllActiveSessions();
+      const matchingSessions = sessions.filter(
+        (session) =>
+          session.phoneNumber.includes(searchTerm) ||
+          session.whatsappId.includes(searchTerm) ||
+          (session.flashUserId && session.flashUserId.includes(searchTerm)),
+      );
+
+      if (matchingSessions.length > 0) {
+        results.push('📱 *Sessions Found:*');
+        matchingSessions.forEach((session) => {
+          results.push(
+            `• ${session.phoneNumber} - ${session.isVerified ? '✅ Verified' : '⏳ Pending'}`,
+          );
+        });
+      }
+
+      // Search in contacts (if available)
+      const contactsKey = `contacts:*`;
+      const contactKeys = await this.redisService.keys(contactsKey);
+      const matchingContacts: string[] = [];
+
+      for (const key of contactKeys) {
+        const contacts = await this.redisService.get(key);
+        if (contacts) {
+          const parsed = JSON.parse(contacts);
+          Object.entries(parsed).forEach(([name, phone]) => {
+            if (
+              name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              String(phone).includes(searchTerm)
+            ) {
+              matchingContacts.push(`• ${name}: ${phone}`);
+            }
+          });
+        }
+      }
+
+      if (matchingContacts.length > 0) {
+        results.push('\n👥 *Contacts Found:*');
+        results.push(...matchingContacts);
+      }
+
+      if (results.length === 0) {
+        return `❌ No results found for "${searchTerm}"`;
+      }
+
+      return results.join('\n');
+    } catch (error) {
+      this.logger.error(`Error in admin find: ${error.message}`);
+      return '❌ Error searching. Check logs.';
+    }
+  }
+
+  /**
+   * Check if lockdown is enabled and block non-admin commands
+   */
+  private async checkLockdown(whatsappId: string, command: ParsedCommand): Promise<string | null> {
+    try {
+      const isLockdown = await this.adminSettingsService.isLockdown();
+      if (!isLockdown) return null;
+
+      // Allow admin commands always
+      if (command.type === CommandType.ADMIN) return null;
+
+      // Check if user is admin
+      const phoneNumber = whatsappId.replace('@c.us', '');
+      const isAdmin = await this.adminSettingsService.isAdmin(phoneNumber);
+
+      if (!isAdmin) {
+        return (
+          '🔒 *System Lockdown*\n\n' +
+          'The bot is currently in lockdown mode.\n' +
+          'Only administrators can use commands.\n\n' +
+          'Please contact support if you need assistance.'
+        );
+      }
+
+      return null;
+    } catch (error) {
+      this.logger.error(`Error checking lockdown: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Add contextual hints to messages
+   */
+  private addHint(message: string, session: UserSession | null, command?: ParsedCommand): string {
+    // Don't add hints to admin commands or help messages
+    if (command?.type === CommandType.ADMIN || command?.type === CommandType.HELP) {
+      return message;
+    }
+
+    // Don't add hints if message already has a hint (contains 💡)
+    if (message.includes('💡')) {
+      return message;
+    }
+
+    const hints: string[] = [];
+
+    // Context-based hints
+    if (!session) {
+      hints.push('Type `link` to connect your Flash account');
+    } else if (!session.isVerified) {
+      hints.push('Complete verification with `verify 123456`');
+    } else {
+      // User is linked and verified
+      if (command?.type === CommandType.BALANCE) {
+        hints.push('Send money with `send 10 to @username`');
+      } else if (command?.type === CommandType.SEND) {
+        hints.push('Check balance with `balance`');
+      } else if (command?.type === CommandType.RECEIVE) {
+        hints.push('Share this invoice to get paid');
+      } else if (command?.type === CommandType.PRICE) {
+        hints.push('Receive Bitcoin with `receive 20`');
+      } else if (command?.type === CommandType.CONTACTS) {
+        hints.push('Send to contacts: `send 5 to john`');
+      } else {
+        // Random general hints
+        const generalHints = [
+          'Type `help` to see all commands',
+          'Need assistance? Type `support`',
+          'Set username for easy payments',
+          'Save contacts with `contacts add`',
+          'Check Bitcoin price with `price`',
+          'View transactions with `history`',
+        ];
+        hints.push(generalHints[Math.floor(Math.random() * generalHints.length)]);
+      }
+    }
+
+    if (hints.length > 0) {
+      return `${message}\n\n💡 ${hints[0]}`;
+    }
+
+    return message;
   }
 }

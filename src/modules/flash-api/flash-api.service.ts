@@ -51,7 +51,6 @@ export class FlashApiService {
 
       const data = await response.json();
 
-
       if (data.errors && data.errors.length > 0) {
         throw new Error(`GraphQL error: ${JSON.stringify(data.errors)}`);
       }

@@ -74,7 +74,7 @@ export class TransactionService {
       }
 
       const transaction = transactionEdge.node;
-      
+
       // Transform to expected format for notification service
       return {
         id: transaction.id,
@@ -105,7 +105,6 @@ export class TransactionService {
         { first: limit },
         authToken,
       );
-
 
       if (result?.me?.defaultAccount?.transactions) {
         return result.me.defaultAccount.transactions;

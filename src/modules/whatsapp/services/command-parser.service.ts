@@ -61,7 +61,11 @@ export class CommandParserService {
       type: CommandType.VYBZ,
       pattern: /^(?:vybz|vybe|vibes|vibe|post|share|drop)(?:\s+(status|check))?$/i,
     },
-    { type: CommandType.ADMIN, pattern: /^admin\s+(disconnect|reconnect|status|clear-session)$/i },
+    {
+      type: CommandType.ADMIN,
+      pattern:
+        /^admin(?:\s+(help|disconnect|reconnect|status|clear-session|settings|lockdown|find|group|add|remove))?\s*(?:support|admin)?\s*(.*)$/i,
+    },
     { type: CommandType.PENDING, pattern: /^pending(?:\s+(sent|received|claim))?(?:\s+(.+))?$/i },
   ];
 
@@ -71,7 +75,6 @@ export class CommandParserService {
   parseCommand(text: string): ParsedCommand {
     try {
       const trimmedText = text.trim();
-
 
       for (const { type, pattern } of this.commandPatterns) {
         const match = trimmedText.match(pattern);
@@ -230,6 +233,29 @@ export class CommandParserService {
         // Extract admin action
         if (match[1]) {
           args.action = match[1].toLowerCase();
+        }
+        // Extract additional parameters for admin commands
+        if (match[2]) {
+          // For "add support" or "add admin", the phone number is in match[2]
+          if (args.action === 'add' && rawText.includes('support')) {
+            args.subAction = 'support';
+            args.phoneNumber = match[2].trim();
+          } else if (args.action === 'add' && rawText.includes('admin')) {
+            args.subAction = 'admin';
+            args.phoneNumber = match[2].trim();
+          } else if (args.action === 'find') {
+            args.searchTerm = match[2].trim();
+          } else if (args.action === 'remove' && rawText.includes('support')) {
+            args.subAction = 'support';
+            args.phoneNumber = match[2].trim();
+          } else if (args.action === 'remove' && rawText.includes('admin')) {
+            args.subAction = 'admin';
+            args.phoneNumber = match[2].trim();
+          } else if (args.action === 'lockdown') {
+            args.mode = match[2].trim().toLowerCase();
+          } else if (args.action === 'group') {
+            args.mode = match[2].trim().toLowerCase();
+          }
         }
         break;
 

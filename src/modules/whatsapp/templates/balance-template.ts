@@ -102,15 +102,15 @@ export class BalanceTemplate {
   private formatDateTime(date: Date | string): string {
     // Ensure we have a Date object
     const dateObj = typeof date === 'string' ? new Date(date) : date;
-    
+
     // Check if date is valid
     if (isNaN(dateObj.getTime())) {
       return 'Just now';
     }
-    
+
     const now = new Date();
     const isToday = dateObj.toDateString() === now.toDateString();
-    
+
     if (isToday) {
       return `Today at ${dateObj.toLocaleTimeString('en-US', {
         hour: 'numeric',
@@ -118,7 +118,7 @@ export class BalanceTemplate {
         hour12: true,
       })}`;
     }
-    
+
     return dateObj.toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',

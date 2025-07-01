@@ -30,7 +30,8 @@ export const FLASH_COMMANDS: CommandInfo[] = [
     usage: 'balance',
     examples: ['balance'],
     requiresAuth: true,
-    notes: 'Shows your USD balance. BTC balances are hidden by default as BTC wallets are non-custodial.',
+    notes:
+      'Shows your USD balance. BTC balances are hidden by default as BTC wallets are non-custodial.',
   },
   {
     command: 'refresh',
@@ -191,7 +192,7 @@ export const TRAINING_EXAMPLES: TrainingExample[] = [
     keywords: ['balance', 'update', 'refresh', 'cache', 'not updating'],
   },
   {
-    question: 'Why don\'t I see my BTC balance?',
+    question: "Why don't I see my BTC balance?",
     answer:
       'The WhatsApp bot shows your USD balance by default for simplicity and safety. BTC wallets are non-custodial, meaning Flash cannot see or control them. For BTC balance details, please use the Flash mobile app.',
     category: 'balance',

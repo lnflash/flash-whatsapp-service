@@ -14,6 +14,7 @@ import { WhatsAppWebService } from './services/whatsapp-web.service';
 import { QrCodeService } from './services/qr-code.service';
 import { InvoiceTrackerService } from './services/invoice-tracker.service';
 import { SupportModeService } from './services/support-mode.service';
+import { AdminSettingsService } from './services/admin-settings.service';
 
 // Guards and Templates
 import { RateLimiterGuard } from '../../common/guards/rate-limiter.guard';
@@ -43,6 +44,7 @@ import { EventsModule } from '../events/events.module';
     QrCodeService,
     InvoiceTrackerService,
     SupportModeService,
+    AdminSettingsService,
   ],
   exports: [WhatsappService, WhatsAppWebService],
 })
