@@ -12,10 +12,10 @@ import { RedisService } from '../../src/modules/redis/redis.service';
 
 describe('Account Linking Flow (Integration)', () => {
   let app: INestApplication;
-  let authService: AuthService;
+  let _authService: AuthService;
   let sessionService: SessionService;
   let otpService: OtpService;
-  let flashApiService: FlashApiService;
+  let _flashApiService: FlashApiService;
   let redisService: RedisService;
   let configService: ConfigService;
 
@@ -42,10 +42,10 @@ describe('Account Linking Flow (Integration)', () => {
     app = moduleFixture.createNestApplication();
 
     // Get service instances
-    authService = moduleFixture.get<AuthService>(AuthService);
+    _authService = moduleFixture.get<AuthService>(AuthService);
     sessionService = moduleFixture.get<SessionService>(SessionService);
     otpService = moduleFixture.get<OtpService>(OtpService);
-    flashApiService = moduleFixture.get<FlashApiService>(FlashApiService);
+    _flashApiService = moduleFixture.get<FlashApiService>(FlashApiService);
     redisService = moduleFixture.get<RedisService>(RedisService);
     configService = moduleFixture.get<ConfigService>(ConfigService);
 

@@ -33,8 +33,6 @@ export class InvoiceTrackerService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async startTracking() {
-    this.logger.log('Invoice payment tracking service initialized (using RabbitMQ events)');
-
     // WebSocket subscriptions are disabled - invoice tracking is now handled by RabbitMQ payment events
     // See PaymentEventListener for the current implementation
   }
@@ -100,7 +98,6 @@ export class InvoiceTrackerService implements OnModuleInit, OnModuleDestroy {
       );
 
       this.activeSubscriptions.set(whatsappId, subscriptionId);
-      this.logger.log(`Subscribed to Lightning updates for user ${whatsappId}`);
     } catch (error) {
       this.logger.error(`Failed to subscribe for user ${whatsappId}:`, error);
     }
@@ -118,7 +115,6 @@ export class InvoiceTrackerService implements OnModuleInit, OnModuleDestroy {
     whatsappId: string,
   ): Promise<void> {
     try {
-      this.logger.log(`Payment update received: ${paymentHash} - ${status}`);
 
       // Only process PAID status
       if (status !== 'PAID') {
@@ -130,7 +126,6 @@ export class InvoiceTrackerService implements OnModuleInit, OnModuleDestroy {
       const invoiceData = await this.redisService.get(key);
 
       if (!invoiceData) {
-        this.logger.debug(`No tracked invoice found for payment hash: ${paymentHash}`);
         return;
       }
 
@@ -151,7 +146,6 @@ export class InvoiceTrackerService implements OnModuleInit, OnModuleDestroy {
       // Send notification
       await this.whatsappService.notifyInvoicePaid(invoice);
 
-      this.logger.log(`Invoice ${paymentHash} marked as paid and user notified`);
     } catch (error) {
       this.logger.error(`Error handling payment update: ${error.message}`, error.stack);
     }
@@ -168,14 +162,12 @@ export class InvoiceTrackerService implements OnModuleInit, OnModuleDestroy {
     if (subscriptionId) {
       this.subscriptionService.unsubscribe(subscriptionId);
       this.activeSubscriptions.delete(whatsappId);
-      this.logger.log(`Unsubscribed user ${whatsappId} from Lightning updates`);
     }
   }
   */
 
   private stopTracking() {
     // WebSocket subscriptions disabled - nothing to stop
-    this.logger.log('Invoice tracker service stopped');
   }
 
   /**

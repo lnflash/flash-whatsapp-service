@@ -27,8 +27,8 @@ jest.mock('@google/generative-ai', () => ({
 
 describe('GeminiAiService', () => {
   let service: GeminiAiService;
-  let configService: ConfigService;
-  let redisService: RedisService;
+  let _configService: ConfigService;
+  let _redisService: RedisService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -58,8 +58,8 @@ describe('GeminiAiService', () => {
     }).compile();
 
     service = module.get<GeminiAiService>(GeminiAiService);
-    configService = module.get<ConfigService>(ConfigService);
-    redisService = module.get<RedisService>(RedisService);
+    _configService = module.get<ConfigService>(ConfigService);
+    _redisService = module.get<RedisService>(RedisService);
   });
 
   afterEach(() => {

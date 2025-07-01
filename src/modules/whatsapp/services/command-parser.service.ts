@@ -126,9 +126,6 @@ export class CommandParserService {
           }
 
           if (type === CommandType.SEND) {
-            this.logger.log(
-              `SEND command matched: amount=${result.args.amount}, username=${result.args.username}, recipient=${result.args.recipient}`,
-            );
           }
           return result;
         }

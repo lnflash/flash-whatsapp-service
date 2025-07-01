@@ -56,7 +56,6 @@ export class UserVoiceSettingsService {
     };
 
     await this.redisService.set(key, JSON.stringify(settings), this.SETTINGS_TTL);
-    this.logger.log(`User voice settings updated for ${whatsappId}: ${mode}`);
   }
 
   /**
@@ -65,7 +64,6 @@ export class UserVoiceSettingsService {
   async clearUserVoiceSettings(whatsappId: string): Promise<void> {
     const key = `${this.SETTINGS_PREFIX}${whatsappId}`;
     await this.redisService.del(key);
-    this.logger.log(`User voice settings cleared for ${whatsappId}`);
   }
 
   /**

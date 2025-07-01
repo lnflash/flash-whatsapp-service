@@ -22,7 +22,6 @@ export class SpeechService {
           keyFilename: googleCloudKeyFile,
         });
         this.isConfigured = true;
-        this.logger.log('Google Cloud Speech-to-Text initialized');
       } catch (error) {
         this.logger.warn('Failed to initialize Google Cloud Speech-to-Text:', error);
         this.isConfigured = false;
@@ -46,8 +45,6 @@ export class SpeechService {
     }
 
     try {
-      this.logger.debug(`Processing audio: ${mimeType}, ${audioBuffer.length} bytes`);
-
       // Determine audio encoding from mime type
       // WhatsApp typically sends voice notes as audio/ogg with opus codec
       let encoding: any = 'OGG_OPUS'; // Default for WhatsApp voice notes
@@ -101,8 +98,6 @@ export class SpeechService {
       // Try each configuration until one works
       for (const config of configs) {
         try {
-          this.logger.debug(`Trying config: ${JSON.stringify(config)}`);
-
           const request = {
             audio: {
               content: audioBuffer.toString('base64'),
@@ -117,7 +112,6 @@ export class SpeechService {
           }
         } catch (error) {
           lastError = error;
-          this.logger.debug(`Config failed: ${error.message}`);
           continue;
         }
       }
@@ -130,8 +124,6 @@ export class SpeechService {
         this.logger.warn('No response from any configuration');
         return null;
       }
-
-      this.logger.log(`Transcription response:`, JSON.stringify(response, null, 2));
 
       if (!response.results || response.results.length === 0) {
         this.logger.warn('No transcription results');
@@ -149,7 +141,6 @@ export class SpeechService {
         return null;
       }
 
-      this.logger.log(`Transcribed: "${transcription}"`);
       return transcription;
     } catch (error) {
       this.logger.error('Error transcribing speech:', error);

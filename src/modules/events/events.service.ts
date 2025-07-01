@@ -33,7 +33,6 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
       }
 
       await this.connect();
-      this.logger.log('Successfully connected to RabbitMQ');
     } catch (error) {
       this.logger.error(`Failed to connect to RabbitMQ: ${error.message}`, error.stack);
     }
@@ -48,8 +47,6 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
       if (this.connection) {
         await this.connection.close();
       }
-
-      this.logger.log('RabbitMQ connection closed');
     } catch (error) {
       this.logger.error(`Error closing RabbitMQ connection: ${error.message}`, error.stack);
     }
@@ -101,14 +98,10 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
     }
 
     const delay = Math.min(1000 * Math.pow(2, attempt - 1), 30000);
-    this.logger.log(
-      `Attempting to reconnect to RabbitMQ in ${delay}ms (attempt ${attempt}/${maxAttempts})`,
-    );
 
     setTimeout(async () => {
       try {
         await this.connect();
-        this.logger.log('Successfully reconnected to RabbitMQ');
       } catch (error) {
         this.logger.error(`Reconnection attempt ${attempt} failed: ${error.message}`);
         await this.reconnect(attempt + 1, maxAttempts);
@@ -164,7 +157,6 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
           const event = JSON.parse(content);
 
           // Log incoming events for debugging
-          this.logger.debug(`Received event: ${event.type}`, JSON.stringify(event.data));
 
           await callback(event.type, event.data);
 
@@ -181,8 +173,6 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
           }
         }
       });
-
-      this.logger.log(`Subscribed to events on queue: ${this.queueName}`);
     } catch (error) {
       this.logger.error(`Failed to subscribe to events: ${error.message}`, error.stack);
     }

@@ -52,7 +52,6 @@ export class SupportModeService {
     const supportPhone = this.configService.get<string>('SUPPORT_PHONE_NUMBER') || '18762909250';
     // Ensure it has the + prefix for internal use
     this.SUPPORT_PHONE = supportPhone.startsWith('+') ? supportPhone : `+${supportPhone}`;
-    this.logger.log(`Support phone configured as: ${this.SUPPORT_PHONE}`);
   }
 
   /**
@@ -370,7 +369,7 @@ export class SupportModeService {
             if (profileData?.me?.npub) {
               userInfo.npub = profileData.me.npub;
             }
-          } catch (error) {
+          } catch {
             // Silently fail if npub fetch fails
           }
         }

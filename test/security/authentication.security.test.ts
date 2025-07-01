@@ -1,6 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
 import * as crypto from 'crypto';
 import { AppModule } from '../../src/app.module';
 import { SessionService } from '../../src/modules/auth/services/session.service';

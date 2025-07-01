@@ -157,10 +157,6 @@ export class PriceService {
       const minorUnitsPerMajorUnit = currency === 'USD' ? 100 : 100; // Default to 100 for now
       const btcPrice = btcPriceInMinorUnits / minorUnitsPerMajorUnit;
 
-      this.logger.debug(
-        `BTC price calculation: ${satPriceInMinorUnits} ${currency} minor units/sat * ${satsPerBtc} sats/BTC = ${btcPriceInMinorUnits} minor units, / ${minorUnitsPerMajorUnit} = ${btcPrice} ${currency}/BTC`,
-      );
-
       return {
         btcPrice,
         currency: realtimePrice.denominatorCurrency || currency,

@@ -71,11 +71,14 @@ export function getInvoiceValidationErrorMessage(error: InvoiceValidationError):
  */
 export function sanitizeMemo(memo: string): string {
   // Remove control characters and trim whitespace
-  return memo
-    .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
-    .replace(/\s+/g, ' ') // Replace multiple spaces with single space
-    .trim()
-    .substring(0, MEMO_MAX_LENGTH); // Ensure max length
+  return (
+    memo
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+      .trim()
+      .substring(0, MEMO_MAX_LENGTH)
+  ); // Ensure max length
 }
 
 /**

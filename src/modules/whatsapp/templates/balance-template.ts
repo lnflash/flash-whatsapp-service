@@ -22,7 +22,7 @@ export class BalanceTemplate {
    */
   generateBalanceMessage(data: BalanceTemplateData): string {
     const greeting = data.userName ? `Hi ${data.userName}! ` : '';
-    const btcFormatted = this.formatBitcoinAmount(data.btcBalance);
+    const _btcFormatted = this.formatBitcoinAmount(data.btcBalance);
     const fiatFormatted = this.formatFiatAmount(data.fiatBalance, data.fiatCurrency);
     const lastUpdated = this.formatDateTime(data.lastUpdated);
 
@@ -41,7 +41,7 @@ export class BalanceTemplate {
     changeAmount: number,
     txType: 'received' | 'sent',
   ): string {
-    const btcFormatted = this.formatBitcoinAmount(Math.abs(changeAmount));
+    const _btcFormatted = this.formatBitcoinAmount(Math.abs(changeAmount));
     const isReceived = txType === 'received';
 
     const transactionVerb = isReceived ? 'received' : 'sent';

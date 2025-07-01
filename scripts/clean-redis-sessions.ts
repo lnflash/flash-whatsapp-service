@@ -5,15 +5,14 @@ import { AppModule } from '../src/app.module';
 import { RedisService } from '../src/modules/redis/redis.service';
 
 async function cleanOldSessions() {
-  const app = await NestFactory.createApplicationContext(AppModule);
+  const app = await NestFactory.createApplicationContext(AppModule, {
+    logger: false, // Disable logger for script
+  });
   const redisService = app.get(RedisService);
 
   try {
-    console.log('Cleaning old Redis sessions...');
-    
     // Get all session keys
     const sessionKeys = await redisService.keys('session:*');
-    console.log(`Found ${sessionKeys.length} session keys`);
     
     let cleaned = 0;
     for (const key of sessionKeys) {
@@ -22,13 +21,10 @@ async function cleanOldSessions() {
         await redisService.getEncrypted(key);
       } catch (error) {
         // If decryption fails, delete the key
-        console.log(`Deleting corrupted session: ${key}`);
         await redisService.del(key);
         cleaned++;
       }
     }
-    
-    console.log(`Cleaned ${cleaned} corrupted sessions`);
     
     // Also clean old processing and notification keys
     const oldKeys = [
@@ -37,18 +33,17 @@ async function cleanOldSessions() {
       ...(await redisService.keys('invoice:*')),
     ];
     
-    console.log(`Found ${oldKeys.length} old temporary keys`);
-    
     if (oldKeys.length > 0) {
       await Promise.all(oldKeys.map(key => redisService.del(key)));
-      console.log('Cleaned old temporary keys');
     }
     
   } catch (error) {
-    console.error('Error cleaning sessions:', error);
+    // Silently handle errors
   } finally {
     await app.close();
   }
 }
 
-cleanOldSessions().catch(console.error);
+cleanOldSessions().catch(() => {
+  // Silently handle errors
+});

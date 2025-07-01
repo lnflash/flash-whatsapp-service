@@ -15,10 +15,6 @@ export class LoggingInterceptor implements NestInterceptor {
     // Sanitize request body before logging (remove sensitive data)
     const sanitizedBody = this.sanitizeBody(body);
 
-    this.logger.log(
-      `Request: ${method} ${url} | Body: ${JSON.stringify(sanitizedBody)} | User Agent: ${userAgent}`,
-    );
-
     return next.handle().pipe(
       tap((data) => {
         const endTime = Date.now();
@@ -26,10 +22,6 @@ export class LoggingInterceptor implements NestInterceptor {
 
         // Sanitize response data before logging
         const sanitizedResponse = this.sanitizeResponse(data);
-
-        this.logger.log(
-          `Response: ${method} ${url} | Status: ${context.switchToHttp().getResponse().statusCode} | Time: ${responseTime}ms | Response: ${JSON.stringify(sanitizedResponse)}`,
-        );
       }),
     );
   }

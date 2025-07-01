@@ -52,8 +52,6 @@ export class SessionService {
       const whatsappKey = this.redisService.hashKey('whatsapp', whatsappId);
       await this.redisService.set(whatsappKey, sessionId, this.sessionExpiry);
 
-      this.logger.log(`Created new session ${sessionId} for WhatsApp ID ${whatsappId}`);
-
       return session;
     } catch (error) {
       this.logger.error(`Error creating session: ${error.message}`, error.stack);
@@ -121,8 +119,6 @@ export class SessionService {
 
       const sessionKey = `session:${sessionId}`;
       await this.redisService.setEncrypted(sessionKey, updatedSession, this.sessionExpiry);
-
-      this.logger.log(`Updated session ${sessionId}`);
 
       return updatedSession;
     } catch (error) {
@@ -194,8 +190,6 @@ export class SessionService {
 
       await this.redisService.del(sessionKey);
       await this.redisService.del(whatsappKey);
-
-      this.logger.log(`Deleted session ${sessionId}`);
 
       return true;
     } catch (error) {
@@ -283,7 +277,6 @@ export class SessionService {
           }
         } catch (error) {
           // Skip sessions that can't be decrypted (old encryption keys)
-          this.logger.debug(`Skipping session ${key}: ${error.message}`);
         }
       }
 

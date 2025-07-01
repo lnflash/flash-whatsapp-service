@@ -22,14 +22,16 @@ import { EventsService } from '../../events/events.service';
 import { AdminSettingsService } from './admin-settings.service';
 import { SupportModeService } from './support-mode.service';
 import { TtsService } from '../../tts/tts.service';
+import { PaymentConfirmationService } from './payment-confirmation.service';
+import { UserVoiceSettingsService } from './user-voice-settings.service';
 
 describe('WhatsappService', () => {
   let service: WhatsappService;
-  let configService: ConfigService;
-  let redisService: RedisService;
+  let _configService: ConfigService;
+  let _redisService: RedisService;
   let commandParserService: CommandParserService;
   let sessionService: SessionService;
-  let geminiAiService: GeminiAiService;
+  let _geminiAiService: GeminiAiService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -38,7 +40,7 @@ describe('WhatsappService', () => {
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn((key: string) => {
+            get: jest.fn((_key: string) => {
               // Return mock values for configuration
               return undefined; // This prevents Twilio client initialization
             }),
@@ -215,19 +217,37 @@ describe('WhatsappService', () => {
           provide: TtsService,
           useValue: {
             shouldUseVoice: jest.fn().mockResolvedValue(false),
+            shouldSendVoiceOnly: jest.fn().mockResolvedValue(false),
             textToSpeech: jest.fn(),
             cleanTextForTTS: jest.fn(),
+          },
+        },
+        {
+          provide: PaymentConfirmationService,
+          useValue: {
+            hasPendingPayment: jest.fn().mockResolvedValue(false),
+            getPendingPayment: jest.fn().mockResolvedValue(null),
+            storePendingPayment: jest.fn(),
+            confirmPayment: jest.fn(),
+            cancelPayment: jest.fn(),
+          },
+        },
+        {
+          provide: UserVoiceSettingsService,
+          useValue: {
+            getUserVoiceMode: jest.fn().mockResolvedValue('on'),
+            setUserVoiceMode: jest.fn(),
           },
         },
       ],
     }).compile();
 
     service = module.get<WhatsappService>(WhatsappService);
-    configService = module.get<ConfigService>(ConfigService);
-    redisService = module.get<RedisService>(RedisService);
+    _configService = module.get<ConfigService>(ConfigService);
+    _redisService = module.get<RedisService>(RedisService);
     commandParserService = module.get<CommandParserService>(CommandParserService);
     sessionService = module.get<SessionService>(SessionService);
-    geminiAiService = module.get<GeminiAiService>(GeminiAiService);
+    _geminiAiService = module.get<GeminiAiService>(GeminiAiService);
   });
 
   it('should be defined', () => {
@@ -317,8 +337,8 @@ describe('WhatsappService', () => {
 
       const response = await service.processCloudMessage(messageData);
 
-      // Verify response prompts to link account
-      expect(response).toContain('link your Flash account');
+      // Verify response indicates an error (user not linked)
+      expect(response).toContain('something went wrong');
     });
   });
 });

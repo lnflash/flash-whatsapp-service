@@ -37,7 +37,6 @@ export class NotificationService {
         // Check if user has enabled this notification type
         const userPreferences = await this.getUserPreferences(userId);
         if (!this.isNotificationEnabled(type, userPreferences)) {
-          this.logger.log(`Notification type ${type} is disabled for user ${userId}`);
           return false;
         }
       }
@@ -82,8 +81,6 @@ export class NotificationService {
     try {
       const formattedMessage = this.formatNotificationMessage(notification);
       await this.whatsappService.sendMessage(whatsappId, formattedMessage);
-
-      this.logger.log(`WhatsApp notification sent to ${whatsappId}`);
     } catch (error) {
       this.logger.error(`Error sending WhatsApp notification: ${error.message}`, error.stack);
       throw error;

@@ -59,8 +59,6 @@ export class GeminiAiService {
             },
           ],
         });
-
-        this.logger.log('Google Gemini AI initialized successfully');
       } catch (error) {
         this.logger.error('Failed to initialize Google Gemini AI', error);
         this.model = null;
@@ -82,7 +80,6 @@ export class GeminiAiService {
       const cachedResponse = await this.redisService.get(cacheKey);
 
       if (cachedResponse) {
-        this.logger.log(`Using cached response for query: ${query.substring(0, 30)}...`);
         return cachedResponse;
       }
 

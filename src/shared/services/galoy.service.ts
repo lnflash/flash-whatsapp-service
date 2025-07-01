@@ -49,12 +49,12 @@ export class GaloyService {
     return this.executeQuery(mutation, { input: params }, authToken);
   }
 
-  async checkUserExists(userId: string, authToken: string): Promise<boolean> {
+  async checkUserExists(_userId: string, _authToken: string): Promise<boolean> {
     // Mock implementation
     return true;
   }
 
-  async getNodeInfo(authToken: string): Promise<any> {
+  async getNodeInfo(_authToken: string): Promise<any> {
     // Mock implementation
     return { isOnline: true };
   }
@@ -100,12 +100,12 @@ export class GaloyService {
     return this.executeQuery(mutation, { input: params }, authToken);
   }
 
-  async getOnchainFeeEstimates(authToken: string): Promise<any> {
+  async getOnchainFeeEstimates(_authToken: string): Promise<any> {
     // Mock implementation
     return { fast: 20, medium: 10, slow: 5 };
   }
 
-  async getOnchainBalance(authToken: string): Promise<any> {
+  async getOnchainBalance(_authToken: string): Promise<any> {
     // Mock implementation
     return { confirmed: 1000000, unconfirmed: 0 };
   }

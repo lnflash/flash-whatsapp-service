@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createHash, createHmac } from 'crypto';
+import { createHash as _createHash, createHmac as _createHmac } from 'crypto';
 
 @Injectable()
 export class FlashApiService {
@@ -17,7 +17,6 @@ export class FlashApiService {
     if (!this.apiUrl) {
       this.logger.warn('Flash API URL not configured. Flash API functionality will be limited.');
     } else {
-      this.logger.log('Flash API configured successfully');
     }
   }
 
@@ -143,15 +142,12 @@ export class FlashApiService {
         },
       };
 
-      this.logger.debug(`Requesting verification code for ${phoneNumber} using backend auth token`);
-
       // Execute with the backend auth token
       const result = await this.executeQuery<{
         userPhoneRegistrationInitiate: { success: boolean; errors?: Array<{ message: string }> };
       }>(mutation, variables, backendAuthToken);
 
       if (result.userPhoneRegistrationInitiate.success) {
-        this.logger.log(`Verification code sent successfully to ${phoneNumber}`);
       } else {
         this.logger.warn(
           `Failed to send verification code: ${JSON.stringify(result.userPhoneRegistrationInitiate.errors)}`,

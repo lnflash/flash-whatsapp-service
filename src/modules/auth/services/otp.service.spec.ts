@@ -2,10 +2,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { OtpService } from './otp.service';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../../redis/redis.service';
+import { createHash } from 'crypto';
 
 describe('OtpService', () => {
   let service: OtpService;
-  let configService: ConfigService;
+  let _configService: ConfigService;
   let redisService: RedisService;
 
   beforeEach(async () => {
@@ -41,7 +42,7 @@ describe('OtpService', () => {
     }).compile();
 
     service = module.get<OtpService>(OtpService);
-    configService = module.get<ConfigService>(ConfigService);
+    _configService = module.get<ConfigService>(ConfigService);
     redisService = module.get<RedisService>(RedisService);
   });
 
@@ -77,8 +78,7 @@ describe('OtpService', () => {
       const otpCode = '123456';
 
       // Store a hashed OTP in the mock
-      const otpHash = require('crypto')
-        .createHash('sha256')
+      const otpHash = createHash('sha256')
         .update(otpCode + 'test_jwt_secret')
         .digest('hex');
 
@@ -101,8 +101,7 @@ describe('OtpService', () => {
       const wrongOtp = '654321';
 
       // Store a hashed OTP in the mock
-      const otpHash = require('crypto')
-        .createHash('sha256')
+      const otpHash = createHash('sha256')
         .update(correctOtp + 'test_jwt_secret')
         .digest('hex');
 

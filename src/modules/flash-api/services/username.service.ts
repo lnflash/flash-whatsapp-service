@@ -81,8 +81,6 @@ export class UsernameService {
 
         throw new BadRequestException(`Failed to set username: ${errorCode}`);
       }
-
-      this.logger.log(`Username set successfully: ${username}`);
     } catch (error) {
       this.logger.error(`Error setting username: ${error.message}`, error.stack);
 

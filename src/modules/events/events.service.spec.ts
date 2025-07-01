@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { EventsService } from './events.service';
 import { ConfigService } from '@nestjs/config';
 import * as amqp from 'amqplib';
+import * as amqplib from 'amqplib';
 
 // Mock amqplib at the module level
 jest.mock('amqplib', () => {
@@ -36,7 +37,7 @@ jest.mock('amqplib', () => {
 
 describe('EventsService', () => {
   let service: EventsService;
-  let configService: ConfigService;
+  let _configService: ConfigService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -61,7 +62,7 @@ describe('EventsService', () => {
     }).compile();
 
     service = module.get<EventsService>(EventsService);
-    configService = module.get<ConfigService>(ConfigService);
+    _configService = module.get<ConfigService>(ConfigService);
 
     // Call onModuleInit manually as Jest doesn't trigger lifecycle hooks
     await service.onModuleInit();
@@ -85,7 +86,7 @@ describe('EventsService', () => {
     it('should publish an event to RabbitMQ', async () => {
       const eventType = 'test-event';
       const eventData = { test: 'data' };
-      const mockChannel = require('amqplib').__getMockChannel();
+      const mockChannel = (amqplib as any).__getMockChannel();
 
       const result = await service.publishEvent(eventType, eventData);
 
@@ -114,7 +115,7 @@ describe('EventsService', () => {
     it('should subscribe to events with a callback function', async () => {
       // Create a mock callback
       const mockCallback = jest.fn();
-      const mockChannel = require('amqplib').__getMockChannel();
+      const mockChannel = (amqplib as any).__getMockChannel();
 
       // Subscribe to events
       await service.subscribeToEvents(mockCallback);

@@ -59,7 +59,9 @@ export class MetricsMiddleware implements NestMiddleware {
 
     // Capture original end to intercept response
     const originalEnd = res.end;
-    const self = this;
+
+    // Capture middleware instance for use in the response handler
+    const middleware = this;
 
     // Override end
     res.end = function (this: Response, ...args: any[]) {
@@ -78,19 +80,21 @@ export class MetricsMiddleware implements NestMiddleware {
       }
 
       // Record metrics
-      self.httpRequestDurationMicroseconds
+      middleware.httpRequestDurationMicroseconds
         .labels(req.method, route, res.statusCode.toString())
         .observe(durationInSeconds);
 
-      self.httpRequestCounter.labels(req.method, route, res.statusCode.toString()).inc();
+      middleware.httpRequestCounter.labels(req.method, route, res.statusCode.toString()).inc();
 
       // Record errors separately
       if (res.statusCode >= 400) {
-        self.httpRequestErrorCounter.labels(req.method, route, res.statusCode.toString()).inc();
+        middleware.httpRequestErrorCounter
+          .labels(req.method, route, res.statusCode.toString())
+          .inc();
       }
 
       // Call original end
-      return originalEnd.apply(this, args);
+      return originalEnd.apply(res, args);
     };
 
     next();

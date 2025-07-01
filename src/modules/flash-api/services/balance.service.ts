@@ -72,7 +72,6 @@ export class BalanceService {
     try {
       const cacheKey = `balance:${userId}`;
       await this.redisService.del(cacheKey);
-      this.logger.debug(`Cleared balance cache for user ${userId}`);
     } catch (error) {
       this.logger.warn(`Error clearing balance cache: ${error.message}`);
     }
@@ -178,22 +177,12 @@ export class BalanceService {
       const usdWallet = wallets.find((w) => w.walletCurrency === 'USD');
 
       // Log wallet data for debugging
-      this.logger.debug(`Wallets found: ${JSON.stringify(wallets)}`);
-      this.logger.debug(`Display currency: ${account.displayCurrency}`);
-      this.logger.debug(`BTC wallet balance: ${btcWallet?.balance || 'Not found'}`);
-      this.logger.debug(`USD wallet balance: ${usdWallet?.balance || 'Not found'}`);
 
       // Log exchange rate if available
       if (account.realtimePrice) {
-        this.logger.debug(
-          `Exchange rate - USD cent price: base=${account.realtimePrice.usdCentPrice.base}, offset=${account.realtimePrice.usdCentPrice.offset}`,
-        );
       }
 
       // Log the exact response for debugging
-      this.logger.log(
-        `Balance API Response - USD: ${usdWallet?.balance}, Display Currency: ${account.displayCurrency}`,
-      );
 
       // Format the response - always use USD wallet balance with user's display currency
       // Note: The API returns balance in cents, so we need to convert to dollars

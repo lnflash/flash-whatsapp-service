@@ -6,7 +6,7 @@ import {
   HttpStatus,
   Logger,
   Res,
-  Query,
+  Query as _Query,
   Body,
 } from '@nestjs/common';
 import { Response } from 'express';

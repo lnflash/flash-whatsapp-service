@@ -31,7 +31,7 @@ jest.mock('ioredis', () => {
 
 describe('RedisService', () => {
   let service: RedisService;
-  let configService: ConfigService;
+  let _configService: ConfigService;
   let cryptoService: CryptoService;
   let redisMock: any;
 
@@ -67,7 +67,7 @@ describe('RedisService', () => {
     }).compile();
 
     service = module.get<RedisService>(RedisService);
-    configService = module.get<ConfigService>(ConfigService);
+    _configService = module.get<ConfigService>(ConfigService);
     cryptoService = module.get<CryptoService>(CryptoService);
 
     // Get the Redis mock instance

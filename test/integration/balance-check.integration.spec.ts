@@ -12,9 +12,9 @@ describe('Balance Check Flow (Integration)', () => {
   let app: INestApplication;
   let sessionService: SessionService;
   let balanceService: BalanceService;
-  let flashApiService: FlashApiService;
+  let _flashApiService: FlashApiService;
   let redisService: RedisService;
-  let configService: ConfigService;
+  let _configService: ConfigService;
 
   beforeAll(async () => {
     // Create a test module with real services but mocked external dependencies
@@ -61,9 +61,9 @@ describe('Balance Check Flow (Integration)', () => {
     // Get service instances
     sessionService = moduleFixture.get<SessionService>(SessionService);
     balanceService = moduleFixture.get<BalanceService>(BalanceService);
-    flashApiService = moduleFixture.get<FlashApiService>(FlashApiService);
+    _flashApiService = moduleFixture.get<FlashApiService>(FlashApiService);
     redisService = moduleFixture.get<RedisService>(RedisService);
-    configService = moduleFixture.get<ConfigService>(ConfigService);
+    _configService = moduleFixture.get<ConfigService>(ConfigService);
 
     await app.init();
   });

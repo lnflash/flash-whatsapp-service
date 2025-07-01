@@ -63,9 +63,6 @@ export class AuthService {
         result.errors.length > 0 &&
         result.errors[0].message === 'REQUIRES_MOBILE_APP'
       ) {
-        this.logger.log(
-          `No backend auth token configured. User needs to request code via Flash mobile app for ${formattedPhone}`,
-        );
         // Throw a specific error so the WhatsApp service can show the right message
         throw new BadRequestException(
           'Please open the Flash mobile app to request a verification code, then use that code here.',
@@ -73,7 +70,6 @@ export class AuthService {
       } else if (result.errors && result.errors.length > 0) {
         this.logger.warn(`Phone verification initiated with warning: ${result.errors[0].message}`);
       } else {
-        this.logger.log(`Verification code sent to ${formattedPhone} via WhatsApp`);
       }
 
       return { sessionId: session.sessionId, otpSent: true };
@@ -122,10 +118,6 @@ export class AuthService {
       if (!updatedSession) {
         throw new Error('Failed to update session after verification');
       }
-
-      this.logger.log(
-        `Successfully linked Flash account ${userDetails.id} to WhatsApp ${session.whatsappId}`,
-      );
 
       return updatedSession;
     } catch (error) {
@@ -178,7 +170,6 @@ export class AuthService {
       const otp = await this.otpService.generateOtp(session.phoneNumber, sessionId);
 
       // In a real implementation, we would send this OTP via the Flash API or SMS
-      this.logger.log(`Generated MFA OTP: ${otp} (This would be sent to the user's Flash app)`);
 
       return { otpSent: true };
     } catch (error) {
@@ -246,8 +237,6 @@ export class AuthService {
 
       // Delete the session
       await this.sessionService.deleteSession(session.sessionId);
-
-      this.logger.log(`Account unlinked for WhatsApp ID: ${whatsappId}`);
     } catch (error) {
       this.logger.error(`Error unlinking account: ${error.message}`, error.stack);
       throw error;

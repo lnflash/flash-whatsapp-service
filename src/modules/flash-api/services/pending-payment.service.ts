@@ -72,7 +72,6 @@ export class PendingPaymentService {
       await this.addToPhoneIndex(payment.recipientPhone, payment.id);
       await this.addToSenderIndex(payment.senderId, payment.id);
 
-      this.logger.log(`Created pending payment ${payment.id} for ${payment.recipientPhone}`);
       return payment;
     } catch (error) {
       this.logger.error(`Error creating pending payment: ${error.message}`, error.stack);
@@ -122,7 +121,6 @@ export class PendingPaymentService {
       await this.addToPhoneIndex(payment.recipientPhone, payment.id);
       await this.addToSenderIndex(payment.senderId, payment.id);
 
-      this.logger.log(`Created pending payment ${payment.id} for ${payment.recipientPhone}`);
       return payment;
     } catch (error) {
       this.logger.error(`Error creating pending payment: ${error.message}`, error.stack);
@@ -248,7 +246,6 @@ export class PendingPaymentService {
       // Remove from pending indexes
       await this.removeFromPhoneIndex(payment.recipientPhone, payment.id);
 
-      this.logger.log(`Pending payment ${paymentId} claimed by ${claimedById}`);
       return payment;
     } catch (error) {
       this.logger.error(`Error claiming pending payment: ${error.message}`, error.stack);
@@ -285,7 +282,6 @@ export class PendingPaymentService {
       // Remove from indexes
       await this.removeFromPhoneIndex(payment.recipientPhone, payment.id);
 
-      this.logger.log(`Pending payment ${paymentId} cancelled`);
       return true;
     } catch (error) {
       this.logger.error(`Error cancelling pending payment: ${error.message}`, error.stack);

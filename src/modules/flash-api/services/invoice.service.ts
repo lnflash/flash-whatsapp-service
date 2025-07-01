@@ -1,7 +1,7 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { FlashApiService } from '../flash-api.service';
-const bolt11 = require('bolt11');
+import * as bolt11 from 'bolt11';
 
 interface InvoiceInfo {
   paymentRequest: string;
@@ -86,8 +86,6 @@ export class InvoiceService {
       },
     };
 
-    this.logger.debug(`Creating no-amount invoice with memo length: ${memo?.length || 0}`);
-
     const result = await this.flashApiService.executeQuery<any>(mutation, variables, authToken);
 
     if (result.lnNoAmountInvoiceCreate?.errors?.length > 0) {
@@ -110,8 +108,6 @@ export class InvoiceService {
     if (!invoice) {
       throw new BadRequestException('No invoice returned from API');
     }
-
-    this.logger.log(`Created no-amount invoice: ${invoice.paymentRequest.substring(0, 20)}...`);
 
     // Parse the payment request to get expiration info
     const parsedInvoice = this.parseInvoice(invoice.paymentRequest);
@@ -163,8 +159,6 @@ export class InvoiceService {
         memo: memo || `$${amount.toFixed(2)} payment`,
       },
     };
-
-    this.logger.debug(`Creating USD invoice for $${amount} with memo length: ${memo?.length || 0}`);
 
     const result = await this.flashApiService.executeQuery<any>(mutation, variables, authToken);
 

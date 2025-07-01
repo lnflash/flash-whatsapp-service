@@ -4,6 +4,7 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { Request, Response } from 'express';
 import * as express from 'express';
@@ -42,7 +43,7 @@ async function bootstrap() {
   );
 
   // Apply global filters
-  app.useGlobalFilters(new HttpExceptionFilter());
+  app.useGlobalFilters(new GlobalExceptionFilter(configService), new HttpExceptionFilter());
 
   // Apply global interceptors
   app.useGlobalInterceptors(new LoggingInterceptor());

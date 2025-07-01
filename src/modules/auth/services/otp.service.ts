@@ -29,8 +29,6 @@ export class OtpService {
 
       await this.redisService.setEncrypted(otpKey, { hash: otpHash }, this.otpExpiry);
 
-      this.logger.log(`Generated OTP for session ${sessionId}`);
-
       return otp;
     } catch (error) {
       this.logger.error(`Error generating OTP: ${error.message}`, error.stack);
@@ -58,7 +56,6 @@ export class OtpService {
       if (isValid) {
         // Delete the OTP to prevent reuse
         await this.redisService.del(otpKey);
-        this.logger.log(`OTP verified successfully for session ${sessionId}`);
       } else {
         this.logger.warn(`Invalid OTP provided for session ${sessionId}`);
       }

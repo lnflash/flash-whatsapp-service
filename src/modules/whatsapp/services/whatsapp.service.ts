@@ -18,6 +18,8 @@ import { QrCodeService } from './qr-code.service';
 import { CommandParserService, CommandType, ParsedCommand } from './command-parser.service';
 import { WhatsAppWebService } from './whatsapp-web.service';
 import { InvoiceTrackerService } from './invoice-tracker.service';
+import * as bolt11 from 'bolt11';
+import { randomBytes } from 'crypto';
 import { SupportModeService } from './support-mode.service';
 import { validateUsername, getUsernameErrorMessage } from '../utils/username-validation';
 import {
@@ -26,7 +28,7 @@ import {
   sanitizeMemo,
   parseAndValidateAmount,
   getInvoiceValidationErrorMessage,
-  AMOUNT_MAX_USD,
+  AMOUNT_MAX_USD as _AMOUNT_MAX_USD,
 } from '../utils/invoice-validation';
 import { BalanceTemplate } from '../templates/balance-template';
 import { AccountLinkRequestDto } from '../../auth/dto/account-link-request.dto';
@@ -75,7 +77,7 @@ export class WhatsappService {
   /**
    * Get recent conversation history for support context
    */
-  private async getRecentConversation(whatsappId: string): Promise<string[]> {
+  private async getRecentConversation(_whatsappId: string): Promise<string[]> {
     try {
       const messages: string[] = [];
       // Get last 10 messages from Redis or wherever they're stored
@@ -101,8 +103,6 @@ export class WhatsappService {
     try {
       const whatsappId = this.extractWhatsappId(messageData.from);
       const phoneNumber = this.normalizePhoneNumber(messageData.from);
-
-      this.logger.log(`Processing Cloud API message from ${whatsappId}`);
 
       // Store the incoming message for traceability
       await this.storeCloudMessage(messageData);
@@ -357,7 +357,7 @@ export class WhatsappService {
           return this.handleAdminCommand(command, whatsappId, phoneNumber);
 
         case CommandType.UNKNOWN:
-        default:
+        default: {
           // Check if this might be a Flash username response to pending send
           const pendingSendKey = `pending_send:${whatsappId}`;
           const pendingSendData = await this.redisService.get(pendingSendKey);
@@ -439,6 +439,7 @@ export class WhatsappService {
           } else {
             return this.getUnknownCommandMessage(session);
           }
+        }
       }
     } catch (error) {
       this.logger.error(`Error handling command: ${error.message}`, error.stack);
@@ -503,7 +504,6 @@ export class WhatsappService {
 
       // Emit user unlinked event to unsubscribe from payment notifications
       await this.eventsService.publishEvent('user_unlinked', { whatsappId });
-      this.logger.log(`User ${whatsappId} unsubscribed from payment notifications`);
 
       return 'Your Flash account has been successfully unlinked from WhatsApp.\n\nTo use Flash services through WhatsApp again, you\'ll need to type "link" to reconnect your account.\n\nThank you for using Flash!';
     } catch (error) {
@@ -548,7 +548,6 @@ export class WhatsappService {
           whatsappId: updatedSession.whatsappId,
           authToken: updatedSession.flashAuthToken,
         });
-        this.logger.log(`User ${whatsappId} subscribed to payment notifications`);
       }
 
       // Check for pending payments to auto-claim
@@ -632,7 +631,6 @@ export class WhatsappService {
 
       // Skip MFA for WhatsApp since the user already authenticated
       // The initial WhatsApp verification is sufficient for security
-      this.logger.log(`Skipping MFA for balance check - user already authenticated via WhatsApp`);
 
       // Get balance from Flash API using the auth token
       const balanceInfo = await this.balanceService.getUserBalance(
@@ -651,7 +649,6 @@ export class WhatsappService {
             const { base, offset } = balanceInfo.exchangeRate.usdCentPrice;
 
             // Log the raw values for debugging
-            this.logger.debug(`Exchange rate raw values - base: ${base}, offset: ${offset}`);
 
             // Calculate display currency per USD cent
             // This gives us how much of the display currency's SMALLEST UNIT (e.g., euro cents) per USD cent
@@ -667,10 +664,6 @@ export class WhatsappService {
 
             // Round to 2 decimal places for consistent display
             displayBalance = Math.round(displayBalance * 100) / 100;
-
-            this.logger.log(
-              `Conversion: $${balanceInfo.fiatBalance} USD = ${usdCents} cents * ${displayCurrencyPerCent} rate = ${displayCurrencyMinorUnits} ${balanceInfo.fiatCurrency} cents = ${displayBalance.toFixed(2)} ${balanceInfo.fiatCurrency}`,
-            );
           } catch (error) {
             this.logger.error(`Currency conversion error: ${error.message}`);
             displayCurrency = 'USD';
@@ -739,7 +732,6 @@ export class WhatsappService {
             const { base, offset } = balanceInfo.exchangeRate.usdCentPrice;
 
             // Log the raw values for debugging
-            this.logger.debug(`Exchange rate raw values - base: ${base}, offset: ${offset}`);
 
             // Calculate display currency per USD cent
             // This gives us how much of the display currency's SMALLEST UNIT (e.g., euro cents) per USD cent
@@ -755,10 +747,6 @@ export class WhatsappService {
 
             // Round to 2 decimal places for consistent display
             displayBalance = Math.round(displayBalance * 100) / 100;
-
-            this.logger.log(
-              `Conversion: $${balanceInfo.fiatBalance} USD = ${usdCents} cents * ${displayCurrencyPerCent} rate = ${displayCurrencyMinorUnits} ${balanceInfo.fiatCurrency} cents = ${displayBalance.toFixed(2)} ${balanceInfo.fiatCurrency}`,
-            );
           } catch (error) {
             this.logger.error(`Currency conversion error: ${error.message}`);
             displayCurrency = 'USD';
@@ -973,7 +961,7 @@ export class WhatsappService {
   /**
    * Send WhatsApp message
    */
-  async sendMessage(to: string, body: string): Promise<any> {
+  async sendMessage(_to: string, _body: string): Promise<any> {
     // In prototype branch, messaging is handled by WhatsAppWebService
     this.logger.warn(
       'sendMessage called in prototype branch - messaging should be handled by WhatsAppWebService',
@@ -1294,7 +1282,6 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
       // Return the specific error message if it's a BadRequestException
       if (error instanceof BadRequestException) {
         const errorMessage = error.message;
-        this.logger.debug(`Returning error message to user: ${errorMessage}`);
         return { text: errorMessage };
       }
 
@@ -1356,7 +1343,6 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
             const contactInfo = contacts[contactKey];
             // Handle both string format (legacy) and object format
             const contactPhone = typeof contactInfo === 'string' ? contactInfo : contactInfo.phone;
-            this.logger.log(`Using saved contact ${possibleContactName}: ${contactPhone}`);
 
             // Check if this contact has a linked Flash account
             // Try multiple WhatsApp ID formats
@@ -1369,14 +1355,8 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
 
             let contactSession = null;
             for (const whatsappId of possibleWhatsappIds) {
-              this.logger.log(
-                `Trying to find session for ${possibleContactName} with WhatsApp ID: ${whatsappId}`,
-              );
               contactSession = await this.sessionService.getSessionByWhatsappId(whatsappId);
               if (contactSession) {
-                this.logger.log(
-                  `Found session for ${possibleContactName} using WhatsApp ID: ${whatsappId}`,
-                );
                 break;
               }
             }
@@ -1387,32 +1367,20 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
               contactSession.flashAuthToken
             ) {
               // Contact has a linked Flash account, get their username
-              this.logger.log(
-                `Found linked Flash account for ${possibleContactName}, fetching username...`,
-              );
               try {
                 const contactUsername = await this.usernameService.getUsername(
                   contactSession.flashAuthToken,
-                );
-                this.logger.log(
-                  `Username lookup result for ${possibleContactName}: ${contactUsername || 'no username'}`,
                 );
                 if (contactUsername) {
                   // Use their Flash username for the payment
                   targetUsername = contactUsername;
                   lightningAddress = ''; // Clear this so we use username payment flow
-                  this.logger.log(
-                    `Contact ${possibleContactName} has Flash username: @${contactUsername}`,
-                  );
                   // Continue with the payment flow
                 } else {
                   // Contact has Flash but no username, use escrow
                   targetPhone = contactPhone;
                   targetUsername = ''; // Clear username to prevent lookup
                   lightningAddress = ''; // Clear this too
-                  this.logger.log(
-                    `Contact ${possibleContactName} has Flash but no username, using escrow`,
-                  );
                 }
               } catch (error) {
                 this.logger.error(`Failed to get contact's Flash username: ${error.message}`);
@@ -1425,7 +1393,6 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
               targetPhone = contactPhone;
               targetUsername = ''; // Clear username to prevent lookup
               lightningAddress = ''; // Clear this too
-              this.logger.log(`Contact ${possibleContactName} doesn't have Flash, using escrow`);
             }
           }
         }
@@ -1437,10 +1404,6 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
         (lightningAddress.startsWith('lnbc') || lightningAddress.includes('@'))
       ) {
         try {
-          this.logger.log(
-            `Attempting Lightning payment to: ${lightningAddress.substring(0, 20)}...`,
-          );
-
           // Determine payment type and execute
           let result;
           if (lightningAddress.startsWith('lnbc')) {
@@ -1817,7 +1780,6 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
             // Found a saved contact, use their phone number
             targetPhone = contacts[contactKey].phone;
             isFromSavedContact = true;
-            this.logger.log(`Using saved contact ${targetUsername}: ${targetPhone}`);
           } else {
             // Contact name provided but not found
             contactNotFound = true;
@@ -1988,7 +1950,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
       const contactsKey = `contacts:${whatsappId}`;
 
       switch (action) {
-        case 'add':
+        case 'add': {
           if (!contactName || !phoneNumber) {
             return 'Please provide name and phone number. Usage: contacts add [name] [phone]';
           }
@@ -2014,8 +1976,9 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
           await this.redisService.set(contactsKey, JSON.stringify(contacts), 365 * 24 * 60 * 60);
 
           return `✅ Contact saved: ${contactName} (${phoneNumber})\n\nYou can now use these commands:\n• send [amount] to ${contactName} - Send money instantly\n• request [amount] from ${contactName} - Request payment`;
+        }
 
-        case 'remove':
+        case 'remove': {
           if (!contactName) {
             return 'Please provide contact name. Usage: contacts remove [name]';
           }
@@ -2036,8 +1999,9 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
           await this.redisService.set(contactsKey, JSON.stringify(contactList), 365 * 24 * 60 * 60);
 
           return `✅ Contact "${contactName}" removed.`;
+        }
 
-        case 'history':
+        case 'history': {
           if (!contactName) {
             return 'Please provide contact name. Usage: contacts history [name]';
           }
@@ -2071,9 +2035,10 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
 
           historyMessage += `\n_Showing last 10 requests_`;
           return historyMessage;
+        }
 
         case 'list':
-        default:
+        default: {
           const savedContacts = await this.redisService.get(contactsKey);
           if (!savedContacts) {
             return 'You have no saved contacts.\n\nTo add a contact: contacts add [name] [phone]';
@@ -2106,6 +2071,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
           message += '\n_Type "contacts history [name]" to see request history_';
 
           return message;
+        }
       }
     } catch (error) {
       this.logger.error(`Error handling contacts command: ${error.message}`, error.stack);
@@ -2298,8 +2264,6 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
 
       // Also store in a user's invoice list for easy lookup
       await this.redisService.addToSet(`user:${whatsappId}:invoices`, invoice.paymentHash);
-
-      this.logger.log(`Stored invoice ${invoice.paymentHash} for tracking`);
     } catch (error) {
       this.logger.error('Failed to store invoice for tracking:', error);
       // Don't throw - this is a non-critical feature
@@ -2379,7 +2343,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
   private async handleInvoiceDetected(
     invoice: string,
     whatsappId: string,
-    session: UserSession,
+    _session: UserSession,
   ): Promise<string> {
     try {
       // Parse the invoice to get details
@@ -2634,8 +2598,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
     expiresIn?: string;
   }> {
     try {
-      // Import bolt11 dynamically
-      const bolt11 = require('bolt11');
+      // Decode invoice
       const decoded = bolt11.decode(invoice);
 
       const details: any = {};
@@ -2643,7 +2606,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
       // Extract amount (in millisatoshis)
       if (decoded.millisatoshis) {
         // Convert millisatoshis to satoshis
-        const satoshis = decoded.millisatoshis / 1000;
+        const satoshis = Number(decoded.millisatoshis) / 1000;
 
         // For USD invoices created by Flash, the amount tag often contains cents
         // Check if this looks like a USD amount (common pattern)
@@ -2651,7 +2614,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
           const amountTag = decoded.tags.find((tag: any) => tag.tagName === 'amount');
           if (amountTag && amountTag.data) {
             // This might be USD cents
-            details.amount = parseInt(amountTag.data) / 100;
+            details.amount = parseInt(String(amountTag.data)) / 100;
           }
         }
 
@@ -2778,7 +2741,7 @@ _Tip: Be creative, funny, or insightful to get more zaps!_`;
   /**
    * Get vybz earning status
    */
-  private async getVybzStatus(whatsappId: string, session: UserSession): Promise<string> {
+  private async getVybzStatus(whatsappId: string, _session: UserSession): Promise<string> {
     try {
       // Get user's posts history
       const postsKey = `vybz_posts:${whatsappId}`;
@@ -3100,7 +3063,7 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
 
         // Notify sender if possible
         try {
-          const senderNotification = `✅ Your pending payment of $${amountUsd} to ${payment.recipientName || payment.recipientPhone} has been claimed!`;
+          const _senderNotification = `✅ Your pending payment of $${amountUsd} to ${payment.recipientName || payment.recipientPhone} has been claimed!`;
           // TODO: Send notification to sender via their WhatsApp if we have it stored
         } catch (error) {
           this.logger.error(`Failed to notify sender: ${error.message}`);
@@ -3125,8 +3088,7 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
    * Generate a secure claim code
    */
   private generateClaimCode(): string {
-    const crypto = require('crypto');
-    return crypto.randomBytes(4).toString('hex').toUpperCase();
+    return randomBytes(4).toString('hex').toUpperCase();
   }
 
   /**
@@ -3224,15 +3186,16 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
       }
 
       switch (action) {
-        case 'status':
+        case 'status': {
           const status = this.whatsappWebService.getStatus();
           if (status.connected) {
             return `✅ *WhatsApp Status*\n\nConnected: Yes\nNumber: ${status.number}\nName: ${status.name || 'Unknown'}`;
           } else {
             return `❌ *WhatsApp Status*\n\nConnected: No\n\nUse \`admin reconnect\` to connect a new number.`;
           }
+        }
 
-        case 'disconnect':
+        case 'disconnect': {
           try {
             // Send the message first before disconnecting
             const message = `✅ WhatsApp session will be disconnected.\n\nThis number is being logged out.\n\n⚠️ After disconnection, this number can no longer receive messages from the bot.\n\nUse \`admin reconnect\` on a different device to connect a new number.\n\n🔌 Disconnecting in 3 seconds...`;
@@ -3253,16 +3216,18 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
           } catch (error) {
             return `❌ Failed to disconnect: ${error.message}`;
           }
+        }
 
-        case 'clear-session':
+        case 'clear-session': {
           try {
             await this.whatsappWebService.clearSession();
             return `✅ WhatsApp session cleared successfully.\n\nAll session data has been removed. Use \`admin reconnect\` to connect a new number.`;
           } catch (error) {
             return `❌ Failed to clear session: ${error.message}`;
           }
+        }
 
-        case 'reconnect':
+        case 'reconnect': {
           try {
             // Use the new prepareReconnect method that handles messaging
             await this.whatsappWebService.prepareReconnect(whatsappId);
@@ -3272,11 +3237,13 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
           } catch (error) {
             return `❌ Failed to reconnect: ${error.message}`;
           }
+        }
 
-        case 'help':
+        case 'help': {
           return this.getAdminHelpMessage();
+        }
 
-        case 'settings':
+        case 'settings': {
           const settings = await this.adminSettingsService.getSettings();
           return (
             `⚙️ *Admin Settings*\n\n` +
@@ -3291,8 +3258,9 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
             `👤 Updated by: ${settings.updatedBy}\n\n` +
             `💡 Use \`admin help\` to see available commands`
           );
+        }
 
-        case 'lockdown':
+        case 'lockdown': {
           const mode = command.args.mode;
           if (!mode || (mode !== 'on' && mode !== 'off')) {
             const isLockdown = await this.adminSettingsService.isLockdown();
@@ -3310,8 +3278,9 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
             `${lockdownEnabled ? '🔒' : '🔓'} Lockdown ${lockdownEnabled ? 'ENABLED' : 'DISABLED'}\n\n` +
             `${lockdownEnabled ? 'Only admin commands are allowed now.' : 'All commands are now available.'}`
           );
+        }
 
-        case 'group':
+        case 'group': {
           const groupMode = command.args.mode;
           if (!groupMode || (groupMode !== 'on' && groupMode !== 'off')) {
             const groupsEnabled = await this.adminSettingsService.areGroupsEnabled();
@@ -3326,8 +3295,9 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
             `👥 Groups ${groupsEnabled ? 'ENABLED' : 'DISABLED'}\n\n` +
             `${groupsEnabled ? 'Bot will now respond in group chats.' : 'Bot will ignore group messages.'}`
           );
+        }
 
-        case 'voice':
+        case 'voice': {
           const voiceMode = command.args.mode as VoiceMode;
           if (!voiceMode || !['always', 'on', 'off'].includes(voiceMode)) {
             const currentMode = await this.adminSettingsService.getVoiceMode();
@@ -3351,15 +3321,17 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
                   : '• Voice notes are disabled\n• Text-only responses'
             }`
           );
+        }
 
-        case 'find':
+        case 'find': {
           const searchTerm = command.args.searchTerm;
           if (!searchTerm) {
             return '❌ Please provide a search term.\n\nExample: `admin find john`';
           }
           return await this.handleAdminFindCommand(searchTerm);
+        }
 
-        case 'add':
+        case 'add': {
           const addType = command.args.subAction;
           const addNumber = command.args.phoneNumber;
           if (!addNumber || !addType || (addType !== 'admin' && addType !== 'support')) {
@@ -3377,8 +3349,9 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
             await this.adminSettingsService.addSupport(addNumber, phoneNumber);
             return `✅ Added ${addNumber} as support agent\n\n💡 They will receive support requests.`;
           }
+        }
 
-        case 'remove':
+        case 'remove': {
           const removeType = command.args.subAction;
           const removeNumber = command.args.phoneNumber;
           if (
@@ -3415,9 +3388,11 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
             );
             return `✅ Removed ${removeNumber} from support agents`;
           }
+        }
 
-        default:
+        default: {
           return this.getAdminHelpMessage();
+        }
       }
     } catch (error) {
       this.logger.error(`Error handling admin command: ${error.message}`, error.stack);
@@ -3585,7 +3560,6 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
           // Also send the text message for reference (original with backticks)
           await this.whatsappWebService.sendMessage(whatsappId, response);
 
-          this.logger.log(`Voice response sent to ${whatsappId}`);
           return;
         } catch (ttsError) {
           this.logger.error('TTS conversion failed, sending text only:', ttsError);

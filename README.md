@@ -2,6 +2,9 @@
 
 A WhatsApp integration service for Flash that enables users to check their Bitcoin wallet balance and interact with Flash services through WhatsApp. Now branded as "Pulse" to capture the pulse of the Lightning Network.
 
+> **Version**: 1.9.9 - "Pulse Party like its 199"  
+> **Status**: Production Ready
+
 ## Overview
 
 This service uses WhatsApp Web.js to provide a seamless integration between Flash and WhatsApp, allowing users to:
@@ -39,6 +42,10 @@ This service uses WhatsApp Web.js to provide a seamless integration between Flas
 - ✅ Human support handoff with intelligent routing
 - ✅ Anonymous tip sending via DM
 - ✅ Group tip splitting for Flash users
+- ✅ Voice note support with Speech-to-Text
+- ✅ Natural language command processing
+- ✅ User-specific voice settings (on/off/only modes)
+- ✅ Payment confirmation for voice commands
 
 ## Prerequisites
 
@@ -96,6 +103,7 @@ Users can send these commands to the WhatsApp bot:
 - `vybz` - Share content to earn sats (3 posts/day limit)
 - `unlink` - Disconnect your Flash account
 - `consent yes/no` - Manage AI support consent
+- `voice on/off/only/status` - Manage voice response settings
 - `help` - Show available commands
 
 ### Admin Commands
@@ -297,6 +305,25 @@ Flash API → WebSocket/RabbitMQ → PaymentNotificationService → WhatsApp Mes
 - [ ] Multi-language support
 - [ ] WhatsApp Business API migration
 - [ ] Group chat support
+
+## Production Deployment
+
+For production deployment, please refer to:
+- [Production Deployment Guide](PRODUCTION_DEPLOYMENT.md) - Step-by-step deployment instructions
+- [Security Checklist](SECURITY_CHECKLIST.md) - Pre-deployment security verification
+- [Environment Template](.env.production.example) - Production configuration template
+
+### Quick Production Setup:
+```bash
+# Build for production
+npm run build:prod
+
+# Docker deployment
+docker-compose -f docker-compose.prod.yml up -d
+
+# PM2 deployment
+pm2 start ecosystem.prod.config.js
+```
 
 ## Security Features
 

@@ -11,7 +11,7 @@ import {
  */
 @ValidatorConstraint({ name: 'isPhoneNumber', async: false })
 export class IsPhoneNumberConstraint implements ValidatorConstraintInterface {
-  validate(phoneNumber: string, args: ValidationArguments) {
+  validate(phoneNumber: string, _args: ValidationArguments) {
     if (!phoneNumber || typeof phoneNumber !== 'string') return false;
 
     // International phone number regex (E.164 format)
@@ -19,7 +19,7 @@ export class IsPhoneNumberConstraint implements ValidatorConstraintInterface {
     return phoneRegex.test(phoneNumber);
   }
 
-  defaultMessage(args: ValidationArguments) {
+  defaultMessage(_args: ValidationArguments) {
     return 'Phone number must be in international format (e.g., +1234567890)';
   }
 }
@@ -41,7 +41,7 @@ export function IsPhoneNumber(validationOptions?: ValidationOptions) {
  */
 @ValidatorConstraint({ name: 'isFlashUsername', async: false })
 export class IsFlashUsernameConstraint implements ValidatorConstraintInterface {
-  validate(username: string, args: ValidationArguments) {
+  validate(username: string, _args: ValidationArguments) {
     if (!username || typeof username !== 'string') return false;
 
     // Username: 3-16 characters, alphanumeric with underscore and dot
@@ -49,7 +49,7 @@ export class IsFlashUsernameConstraint implements ValidatorConstraintInterface {
     return usernameRegex.test(username);
   }
 
-  defaultMessage(args: ValidationArguments) {
+  defaultMessage(_args: ValidationArguments) {
     return 'Username must be 3-16 characters long and contain only letters, numbers, underscore, and dot';
   }
 }
@@ -71,7 +71,7 @@ export function IsFlashUsername(validationOptions?: ValidationOptions) {
  */
 @ValidatorConstraint({ name: 'isLightningInvoice', async: false })
 export class IsLightningInvoiceConstraint implements ValidatorConstraintInterface {
-  validate(invoice: string, args: ValidationArguments) {
+  validate(invoice: string, _args: ValidationArguments) {
     if (!invoice || typeof invoice !== 'string') return false;
 
     // Basic Lightning invoice validation (starts with lnbc and contains alphanumeric)
@@ -79,7 +79,7 @@ export class IsLightningInvoiceConstraint implements ValidatorConstraintInterfac
     return invoiceRegex.test(invoice);
   }
 
-  defaultMessage(args: ValidationArguments) {
+  defaultMessage(_args: ValidationArguments) {
     return 'Must be a valid Lightning invoice';
   }
 }
@@ -101,7 +101,7 @@ export function IsLightningInvoice(validationOptions?: ValidationOptions) {
  */
 @ValidatorConstraint({ name: 'isBitcoinAddress', async: false })
 export class IsBitcoinAddressConstraint implements ValidatorConstraintInterface {
-  validate(address: string, args: ValidationArguments) {
+  validate(address: string, _args: ValidationArguments) {
     if (!address || typeof address !== 'string') return false;
 
     // Basic Bitcoin address validation
@@ -113,7 +113,7 @@ export class IsBitcoinAddressConstraint implements ValidatorConstraintInterface 
     return btcRegex.test(address);
   }
 
-  defaultMessage(args: ValidationArguments) {
+  defaultMessage(_args: ValidationArguments) {
     return 'Must be a valid Bitcoin address';
   }
 }
@@ -150,8 +150,8 @@ export class IsValidAmountConstraint implements ValidatorConstraintInterface {
     return true;
   }
 
-  defaultMessage(args: ValidationArguments) {
-    const [minAmount = 0.01, maxAmount = 1000] = args.constraints;
+  defaultMessage(_args: ValidationArguments) {
+    const [minAmount = 0.01, maxAmount = 1000] = _args.constraints;
     return `Amount must be between $${minAmount} and $${maxAmount} with maximum 2 decimal places`;
   }
 }
@@ -178,7 +178,7 @@ export function IsValidAmount(
  */
 @ValidatorConstraint({ name: 'isSanitizedText', async: false })
 export class IsSanitizedTextConstraint implements ValidatorConstraintInterface {
-  validate(text: string, args: ValidationArguments) {
+  validate(text: string, _args: ValidationArguments) {
     if (!text || typeof text !== 'string') return true; // Optional fields
 
     // Check for potential XSS or injection patterns
@@ -197,7 +197,7 @@ export class IsSanitizedTextConstraint implements ValidatorConstraintInterface {
     return true;
   }
 
-  defaultMessage(args: ValidationArguments) {
+  defaultMessage(_args: ValidationArguments) {
     return 'Text contains potentially unsafe content';
   }
 }

@@ -12,8 +12,6 @@ async function testInvoicePayment() {
   const amount = process.argv[3] || '1';
 
   if (!paymentHash) {
-    console.error('Usage: ts-node scripts/test-invoice-payment.ts [paymentHash] [amount]');
-    console.error('Example: ts-node scripts/test-invoice-payment.ts 157394127221537680b2041b93cf79e55775ad094e1611d9bcb6703a17664cd2 1');
     process.exit(1);
   }
 
@@ -51,19 +49,11 @@ async function testInvoicePayment() {
       { persistent: true }
     );
     
-    if (sent) {
-      console.log('✅ Payment event sent successfully!');
-      console.log('Event:', JSON.stringify(event, null, 2));
-    } else {
-      console.error('❌ Failed to send payment event');
-    }
-    
     // Cleanup
     await channel.close();
     await connection.close();
     
   } catch (error) {
-    console.error('Error:', error);
     process.exit(1);
   }
 }

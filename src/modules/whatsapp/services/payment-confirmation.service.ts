@@ -39,7 +39,6 @@ export class PaymentConfirmationService {
     };
 
     await this.redisService.set(key, JSON.stringify(pendingPayment), this.CONFIRMATION_TTL);
-    this.logger.log(`Stored pending payment confirmation for ${whatsappId}`);
   }
 
   /**
@@ -75,7 +74,6 @@ export class PaymentConfirmationService {
   async clearPendingPayment(whatsappId: string): Promise<void> {
     const key = `${this.CONFIRMATION_PREFIX}${whatsappId}`;
     await this.redisService.del(key);
-    this.logger.log(`Cleared pending payment confirmation for ${whatsappId}`);
   }
 
   /**

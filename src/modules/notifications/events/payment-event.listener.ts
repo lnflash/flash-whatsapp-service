@@ -10,7 +10,7 @@ import {
   NotificationPriority,
   NotificationChannel,
   PaymentData,
-  SendNotificationDto,
+  SendNotificationDto as _SendNotificationDto,
 } from '../dto/notification.dto';
 
 @Injectable()
@@ -28,7 +28,6 @@ export class PaymentEventListener implements OnModuleInit {
   async onModuleInit() {
     // Subscribe to payment events
     await this.setupSubscriptions();
-    this.logger.log('Payment event listener initialized');
   }
 
   /**
@@ -51,8 +50,6 @@ export class PaymentEventListener implements OnModuleInit {
             break;
         }
       });
-
-      this.logger.log('Subscribed to payment events');
     } catch (error) {
       this.logger.error(
         `Error setting up payment event subscriptions: ${error.message}`,
@@ -66,8 +63,6 @@ export class PaymentEventListener implements OnModuleInit {
    */
   private async handlePaymentReceived(data: any): Promise<void> {
     try {
-      this.logger.log(`Handling payment_received event: ${JSON.stringify(data)}`);
-
       const {
         userId,
         transactionId,
@@ -80,21 +75,18 @@ export class PaymentEventListener implements OnModuleInit {
       } = data;
 
       // Log all data fields to see what's available
-      this.logger.log(`Payment data fields: ${Object.keys(data).join(', ')}`);
 
       // Check for various payment identifiers
       const possiblePaymentHash =
         paymentHash || data.payment_hash || data.paymentIdentifier || data.hash;
 
       if (possiblePaymentHash) {
-        this.logger.log(`Found payment identifier: ${possiblePaymentHash}`);
         await this.handleInvoicePayment(possiblePaymentHash, data);
         return;
       } else {
         // Try to match by memo if it contains the payment hash
         if (memo && memo.length === 64) {
           // Payment hashes are 64 characters
-          this.logger.log(`Checking if memo is payment hash: ${memo}`);
           await this.handleInvoicePayment(memo, data);
           return;
         }
@@ -141,8 +133,6 @@ export class PaymentEventListener implements OnModuleInit {
 
       // Send notification
       await this.notificationService.sendNotification({ notification });
-
-      this.logger.log(`Payment received notification sent to user ${userId}`);
     } catch (error) {
       this.logger.error(`Error handling payment received event: ${error.message}`, error.stack);
     }
@@ -196,8 +186,6 @@ export class PaymentEventListener implements OnModuleInit {
 
       // Send notification
       await this.notificationService.sendNotification({ notification });
-
-      this.logger.log(`Payment sent notification sent to user ${userId}`);
     } catch (error) {
       this.logger.error(`Error handling payment sent event: ${error.message}`, error.stack);
     }
@@ -208,7 +196,7 @@ export class PaymentEventListener implements OnModuleInit {
    */
   private async handleBalanceUpdated(data: any): Promise<void> {
     try {
-      const { userId, oldBalance, newBalance, reason, whatsappId } = data;
+      const { userId, oldBalance, newBalance, reason, whatsappId: _whatsappId } = data;
 
       // Skip if no significant change
       if (Math.abs(newBalance - oldBalance) < 0.00000001) {
@@ -233,8 +221,6 @@ export class PaymentEventListener implements OnModuleInit {
 
       // Send notification
       await this.notificationService.sendNotification({ notification });
-
-      this.logger.log(`Balance updated notification sent to user ${userId}`);
     } catch (error) {
       this.logger.error(`Error handling balance updated event: ${error.message}`, error.stack);
     }
@@ -257,7 +243,6 @@ export class PaymentEventListener implements OnModuleInit {
       const invoiceData = await this.redisService.get(key);
 
       if (!invoiceData) {
-        this.logger.debug(`No tracked invoice found for payment hash: ${paymentHash}`);
         return;
       }
 
@@ -297,8 +282,6 @@ export class PaymentEventListener implements OnModuleInit {
       };
 
       await this.notificationService.sendNotification({ notification });
-
-      this.logger.log(`Lightning invoice payment notification sent for hash: ${paymentHash}`);
     } catch (error) {
       this.logger.error(`Error handling invoice payment: ${error.message}`, error.stack);
     }

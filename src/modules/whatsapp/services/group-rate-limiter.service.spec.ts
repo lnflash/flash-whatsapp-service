@@ -4,7 +4,7 @@ import { RedisService } from '../../redis/redis.service';
 
 describe('GroupRateLimiterService', () => {
   let service: GroupRateLimiterService;
-  let redisService: RedisService;
+  let _redisService: RedisService;
 
   const mockRedisService = {
     get: jest.fn(),
@@ -24,7 +24,7 @@ describe('GroupRateLimiterService', () => {
     }).compile();
 
     service = module.get<GroupRateLimiterService>(GroupRateLimiterService);
-    redisService = module.get<RedisService>(RedisService);
+    _redisService = module.get<RedisService>(RedisService);
 
     // Clear all mocks
     jest.clearAllMocks();

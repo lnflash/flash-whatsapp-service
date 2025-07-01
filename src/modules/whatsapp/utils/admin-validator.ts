@@ -93,9 +93,6 @@ export class AdminValidator {
     });
 
     // Log admin check for audit purposes
-    this.logger.debug(
-      `Admin check for user ${normalizedUserId} in group ${sanitizedGroupId}: ${isAdmin ? 'GRANTED' : 'DENIED'}`,
-    );
 
     return {
       isValid: true,

@@ -137,7 +137,6 @@ export class WhatsAppCloudService {
    */
   handleVerificationChallenge(mode: string, token: string, challenge: string): string {
     if (mode === 'subscribe' && token === this.verifyToken) {
-      this.logger.log('Webhook verified successfully');
       return challenge;
     }
 
@@ -160,7 +159,6 @@ export class WhatsAppCloudService {
         },
       });
 
-      this.logger.log(`Message sent successfully to ${to}`);
       return response.data;
     } catch (error) {
       this.logger.error(`Failed to send message to ${to}:`, error.response?.data || error.message);
@@ -202,7 +200,6 @@ export class WhatsAppCloudService {
         },
       });
 
-      this.logger.log(`Interactive message sent successfully to ${to}`);
       return response.data;
     } catch (error) {
       this.logger.error(
@@ -240,7 +237,6 @@ export class WhatsAppCloudService {
         },
       });
 
-      this.logger.log(`Template message sent successfully to ${to}`);
       return response.data;
     } catch (error) {
       this.logger.error(
@@ -264,8 +260,6 @@ export class WhatsAppCloudService {
         status: 'read',
         message_id: messageId,
       });
-
-      this.logger.debug(`Message ${messageId} marked as read`);
     } catch (error) {
       this.logger.error(`Failed to mark message as read:`, error.response?.data || error.message);
       // Don't throw error for read receipts

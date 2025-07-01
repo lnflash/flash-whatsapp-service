@@ -69,3 +69,22 @@ Thumbs.db
 yarn.lock
 package-lock.json
 gen-lang*.json
+
+# Production environment
+.env.production
+!.env.production.example
+
+# Test artifacts
+test-reports/
+
+# Google Cloud credentials
+credentials/
+*-service-account.json
+
+# WhatsApp sessions (additional patterns)
+whatsapp-sessions-new/
+
+# PM2
+.pm2/
+pids/
+logs/

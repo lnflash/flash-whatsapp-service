@@ -43,15 +43,24 @@ export class UserService {
   /**
    * Set username
    */
-  async setUsername(userId: string, username: string): Promise<SetUsernameResult> {
+  async setUsername(_userId: string, _username: string): Promise<SetUsernameResult> {
+    // Mock implementation
+    // In production, this would make an API call to Flash
     try {
       // Check if username is available
-      // This would make an API call to Flash
+      // const isAvailable = await this.flashApiService.checkUsernameAvailability(username);
+      // if (!isAvailable) {
+      //   return {
+      //     success: false,
+      //     error: 'Username is already taken',
+      //   };
+      // }
+      // await this.flashApiService.setUsername(userId, username);
 
-      // Mock implementation
       return {
         success: true,
       };
+      // eslint-disable-next-line no-unreachable
     } catch (error) {
       this.logger.error('Failed to set username:', error);
       return {

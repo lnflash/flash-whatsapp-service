@@ -6,7 +6,7 @@ import { UserSession } from '../interfaces/user-session.interface';
 
 describe('SessionService', () => {
   let service: SessionService;
-  let configService: ConfigService;
+  let _configService: ConfigService;
   let redisService: RedisService;
 
   beforeEach(async () => {
@@ -45,7 +45,7 @@ describe('SessionService', () => {
     }).compile();
 
     service = module.get<SessionService>(SessionService);
-    configService = module.get<ConfigService>(ConfigService);
+    _configService = module.get<ConfigService>(ConfigService);
     redisService = module.get<RedisService>(RedisService);
   });
 

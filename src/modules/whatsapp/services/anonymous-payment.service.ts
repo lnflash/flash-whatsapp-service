@@ -42,7 +42,6 @@ export class AnonymousPaymentService {
   async processAnonymousTip(request: AnonymousTipRequest): Promise<AnonymousTipResult> {
     try {
       const tipId = uuidv4();
-      this.logger.log(`Processing anonymous tip ${tipId} in group ${request.groupId}`);
 
       // Validate recipient exists
       const recipientWallet = await this.validateRecipient(

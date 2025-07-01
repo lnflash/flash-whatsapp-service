@@ -13,6 +13,9 @@ import { QrCodeService } from './qr-code.service';
 import { RedisService } from '../../redis/redis.service';
 import { SupportModeService } from './support-mode.service';
 import { SpeechService } from '../../speech/speech.service';
+import * as fs from 'fs';
+import * as fsPromises from 'fs/promises';
+import * as path from 'path';
 
 @Injectable()
 export class WhatsAppWebService
@@ -35,7 +38,6 @@ export class WhatsAppWebService
     private readonly supportModeService: SupportModeService,
     private readonly speechService: SpeechService,
   ) {
-    this.logger.log('WhatsAppWebService constructor called');
     // Initialize WhatsApp Web client with persistent session
     this.client = new Client({
       authStrategy: new LocalAuth({
@@ -64,38 +66,27 @@ export class WhatsAppWebService
 
   async onModuleInit() {
     try {
-      this.logger.log('Initializing WhatsApp Web client...');
-      this.logger.log('Session path: ./whatsapp-sessions');
-      this.logger.log(`Server start time: ${this.serverStartTime.toISOString()}`);
-
       // Set grace period to ignore messages during startup
       setTimeout(() => {
         this.isInGracePeriod = false;
-        this.logger.log('Startup grace period ended, now accepting messages');
       }, this.startupGracePeriod);
 
       // Check if session exists
-      const fs = require('fs');
       if (fs.existsSync('./whatsapp-sessions/session')) {
-        this.logger.log('Existing session found, attempting to restore...');
       } else {
-        this.logger.log('No existing session found, will need QR code scan');
       }
 
       await this.client.initialize();
-      this.logger.log('WhatsApp client initialize() called successfully');
     } catch (error) {
       this.logger.error('Failed to initialize WhatsApp Web client:', error);
     }
   }
 
   async onModuleDestroy() {
-    this.logger.log('Module destroy called, cleaning up WhatsApp client...');
     await this.cleanup();
   }
 
   async beforeApplicationShutdown(signal?: string) {
-    this.logger.log(`Application shutdown signal received: ${signal}`);
     await this.cleanup();
   }
 
@@ -107,7 +98,6 @@ export class WhatsAppWebService
         this.client.removeAllListeners();
         // Don't destroy the client on normal shutdown to preserve session
         // Only destroy when explicitly logging out
-        this.logger.log('WhatsApp Web client cleanup completed (session preserved)');
       }
     } catch (error) {
       this.logger.error('Error during WhatsApp Web client cleanup:', error);
@@ -115,21 +105,15 @@ export class WhatsAppWebService
   }
 
   private setupEventHandlers() {
-    this.logger.log(`Setting up event handlers on client...`);
-
     // QR Code generation for authentication
     this.client.on('qr', (qr) => {
-      this.logger.log('QR Code received, scan with WhatsApp:');
       qrcode.generate(qr, { small: true });
 
       // Also log the QR string for alternative display methods
-      this.logger.log(`QR String: ${qr}`);
     });
 
     // Authentication success
-    this.client.on('authenticated', () => {
-      this.logger.log('WhatsApp Web authenticated successfully');
-    });
+    this.client.on('authenticated', () => {});
 
     // Authentication failure
     this.client.on('auth_failure', (msg) => {
@@ -138,13 +122,10 @@ export class WhatsAppWebService
 
     // Client ready
     this.client.on('ready', async () => {
-      this.logger.log('🟢 WhatsApp Web client is ready!');
       this.isReady = true;
 
       // Log the connected phone number
       const info = this.client.info;
-      this.logger.log(`✅ Connected as: ${info.pushname} (${info.wid.user})`);
-      this.logger.log('✅ Bot is now ready to receive messages');
     });
 
     // Disconnection
@@ -154,7 +135,6 @@ export class WhatsAppWebService
 
       // Attempt to reinitialize after disconnection
       setTimeout(() => {
-        this.logger.log('Attempting to reconnect...');
         this.client.initialize().catch((err) => {
           this.logger.error('Reconnection failed:', err);
         });
@@ -216,18 +196,10 @@ export class WhatsAppWebService
           5 * 60 * 1000,
         );
 
-        this.logger.log(`📨 Received message from ${msg.from}`);
-
         // Check for vCard (contact sharing)
         if (msg.type === 'vcard' || msg.vCards?.length > 0) {
-          this.logger.log('📇 CONTACT VCARD RECEIVED!');
-          this.logger.log(`vCards count: ${msg.vCards?.length || 0}`);
-
           if (msg.vCards && msg.vCards.length > 0) {
             msg.vCards.forEach((vcard, index) => {
-              this.logger.log(`\n=== vCard ${index + 1} ===`);
-              this.logger.log(`Raw vCard data:\n${vcard}`);
-
               // Parse vCard data
               const lines = vcard.split('\n');
               const contactInfo: any = {};
@@ -250,8 +222,6 @@ export class WhatsAppWebService
                   }
                 }
               });
-
-              this.logger.log(`Parsed contact info: ${JSON.stringify(contactInfo, null, 2)}`);
             });
           }
 
@@ -333,8 +303,6 @@ export class WhatsAppWebService
 
         // Handle voice messages (PTT - Push To Talk)
         if (msg.type === 'ptt') {
-          this.logger.log('🎤 Voice message received!');
-
           // Check if speech service is available
           if (!this.speechService?.isAvailable()) {
             await this.sendMessage(
@@ -418,7 +386,6 @@ export class WhatsAppWebService
 
         // Log other message types for debugging
         if (msg.type !== 'chat') {
-          this.logger.log(`Non-chat message type received: ${msg.type}`);
         }
 
         // Check if this is a message from support
@@ -508,7 +475,6 @@ export class WhatsAppWebService
 
     // Handle incoming calls (reject them)
     this.client.on('call', async (call) => {
-      this.logger.log(`Incoming ${call.isVideo ? 'video' : 'audio'} call from ${call.from}`);
       await call.reject();
 
       // Send a message explaining we don't support calls
@@ -521,14 +487,10 @@ export class WhatsAppWebService
     });
 
     // Loading screen
-    this.client.on('loading_screen', (percent, message) => {
-      this.logger.log(`Loading: ${percent}% - ${message}`);
-    });
+    this.client.on('loading_screen', (percent, message) => {});
 
     // State changes
-    this.client.on('change_state', (state) => {
-      this.logger.log(`State changed to: ${state}`);
-    });
+    this.client.on('change_state', (state) => {});
   }
 
   /**
@@ -536,16 +498,12 @@ export class WhatsAppWebService
    */
   async disconnect(logout: boolean = true): Promise<void> {
     try {
-      this.logger.log('Disconnecting WhatsApp session...');
-
       if (this.client) {
         this.isReady = false;
         if (logout) {
           await this.client.logout();
-          this.logger.log('WhatsApp session logged out successfully');
         } else {
           // Just mark as not ready without logging out
-          this.logger.log('WhatsApp session disconnected (session preserved)');
         }
       }
     } catch (error) {
@@ -559,21 +517,16 @@ export class WhatsAppWebService
    */
   async clearSession(): Promise<void> {
     try {
-      this.logger.log('Clearing WhatsApp session data...');
-
       // First disconnect if connected (with logout to clear session)
       if (this.isReady) {
         await this.disconnect(true);
       }
 
       // Clear the session directory
-      const fs = require('fs').promises;
-      const path = require('path');
       const sessionPath = path.join(process.cwd(), 'whatsapp-sessions');
 
       try {
-        await fs.rm(sessionPath, { recursive: true, force: true });
-        this.logger.log('Session data cleared successfully');
+        await fsPromises.rm(sessionPath, { recursive: true, force: true });
       } catch (err) {
         this.logger.warn('Session directory may not exist:', err);
       }
@@ -603,7 +556,6 @@ export class WhatsAppWebService
       });
 
       this.setupEventHandlers();
-      this.logger.log('WhatsApp client recreated, ready for new connection');
     } catch (error) {
       this.logger.error('Error clearing session:', error);
       throw error;
@@ -615,14 +567,11 @@ export class WhatsAppWebService
    */
   async reconnect(): Promise<void> {
     try {
-      this.logger.log('Initiating WhatsApp reconnection...');
-
       // Clear existing session first
       await this.clearSession();
 
       // Initialize the client to generate new QR
       await this.client.initialize();
-      this.logger.log('WhatsApp client initialized, scan QR code to connect new number');
     } catch (error) {
       this.logger.error('Error reconnecting WhatsApp:', error);
       throw error;
@@ -692,7 +641,6 @@ export class WhatsAppWebService
               caption:
                 '📱 Scan this QR code with WhatsApp on your NEW device\n\n⏱️ This code expires in 60 seconds!\n\n🔌 I will disconnect the old session once you scan this.',
             });
-            this.logger.log('QR code sent to admin via existing connection');
 
             // Give time for the QR to be sent before we start cleanup
             await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -707,15 +655,12 @@ export class WhatsAppWebService
 
       // Set up ready handler to switch clients
       const readyHandler = async () => {
-        this.logger.log('New client is ready, switching over...');
-
         // Get the new client info for welcome message
         const info = newClient.info;
-        this.logger.log(`✅ New connection established as: ${info.pushname} (${info.wid.user})`);
 
         // Switch to the new client FIRST before sending messages
-        whatsappWebService.client = newClient;
-        whatsappWebService.isReady = true;
+        this.client = newClient;
+        this.isReady = true;
 
         // Wait for client to stabilize after switching
         await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -728,9 +673,6 @@ export class WhatsAppWebService
             await whatsappWebService.sendMessage(
               whatsappWebService.reconnectingAdminNumber,
               welcomeMessage,
-            );
-            this.logger.log(
-              `Welcome message sent to admin: ${whatsappWebService.reconnectingAdminNumber}`,
             );
 
             // Clear the admin number after sending
@@ -747,7 +689,6 @@ export class WhatsAppWebService
             try {
               oldClient.removeAllListeners();
               await oldClient.destroy();
-              this.logger.log('Old client destroyed');
             } catch (error) {
               this.logger.error('Error destroying old client:', error);
             }
@@ -755,18 +696,15 @@ export class WhatsAppWebService
         }
 
         // Remove old session directory and rename new one
-        const fs = require('fs').promises;
-        const path = require('path');
         try {
-          await fs.rm(path.join(process.cwd(), 'whatsapp-sessions'), {
+          await fsPromises.rm(path.join(process.cwd(), 'whatsapp-sessions'), {
             recursive: true,
             force: true,
           });
-          await fs.rename(
+          await fsPromises.rename(
             path.join(process.cwd(), 'whatsapp-sessions-new'),
             path.join(process.cwd(), 'whatsapp-sessions'),
           );
-          this.logger.log('Session directories switched');
         } catch (error) {
           this.logger.error('Error switching session directories:', error);
         }
@@ -781,12 +719,8 @@ export class WhatsAppWebService
         // Test the new client by getting its state
         try {
           const state = await newClient.getState();
-          this.logger.log(
-            `✅ Client switch complete, bot is ready to receive messages. State: ${state}`,
-          );
         } catch (error) {
           this.logger.error('Error checking client state:', error);
-          this.logger.log('✅ Client switch complete, bot is ready to receive messages');
         }
       };
 
@@ -795,7 +729,6 @@ export class WhatsAppWebService
 
       // Initialize the new client
       await newClient.initialize();
-      this.logger.log('New WhatsApp client initialized, waiting for QR scan...');
 
       // Clean up handlers after timeout
       setTimeout(() => {
@@ -823,7 +756,7 @@ export class WhatsAppWebService
         number: info?.wid?.user || 'Unknown',
         name: info?.pushname || 'Unknown',
       };
-    } catch (error) {
+    } catch {
       return { connected: false };
     }
   }
@@ -846,7 +779,6 @@ export class WhatsAppWebService
       }
 
       await this.client.sendMessage(chatId, message);
-      this.logger.log(`Message sent to ${to}`);
     } catch (error) {
       this.logger.error(`Failed to send message to ${to}:`, error);
       // Log more details about the error
@@ -896,7 +828,6 @@ export class WhatsAppWebService
 
       // Send the image with optional caption
       await this.client.sendMessage(chatId, media, { caption });
-      this.logger.log(`Image sent to ${to}`);
     } catch (error) {
       this.logger.error(`Failed to send image to ${to}:`, error);
       throw error;
@@ -925,8 +856,6 @@ export class WhatsAppWebService
       await this.client.sendMessage(chatId, media, {
         sendAudioAsVoice: true,
       });
-
-      this.logger.log(`Voice note sent to ${to}`);
     } catch (error) {
       this.logger.error(`Failed to send voice note to ${to}:`, error);
       throw error;
@@ -991,7 +920,6 @@ export class WhatsAppWebService
       try {
         await this.client.logout();
         this.isReady = false;
-        this.logger.log('Logged out from WhatsApp Web');
       } catch (error) {
         this.logger.error('Error during logout:', error);
         // Force cleanup if logout fails

@@ -8,15 +8,11 @@ async function cleanRedis() {
   });
 
   try {
-    console.log('Cleaning Redis sessions...');
-    
     // Delete old session keys
     const sessionKeys = await redis.keys('session:*');
-    console.log(`Found ${sessionKeys.length} session keys to clean`);
     
     if (sessionKeys.length > 0) {
       await redis.del(...sessionKeys);
-      console.log('Deleted all session keys');
     }
     
     // Clean other old keys
@@ -28,12 +24,9 @@ async function cleanRedis() {
     
     if (oldKeys.length > 0) {
       await redis.del(...oldKeys);
-      console.log(`Deleted ${oldKeys.length} old temporary keys`);
     }
-    
-    console.log('Redis cleanup complete');
   } catch (error) {
-    console.error('Error:', error);
+    // Silently handle errors
   } finally {
     redis.disconnect();
   }

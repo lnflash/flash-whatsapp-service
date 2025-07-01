@@ -2,7 +2,10 @@ import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as googleTTS from 'google-tts-api';
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
-import { AdminSettingsService, VoiceMode } from '../whatsapp/services/admin-settings.service';
+import {
+  AdminSettingsService,
+  VoiceMode as _VoiceMode,
+} from '../whatsapp/services/admin-settings.service';
 import {
   UserVoiceSettingsService,
   UserVoiceMode,
@@ -41,14 +44,12 @@ export class TtsService {
           keyFilename: googleCloudKeyFile,
         });
         this.provider = 'google-cloud';
-        this.logger.log('Using Google Cloud Text-to-Speech (premium quality)');
       } catch (error) {
         this.logger.warn('Failed to initialize Google Cloud TTS, falling back to free API:', error);
         this.provider = 'google-tts-api';
       }
     } else {
       this.provider = 'google-tts-api';
-      this.logger.log('Using free google-tts-api (basic quality)');
     }
   }
 
@@ -82,8 +83,6 @@ export class TtsService {
     const maxLength = 197; // 200 - 3 for "..."
     const truncatedText = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
 
-    this.logger.debug(`[Free API] Converting text to speech: ${truncatedText.substring(0, 50)}...`);
-
     // Get audio URL from Google TTS
     const audioUrl = googleTTS.getAudioUrl(truncatedText, {
       lang: language,
@@ -100,7 +99,6 @@ export class TtsService {
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    this.logger.debug(`[Free API] Successfully converted text to speech (${buffer.length} bytes)`);
     return buffer;
   }
 
@@ -115,10 +113,6 @@ export class TtsService {
     // For very long texts, we might want to truncate even with Cloud TTS
     const maxLength = 5000; // Much higher limit
     const truncatedText = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-
-    this.logger.debug(
-      `[Cloud TTS] Converting text to speech: ${truncatedText.substring(0, 50)}...`,
-    );
 
     // Get voice configuration
     const voiceConfig = this.getVoiceConfig(language);
@@ -142,7 +136,6 @@ export class TtsService {
     }
 
     const buffer = Buffer.from(response.audioContent as string, 'base64');
-    this.logger.debug(`[Cloud TTS] Successfully converted text to speech (${buffer.length} bytes)`);
     return buffer;
   }
 
@@ -260,7 +253,8 @@ export class TtsService {
 
     // Remove emojis and special characters that don't translate well to speech
     cleaned = cleaned
-      .replace(/[🟢🔴⚡💸🎉✅❌🤖💡🔒🚀📱💰⚠️🔊👮🆘💸📥📅👤💡]/g, '')
+      // eslint-disable-next-line no-misleading-character-class
+      .replace(/[🟢🔴⚡💸🎉✅❌🤖💡🔒🚀📱💰⚠️🔊👮🆘💸📥📅👤💡]/gu, '')
       .replace(/\*\*/g, '') // Remove markdown bold
       .replace(/__|_/g, ' ') // Replace underscores with spaces
       .replace(/`+/g, '') // Remove backticks

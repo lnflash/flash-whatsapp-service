@@ -143,7 +143,7 @@ export class TransactionService {
   /**
    * Format transaction for WhatsApp display
    */
-  formatTransaction(tx: Transaction, displayCurrency?: string): string {
+  formatTransaction(tx: Transaction, _displayCurrency?: string): string {
     const direction = tx.direction === 'SEND' ? '📤 Sent' : '📥 Received';
     const status = tx.status === 'SUCCESS' ? '✅' : tx.status === 'PENDING' ? '⏳' : '❌';
 

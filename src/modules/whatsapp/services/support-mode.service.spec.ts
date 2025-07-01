@@ -11,7 +11,7 @@ import { FlashApiService } from '../../flash-api/flash-api.service';
 describe('SupportModeService', () => {
   let service: SupportModeService;
   let redisService: jest.Mocked<RedisService>;
-  let sessionService: jest.Mocked<SessionService>;
+  let _sessionService: jest.Mocked<SessionService>;
   let balanceService: jest.Mocked<BalanceService>;
   let usernameService: jest.Mocked<UsernameService>;
   let whatsappWebService: jest.Mocked<WhatsAppWebService>;
@@ -71,7 +71,7 @@ describe('SupportModeService', () => {
 
     service = module.get<SupportModeService>(SupportModeService);
     redisService = module.get(RedisService);
-    sessionService = module.get(SessionService);
+    _sessionService = module.get(SessionService);
     balanceService = module.get(BalanceService);
     usernameService = module.get(UsernameService);
     whatsappWebService = module.get(WhatsAppWebService);

@@ -97,7 +97,6 @@ export class AdminSettingsService {
         await this.redisService.set(this.VOICE_MODE_KEY, updates.voiceMode);
       }
 
-      this.logger.log(`Admin settings updated by ${updatedBy}: ${JSON.stringify(updates)}`);
       return newSettings;
     } catch (error) {
       this.logger.error(`Error updating admin settings: ${error.message}`);

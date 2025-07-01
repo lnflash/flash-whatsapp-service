@@ -49,8 +49,6 @@ export class SubscriptionService implements OnModuleDestroy {
       // Fallback: try to convert API URL
       this.wsUrl = apiUrl.replace('https://api.', 'wss://ws.').replace('http://', 'ws://');
     }
-
-    this.logger.log(`WebSocket URL configured: ${this.wsUrl}`);
   }
 
   async onModuleDestroy() {
@@ -70,9 +68,7 @@ export class SubscriptionService implements OnModuleDestroy {
             Authorization: `Bearer ${authToken}`,
           }),
           on: {
-            connected: () => {
-              this.logger.log('WebSocket connection established');
-            },
+            connected: () => {},
             error: (error) => {
               this.logger.error('WebSocket error:', error);
               reject(error);
@@ -85,7 +81,6 @@ export class SubscriptionService implements OnModuleDestroy {
                 this.logger.error(
                   'WebSocket closed with unrecoverable error. Disabling WebSocket subscriptions.',
                 );
-                this.logger.log('Push notifications will continue working via RabbitMQ events.');
               }
             },
           },
@@ -136,9 +131,6 @@ export class SubscriptionService implements OnModuleDestroy {
 
             // Check if we have a valid update with paymentHash and status
             if (update && update.paymentHash && update.status) {
-              this.logger.log(
-                `Lightning payment update: [HASH:${update.paymentHash.substring(0, 8)}...] - ${update.status}`,
-              );
               callback(update.paymentHash, update.status);
             } else if (update && Object.keys(update).length === 0) {
               // Empty update object - this is just a heartbeat
@@ -148,14 +140,12 @@ export class SubscriptionService implements OnModuleDestroy {
             this.logger.error(`Subscription error for ${subscriptionId}:`, error);
           },
           complete: () => {
-            this.logger.log(`Subscription ${subscriptionId} completed`);
             this.subscriptions.delete(subscriptionId);
           },
         },
       );
 
       this.subscriptions.set(subscriptionId, unsubscribe);
-      this.logger.log(`Subscribed to Lightning updates for user ${userId}`);
       return subscriptionId;
     } catch (error) {
       this.logger.error(`Failed to subscribe for user ${userId}:`, error);
@@ -171,7 +161,6 @@ export class SubscriptionService implements OnModuleDestroy {
     if (unsubscribe) {
       unsubscribe();
       this.subscriptions.delete(subscriptionId);
-      this.logger.log(`Unsubscribed from ${subscriptionId}`);
     }
   }
 
@@ -180,7 +169,7 @@ export class SubscriptionService implements OnModuleDestroy {
    */
   async disconnect(): Promise<void> {
     // Unsubscribe all active subscriptions
-    for (const [subscriptionId, unsubscribe] of this.subscriptions) {
+    for (const [_subscriptionId, unsubscribe] of this.subscriptions) {
       unsubscribe();
     }
     this.subscriptions.clear();
@@ -190,7 +179,5 @@ export class SubscriptionService implements OnModuleDestroy {
       await this.client.dispose();
       this.client = null;
     }
-
-    this.logger.log('WebSocket disconnected');
   }
 }

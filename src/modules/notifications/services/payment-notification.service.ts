@@ -45,7 +45,6 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
   ) {}
 
   async onModuleInit() {
-    this.logger.log('PaymentNotificationService module initializing...');
     await this.initialize();
   }
 
@@ -70,13 +69,9 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
           await this.enableWebSocketSubscriptions();
         } catch (wsError) {
           this.logger.warn('WebSocket subscriptions failed, relying on RabbitMQ events');
-          this.logger.debug('WebSocket error details:', wsError.message);
         }
       } else {
-        this.logger.log('WebSocket subscriptions disabled by configuration');
       }
-
-      this.logger.log('Payment notification service initialized');
     } catch (error) {
       this.logger.error('Failed to initialize payment notification service:', error);
     }
@@ -99,7 +94,6 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
           break;
       }
     });
-    this.logger.log('Subscribed to RabbitMQ payment events');
   }
 
   /**
@@ -141,8 +135,6 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
           await this.subscribeUserToPayments(session.whatsappId, session.flashAuthToken);
         }
       }
-
-      this.logger.log(`Enabled WebSocket subscriptions for ${sessions.length} active users`);
     } catch (error) {
       this.logger.error('Failed to enable WebSocket subscriptions:', error);
     }
@@ -173,10 +165,6 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
 
       // Start polling for intraledger transfers (Flash-to-Flash payments)
       this.startPollingForIntraledgerPayments(whatsappId, authToken);
-
-      this.logger.log(
-        `User ${whatsappId} subscribed to real-time payment updates (Lightning + polling for intraledger)`,
-      );
     } catch (error) {
       this.logger.error(`Failed to subscribe user ${whatsappId} to payments:`, error);
     }
@@ -202,8 +190,6 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
 
     // Clear last transaction ID from Redis
     await this.clearLastTransactionId(whatsappId);
-
-    this.logger.log(`User ${whatsappId} unsubscribed from payment updates`);
   }
 
   /**
@@ -215,10 +201,6 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
     authToken: string,
   ): Promise<void> {
     try {
-      this.logger.log(
-        `Processing WebSocket payment notification for [HASH:${paymentHash.substring(0, 8)}...]`,
-      );
-
       // Check if we've already sent this notification
       if (await this.isNotificationSent(paymentHash)) {
         return;
@@ -272,10 +254,6 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
 
       // Mark as sent
       await this.markNotificationSent(paymentHash);
-
-      this.logger.log(
-        `WebSocket payment notification sent for [HASH:${paymentHash.substring(0, 8)}...]`,
-      );
     } catch (error) {
       this.logger.error('Error handling WebSocket payment:', error);
     }
@@ -286,8 +264,6 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
    */
   private async handleRabbitMQPayment(data: any): Promise<void> {
     try {
-      this.logger.log(`Received RabbitMQ payment event`);
-
       const paymentHash = data.paymentHash || data.payment_hash || data.hash;
 
       if (!paymentHash) {
@@ -331,8 +307,6 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
 
       // Mark as sent
       await this.markNotificationSent(paymentHash);
-
-      this.logger.log(`RabbitMQ payment notification sent`);
     } catch (error) {
       this.logger.error('Error handling RabbitMQ payment:', error);
     }
@@ -406,15 +380,13 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
               message += `\n💼 New balance: *${this.formatBtcAmount(balance.btcBalance)} BTC*`;
             }
           }
-        } catch (error) {
+        } catch {
           // Balance fetch failed, skip it
         }
       }
 
       // Send WhatsApp message
       await this.whatsappWebService.sendMessage(notification.whatsappId, message);
-
-      this.logger.log(`Payment notification sent to ${notification.whatsappId}`);
     } catch (error) {
       this.logger.error('Error sending payment notification:', error);
       throw error;
@@ -601,8 +573,6 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
 
         // Mark as sent
         await this.markNotificationSent(notificationKey);
-
-        this.logger.log(`Intraledger payment notification sent for transaction ${tx.id}`);
       }
 
       // Update last processed transaction ID in Redis
@@ -683,19 +653,17 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
    */
   private async cleanup() {
     // Unsubscribe all users
-    for (const [whatsappId, subscriptionId] of this.activeSubscriptions) {
+    for (const [_whatsappId, subscriptionId] of this.activeSubscriptions) {
       this.subscriptionService.unsubscribe(subscriptionId);
     }
     this.activeSubscriptions.clear();
 
     // Clear all polling intervals
-    for (const [whatsappId, interval] of this.pollingIntervals) {
+    for (const [_whatsappId, interval] of this.pollingIntervals) {
       clearInterval(interval);
     }
     this.pollingIntervals.clear();
 
     // Note: Last transaction IDs are persisted in Redis, no need to clear here
-
-    this.logger.log('Payment notification service cleaned up');
   }
 }

@@ -6,9 +6,9 @@ import { FlashApiService } from '../../flash-api/flash-api.service';
 
 describe('AnonymousPaymentService', () => {
   let service: AnonymousPaymentService;
-  let redisService: RedisService;
-  let paymentService: PaymentService;
-  let flashApiService: FlashApiService;
+  let _redisService: RedisService;
+  let _paymentService: PaymentService;
+  let _flashApiService: FlashApiService;
 
   const mockRedisService = {
     get: jest.fn(),
@@ -35,9 +35,9 @@ describe('AnonymousPaymentService', () => {
     }).compile();
 
     service = module.get<AnonymousPaymentService>(AnonymousPaymentService);
-    redisService = module.get<RedisService>(RedisService);
-    paymentService = module.get<PaymentService>(PaymentService);
-    flashApiService = module.get<FlashApiService>(FlashApiService);
+    _redisService = module.get<RedisService>(RedisService);
+    _paymentService = module.get<PaymentService>(PaymentService);
+    _flashApiService = module.get<FlashApiService>(FlashApiService);
 
     jest.clearAllMocks();
   });
