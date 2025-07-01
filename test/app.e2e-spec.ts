@@ -13,7 +13,7 @@ describe('AppController (e2e)', () => {
     await app.close();
   });
 
-  it('/ (GET) health check', () => {
+  it('/health (GET) health check', () => {
     return request(app.getHttpServer()).get('/health').expect(200).expect({ status: 'ok' });
   });
 });

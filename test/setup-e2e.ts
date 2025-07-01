@@ -6,6 +6,9 @@ import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter
 import { RedisService } from '../src/modules/redis/redis.service';
 import { WhatsAppWebService } from '../src/modules/whatsapp/services/whatsapp-web.service';
 import { EventsService } from '../src/modules/events/events.service';
+import { SubscriptionService } from '../src/modules/notifications/services/subscription.service';
+import { SpeechService } from '../src/modules/speech/speech.service';
+import { GeminiAiService } from '../src/modules/gemini-ai/gemini-ai.service';
 
 // Mock Redis Client
 const mockRedisClient = {
@@ -102,6 +105,12 @@ export async function createTestApp(): Promise<INestApplication> {
     .useClass(MockWhatsAppWebService)
     .overrideProvider(EventsService)
     .useClass(MockEventsService)
+    .overrideProvider(SubscriptionService)
+    .useClass(MockSubscriptionService)
+    .overrideProvider(SpeechService)
+    .useClass(MockSpeechService)
+    .overrideProvider(GeminiAiService)
+    .useClass(MockGeminiAiService)
     .compile();
 
   const app = moduleFixture.createNestApplication();
@@ -171,6 +180,43 @@ export class MockEventsService {
   
   async subscribe(pattern: string, callback: Function): Promise<void> {
     // No-op for tests
+  }
+  
+  async subscribeToEvents(patterns: { pattern: string; handler: Function }[]): Promise<void> {
+    // No-op for tests
+  }
+}
+
+// Mock Subscription Service (WebSocket)
+export class MockSubscriptionService {
+  async subscribe(eventType: string, callback: Function): Promise<string> {
+    return 'mock-subscription-id';
+  }
+  
+  async unsubscribe(subscriptionId: string): Promise<void> {
+    // No-op for tests
+  }
+  
+  async enableWebSocketSubscriptions(authToken: string): Promise<void> {
+    // No-op for tests
+  }
+}
+
+// Mock Speech Service
+export class MockSpeechService {
+  isAvailable(): boolean {
+    return false;
+  }
+  
+  async speechToText(audioBuffer: Buffer, mimeType: string): Promise<string | null> {
+    return null;
+  }
+}
+
+// Mock Gemini AI Service
+export class MockGeminiAiService {
+  async processQuery(query: string, context?: any): Promise<string> {
+    return 'Mock AI response';
   }
 }
 

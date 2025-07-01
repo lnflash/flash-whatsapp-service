@@ -12,6 +12,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { MetricsMiddleware } from './common/middleware/metrics.middleware';
 import { CryptoModule } from './common/crypto/crypto.module';
+import { HealthController } from './health.controller';
 
 @Module({
   imports: [
@@ -36,7 +37,7 @@ import { CryptoModule } from './common/crypto/crypto.module';
     AuthModule,
     NotificationsModule,
   ],
-  controllers: [],
+  controllers: [HealthController],
   providers: [],
 })
 export class AppModule implements NestModule {

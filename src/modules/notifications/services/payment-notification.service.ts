@@ -46,6 +46,10 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
   ) {}
 
   async onModuleInit() {
+    // Skip initialization in test environment
+    if (process.env.NODE_ENV === 'test') {
+      return;
+    }
     await this.initialize();
   }
 

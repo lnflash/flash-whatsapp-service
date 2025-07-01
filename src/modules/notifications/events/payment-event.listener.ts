@@ -26,6 +26,10 @@ export class PaymentEventListener implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    // Skip initialization in test environment
+    if (process.env.NODE_ENV === 'test') {
+      return;
+    }
     // Subscribe to payment events
     await this.setupSubscriptions();
   }

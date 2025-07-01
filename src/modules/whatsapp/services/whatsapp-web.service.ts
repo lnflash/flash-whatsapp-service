@@ -64,6 +64,12 @@ export class WhatsAppWebService
   }
 
   async onModuleInit() {
+    // Skip initialization in test environment
+    if (process.env.NODE_ENV === 'test' || process.env.DISABLE_WHATSAPP_WEB === 'true') {
+      this.logger.log('WhatsApp Web initialization skipped for testing');
+      return;
+    }
+
     try {
       // Set grace period to ignore messages during startup
       setTimeout(() => {
