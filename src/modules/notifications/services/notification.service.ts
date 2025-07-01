@@ -4,12 +4,12 @@ import { RedisService } from '../../redis/redis.service';
 import { WhatsappService } from '../../whatsapp/services/whatsapp.service';
 import { EventsService } from '../../events/events.service';
 import { SessionService } from '../../auth/services/session.service';
-import { 
-  NotificationDto, 
-  NotificationType, 
-  NotificationChannel, 
+import {
+  NotificationDto,
+  NotificationType,
+  NotificationChannel,
   NotificationPreferencesDto,
-  SendNotificationDto 
+  SendNotificationDto,
 } from '../dto/notification.dto';
 
 @Injectable()
@@ -37,7 +37,6 @@ export class NotificationService {
         // Check if user has enabled this notification type
         const userPreferences = await this.getUserPreferences(userId);
         if (!this.isNotificationEnabled(type, userPreferences)) {
-          this.logger.log(`Notification type ${type} is disabled for user ${userId}`);
           return false;
         }
       }
@@ -45,7 +44,7 @@ export class NotificationService {
       // Get the user's WhatsApp ID from their active session
       let whatsappId: string | null = null;
       const session = await this.findSessionByUserId(userId);
-      
+
       if (session) {
         whatsappId = session.whatsappId;
       }
@@ -76,14 +75,12 @@ export class NotificationService {
    * Send a notification via WhatsApp
    */
   private async sendWhatsAppNotification(
-    whatsappId: string, 
-    notification: NotificationDto
+    whatsappId: string,
+    notification: NotificationDto,
   ): Promise<void> {
     try {
       const formattedMessage = this.formatNotificationMessage(notification);
       await this.whatsappService.sendMessage(whatsappId, formattedMessage);
-      
-      this.logger.log(`WhatsApp notification sent to ${whatsappId}`);
     } catch (error) {
       this.logger.error(`Error sending WhatsApp notification: ${error.message}`, error.stack);
       throw error;
@@ -95,20 +92,18 @@ export class NotificationService {
    */
   private formatNotificationMessage(notification: NotificationDto): string {
     const { type, title, message } = notification;
-    
+
     // Format based on notification type
     switch (type) {
       case NotificationType.PAYMENT_RECEIVED:
         return this.formatPaymentNotification(notification, 'received');
-        
+
       case NotificationType.PAYMENT_SENT:
         return this.formatPaymentNotification(notification, 'sent');
-        
+
       default:
         // Generic format for other notification types
-        return title 
-          ? `*${title}*\n\n${message}`
-          : message;
+        return title ? `*${title}*\n\n${message}` : message;
     }
   }
 
@@ -116,40 +111,38 @@ export class NotificationService {
    * Format a payment notification
    */
   private formatPaymentNotification(
-    notification: NotificationDto, 
-    direction: 'sent' | 'received'
+    notification: NotificationDto,
+    direction: 'sent' | 'received',
   ): string {
     const { title, message, paymentData } = notification;
-    
+
     if (!paymentData) {
-      return title 
-        ? `*${title}*\n\n${message}`
-        : message;
+      return title ? `*${title}*\n\n${message}` : message;
     }
-    
+
     const { amount, currency, timestamp, memo, senderName, receiverName } = paymentData;
     const formattedAmount = this.formatAmount(amount, currency);
     const formattedDate = new Date(timestamp).toLocaleString();
     const emoji = direction === 'received' ? '🔵' : '🟠';
-    
+
     let formattedMessage = `${emoji} *${title || (direction === 'received' ? 'Payment Received' : 'Payment Sent')}*\n\n`;
     formattedMessage += `Amount: ${formattedAmount}\n`;
     formattedMessage += `Date: ${formattedDate}\n`;
-    
+
     if (direction === 'received' && senderName) {
       formattedMessage += `From: ${senderName}\n`;
     } else if (direction === 'sent' && receiverName) {
       formattedMessage += `To: ${receiverName}\n`;
     }
-    
+
     if (memo) {
       formattedMessage += `Memo: ${memo}\n`;
     }
-    
+
     if (message) {
       formattedMessage += `\n${message}`;
     }
-    
+
     return formattedMessage;
   }
 
@@ -160,7 +153,7 @@ export class NotificationService {
     if (currency === 'BTC') {
       return `${amount.toFixed(8)} BTC`;
     }
-    
+
     // For fiat currencies
     return `${currency} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
@@ -170,7 +163,7 @@ export class NotificationService {
    */
   private async recordNotificationEvent(
     notification: NotificationDto,
-    success: boolean
+    success: boolean,
   ): Promise<void> {
     try {
       const eventData = {
@@ -178,7 +171,7 @@ export class NotificationService {
         timestamp: new Date().toISOString(),
         success,
       };
-      
+
       await this.eventsService.publishEvent('notification_sent', eventData);
     } catch (error) {
       this.logger.error(`Error recording notification event: ${error.message}`, error.stack);
@@ -194,18 +187,17 @@ export class NotificationService {
       // Search for all sessions
       const sessionPattern = 'session:*';
       const sessionKeys = await this.redisService.keys(sessionPattern);
-      
+
       // Check each session to find a match
       for (const key of sessionKeys) {
-        const sessionData = await this.redisService.get(key);
-        if (!sessionData) continue;
-        
-        const session = JSON.parse(sessionData);
+        const session = await this.redisService.getEncrypted(key);
+        if (!session) continue;
+
         if (session.flashUserId === userId) {
           return session;
         }
       }
-      
+
       return null;
     } catch (error) {
       this.logger.error(`Error finding session by user ID: ${error.message}`, error.stack);
@@ -219,12 +211,12 @@ export class NotificationService {
   async getUserPreferences(userId: string): Promise<NotificationPreferencesDto> {
     try {
       const preferencesKey = `notification:preferences:${userId}`;
-      const preferencesData = await this.redisService.get(preferencesKey);
-      
+      const preferencesData = await this.redisService.getEncrypted(preferencesKey);
+
       if (preferencesData) {
-        return JSON.parse(preferencesData) as NotificationPreferencesDto;
+        return preferencesData as NotificationPreferencesDto;
       }
-      
+
       // Return default preferences if none set
       return {
         userId,
@@ -256,7 +248,7 @@ export class NotificationService {
   async updateUserPreferences(preferences: NotificationPreferencesDto): Promise<boolean> {
     try {
       const preferencesKey = `notification:preferences:${preferences.userId}`;
-      await this.redisService.set(preferencesKey, JSON.stringify(preferences));
+      await this.redisService.setEncrypted(preferencesKey, preferences);
       return true;
     } catch (error) {
       this.logger.error(`Error updating user preferences: ${error.message}`, error.stack);
@@ -269,7 +261,7 @@ export class NotificationService {
    */
   private isNotificationEnabled(
     type: NotificationType,
-    preferences: NotificationPreferencesDto
+    preferences: NotificationPreferencesDto,
   ): boolean {
     switch (type) {
       case NotificationType.PAYMENT_RECEIVED:

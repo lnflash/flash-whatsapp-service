@@ -1,155 +1,358 @@
-# Flash Connect
+# Pulse (formerly Flash Connect, Flash WhatsApp Service)
 
-This service enables secure communication between Flash users and the Flash platform via WhatsApp, providing account management, notifications, and AI-powered customer support.
+A WhatsApp integration service for Flash that enables users to check their Bitcoin wallet balance and interact with Flash services through WhatsApp. Now branded as "Pulse" to capture the pulse of the Lightning Network.
+
+> **Version**: 1.9.9 - "Pulse Party like its 199"  
+> **Status**: Production Ready
 
 ## Overview
 
-Flash Connect is a NestJS microservice that integrates with:
+This service uses WhatsApp Web.js to provide a seamless integration between Flash and WhatsApp, allowing users to:
+- Link their Flash account via phone number verification
+- Check their wallet balance in their preferred currency
+- Send and receive Lightning payments
+- Manage contacts and payment requests
+- Share content to earn sats through the "vybz" feature
+- Get AI-powered support through Google Gemini
 
-- Twilio WhatsApp Business API for messaging
-- Flash GraphQL API for business logic
-- Maple AI API for AI-powered support
-- Redis for session management
-- RabbitMQ for event handling
+## Tech Stack
+
+- **NestJS** - Backend framework
+- **WhatsApp Web.js** - WhatsApp automation
+- **Redis** - Session management and caching
+- **GraphQL** - Flash API integration
+- **Google Gemini AI** - Intelligent responses
+- **TypeScript** - Type safety
 
 ## Features
 
-- Secure webhook handling for WhatsApp messages
-- Account linking with OTP verification
-- Real-time balance checking with MFA
-- Payment notifications
-- AI-powered support with Maple AI
-- Event-driven architecture
+- ✅ Phone number-based account linking with OTP verification
+- ✅ Real-time balance checking with automatic currency conversion
+- ✅ Smart caching (30-second TTL) with manual refresh option
+- ✅ Multi-currency support (USD, JMD, EUR, etc.)
+- ✅ AI-powered customer support
+- ✅ Secure session management
+- ✅ Lightning invoice detection and payment
+- ✅ Contact management with automatic vCard import
+- ✅ Payment requests via username, phone, or contact name
+- ✅ Admin session management with QR code delivery
+- ✅ Content sharing ("vybz") to earn sats
+- ✅ Transaction history viewing
+- ✅ Pending payments for non-Flash users
+- ✅ Human support handoff with intelligent routing
+- ✅ Anonymous tip sending via DM
+- ✅ Group tip splitting for Flash users
+- ✅ Voice note support with Speech-to-Text
+- ✅ Natural language command processing
+- ✅ User-specific voice settings (on/off/only modes)
+- ✅ Payment confirmation for voice commands
 
-## Implementation Progress
+## Prerequisites
 
-- ✅ Phase 1: Foundation & Infrastructure Setup
-- ✅ Phase 2: Account Security & Linking
-- ✅ Phase 3: Core Functionality
-- ✅ Phase 4: Testing & Security
-- 🔄 Phase 5: Production Deployment & Operational Excellence (In Progress)
+- Node.js 18+
+- Redis server
+- Flash API access (auth token)
+- Google Gemini API key
 
-## Getting Started
+## Quick Start
 
-> 👉 **New to this project?** Check out the [Quick Start Guide](QUICKSTART.md) for a comprehensive overview and setup instructions.
-
-### Prerequisites
-
-- Node.js 18 or higher
-- Docker and Docker Compose
-- Twilio account with WhatsApp Business API access
-- Flash API credentials
-- Maple AI API credentials
-
-### Installation
-
-1. Clone the repository:
-   ```
-   git clone https://github.com/flashapp/flash-connect.git
-   cd flash-connect
-   ```
-
-2. Install dependencies:
-   ```
-   npm install
+1. **Clone and install:**
+   ```bash
+   git clone https://github.com/your-org/flash-whatsapp-service.git
+   cd flash-whatsapp-service
+   yarn install
    ```
 
-3. Create environment configuration:
-   ```
+2. **Configure environment:**
+   ```bash
    cp .env.example .env
-   ```
-   Edit the `.env` file and add your configuration values.
-
-4. Start the service:
-   ```
-   npm run start:dev
+   # Edit .env with your credentials
    ```
 
-### Docker Setup
+3. **Start services:**
+   ```bash
+   # Start Redis
+   docker-compose up -d redis
+   
+   # Start the service
+   yarn start:dev
+   ```
 
-To run the service with Docker:
+4. **Connect WhatsApp:**
+   - Scan the QR code displayed in the console
+   - Use a test WhatsApp number (not your personal one)
+
+## Available Commands
+
+### User Commands
+Users can send these commands to the WhatsApp bot:
+
+- `link` - Connect your Flash account
+- `verify 123456` - Complete verification with OTP
+- `balance` - Check your wallet balance
+- `refresh` - Force refresh your balance
+- `receive [amount] [memo]` - Create USD Lightning invoice
+- `request [amount] from [target]` - Request payment (username/phone/contact)
+- `pay` - Pay detected Lightning invoices (with confirm/cancel options)
+- `send [amount] to [target]` - Send payment to username/phone/contact
+- `contacts` - Manage saved contacts
+- `history` - View recent transaction history
+- `pending` - View and manage pending payments (sent/received/claim)
+- `price` - Check current Bitcoin price
+- `username [new_username]` - View or set username
+- `vybz` - Share content to earn sats (3 posts/day limit)
+- `unlink` - Disconnect your Flash account
+- `consent yes/no` - Manage AI support consent
+- `voice on/off/only/status` - Manage voice response settings
+- `help` - Show available commands
+
+### Admin Commands
+Administrators can use these commands for bot management:
+
+- `admin status` - Check WhatsApp connection status
+- `admin disconnect` - Disconnect current WhatsApp session
+- `admin reconnect` - Connect a new WhatsApp number (sends QR code)
+- `admin clear-session` - Clear all session data
+
+## Environment Variables
+
+```env
+# Flash API
+FLASH_API_URL=https://api.flashapp.me/graphql
+FLASH_API_KEY=your_auth_token_here
+
+# Google Gemini AI
+GEMINI_API_KEY=your_gemini_key_here
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=optional_password
+
+# Admin Configuration
+ADMIN_PHONE_NUMBERS=13059244435,18764250250
+
+# Support Configuration
+SUPPORT_PHONE_NUMBER=18762909250
+
+# Nostr Configuration (optional - for vybz feature)
+NOSTR_PRIVATE_KEY=your_nsec_here
+NOSTR_RELAYS=wss://relay.damus.io,wss://nos.lol
+
+# WhatsApp (managed automatically)
+# Session stored in ./whatsapp-sessions/
+```
+
+## Architecture
 
 ```
-docker-compose up -d
+WhatsApp User → WhatsApp Web.js → NestJS Service → Flash GraphQL API
+                                         ↓
+                                    Redis Cache
+                                         ↓
+                                    Gemini AI
 ```
 
 ## Development
 
-### Running Tests
+```bash
+# Run tests
+yarn test
 
-```
-# Run unit tests
-npm test
+# Lint code
+yarn lint
 
-# Run E2E and integration tests
-npm run test:e2e
+# Format code
+yarn format
 
-# Run all tests (unit, integration, security)
-./scripts/run-all-tests.sh
-
-# Run security scans
-./scripts/security-scan.sh
+# Build for production
+yarn build
 ```
 
-### Code Quality
+## Docker Support
 
+```bash
+# Build and run with Docker Compose
+docker-compose up -d
+
+# View logs
+docker-compose logs -f app
 ```
-npm run lint
-npm run format
+
+## Currency Conversion
+
+The service automatically converts USD wallet balances to the user's display currency using real-time exchange rates from the Flash API. Supported currencies include:
+- JMD (Jamaican Dollar)
+- EUR (Euro)
+- USD (US Dollar)
+- And more...
+
+## Security
+
+- Phone number verification required for account linking
+- Auth tokens stored securely in Redis
+- No MFA required for balance checks (user already authenticated via WhatsApp)
+- All sensitive data excluded from logs
+
+## Pending Payments Feature
+
+The pending payments feature allows Flash users to send money to anyone via WhatsApp, even if the recipient doesn't have a Flash account yet:
+
+### How it works:
+1. **Send to any phone number**: Use `send [amount] to [phone]` to send money to any WhatsApp number
+2. **Recipient gets notified**: The recipient receives a WhatsApp message with a claim code
+3. **Easy claiming**: Recipients can claim by replying "link" to create an account
+4. **Automatic credit**: Once linked, the pending payment is automatically credited
+5. **30-day expiry**: Unclaimed payments are returned to sender after 30 days
+
+### Pending payment commands:
+- `pending` - View all your pending payments
+- `pending sent` - View payments you've sent that are awaiting claim
+- `pending received` - Check if you have money waiting to be claimed
+- `pending claim [code]` - Claim a payment using the provided code
+
+### Example flow:
+```
+Sender: send 10 to +18765551234
+Bot: ✅ $10.00 sent to +18765551234. They'll receive instructions to claim it.
+
+[Recipient receives message]
+Bot: 💰 You have money waiting! @alice sent you $10.00
+     Reply "link" to claim your payment.
+     Claim code: ABC123
+
+Recipient: link
+[... account creation flow ...]
+Bot: ✅ Your $10.00 from @alice has been credited to your account!
 ```
 
-### CI/CD
+## Admin Reconnection Feature
 
-This project uses GitHub Actions for continuous integration and deployment:
+The admin reconnection feature allows authorized administrators to change the WhatsApp number connected to the bot without SSH access:
 
-- **CI Workflow**: Runs on every push and pull request
-  - Builds the application
-  - Runs linting and type checking
-  - Executes unit and integration tests
-  - Performs security scanning
+1. **Check Status**: `admin status` - Shows current connection info
+2. **Reconnect**: `admin reconnect` - Generates and sends QR code via WhatsApp
+3. **Scan QR**: Open WhatsApp on new device and scan the QR code
+4. **Confirmation**: Bot sends welcome message from new number
 
-- **CD Workflow**: Runs on main branch pushes and tags
-  - Builds and pushes Docker images
-  - Deploys to test environment for main branch commits
-  - Deploys to production environment for tagged releases
-  - Implements Docker Compose deployment strategy
+This seamless process ensures zero downtime during number changes.
 
-- **Security Scan**: Runs weekly and on-demand
-  - Performs dependency vulnerability scanning
-  - Checks for secrets in codebase
-  - Runs static code analysis
+## Support Mode
 
-- **Monitoring**: Runs every 30 minutes
-  - Performs health checks on all environments
-  - Monitors for performance degradation
-  - Checks error logs for anomalies
+The AI-powered support mode provides seamless handoff to human agents when users need assistance:
 
-See the [GitHub Actions Setup](docs/GITHUB_ACTIONS_SETUP.md) documentation and the `.github/workflows` directory for detailed workflow configurations.
+### How it works:
+1. **Automatic Detection**: The AI detects when users request human support (e.g., "speak to an agent", "human help")
+2. **Context Gathering**: Collects user info (username, balance, npub, recent conversation)
+3. **Smart Routing**: Routes messages between multiple users and support simultaneously
+4. **Easy Management**: Support agents reply with `@phone: message` to specific users
+5. **Session Control**: Users type "exit support" to return to normal bot functions
 
-### Deployment
+### Support Agent Features:
+- View all active sessions: Type `list` or `sessions`
+- Reply to specific user: `@13059244435: Hello, how can I help?`
+- End support session: `@13059244435: exit support`
+- Automatic session info with each new connection
 
-Refer to the [Docker Compose Deployment Guide](kubernetes/README.md) for detailed deployment instructions.
+## Anonymous Tips
 
-## API Endpoints
+Send tips anonymously through direct messages:
 
-- `POST /whatsapp/webhook` - Twilio webhook for incoming WhatsApp messages
+### Features:
+- **True Anonymity**: Tips sent via DM ensure sender identity is hidden
+- **Group Tip Splitting**: Distribute tips evenly among Flash users in a group
+- **Flexible Amounts**: Send any amount with optional messages
+- **Privacy First**: Recipients only see "Someone sent you a tip"
 
-## Documentation
+### Tip Commands:
+- `tip @username 5` - Send anonymous 5 USD tip
+- `tip @alice 10 great job!` - Include a message with tip
+- `tip group "Flash Users" 20` - Split $20 among all Flash users in the group
+- `tip group "Dev Team" 50 thanks everyone` - Group tip with message
 
-- [Quick Start Guide](QUICKSTART.md) - Guide for new developers and LLMs to quickly understand the project
-- [Version History](VERSION.md) - Record of version changes and release information
-- [Implementation Details](docs/IMPLEMENTATION.md) - Detailed architecture and implementation information
-- [Phase 3 Plan](docs/PHASE_3_PLAN.md) - Core functionality implementation plan
-- [Phase 4 Plan](docs/PHASE_4_PLAN.md) - Testing and security implementation plan
-- [Phase 4 Summary](docs/PHASE_4_SUMMARY.md) - Summary of testing and security implementation
-- [Phase 5 Plan](docs/PHASE_5_PLAN.md) - Production deployment and operational excellence plan
-- [Phase 5 Progress](docs/PHASE_5_PROGRESS.md) - Current progress on Phase 5 implementation
-- [GitHub Actions Setup](docs/GITHUB_ACTIONS_SETUP.md) - CI/CD pipeline implementation details
-- [Security Assessment Plan](test/security/security-assessment-plan.md) - Comprehensive security assessment methodology
-- [Penetration Testing Guide](test/security/penetration-testing-guide.md) - Guide for security testing
-- [Regression Test Plan](test/regression/regression-test-plan.md) - Framework for regression testing
-- [Docker Compose Deployment Guide](kubernetes/README.md) - Guide for deploying with Docker Compose
+## Push Notifications
+
+The service implements real-time payment notifications with a hybrid approach:
+
+### How it works:
+1. **WebSocket Subscriptions**: Primary real-time connection to Flash API for instant updates
+2. **RabbitMQ Fallback**: Reliable message queue ensures notifications are never missed
+3. **Automatic Setup**: Users are subscribed when they link their account
+4. **Smart Deduplication**: Prevents duplicate notifications across both channels
+5. **Rich Notifications**: Shows amount in BTC and fiat, sender info, and updated balance
+
+### Notification Features:
+- Instant WhatsApp message when payment is received
+- Shows payment amount in both BTC and user's preferred currency
+- Displays sender's username and memo if provided
+- Includes updated wallet balance
+- Works whether app is active or not
+
+### Technical Architecture:
+```
+Flash API → WebSocket/RabbitMQ → PaymentNotificationService → WhatsApp Message
+```
+
+## Roadmap
+
+- [x] Payment sending functionality
+- [x] Transaction history
+- [x] Lightning invoice detection and payment
+- [x] Contact management
+- [x] Admin session management
+- [x] Pending payments for non-Flash users
+- [x] Push notifications for received payments
+- [ ] Multi-language support
+- [ ] WhatsApp Business API migration
+- [ ] Group chat support
+
+## Production Deployment
+
+For production deployment, please refer to:
+- [Production Deployment Guide](PRODUCTION_DEPLOYMENT.md) - Step-by-step deployment instructions
+- [Security Checklist](SECURITY_CHECKLIST.md) - Pre-deployment security verification
+- [Environment Template](.env.production.example) - Production configuration template
+
+### Quick Production Setup:
+```bash
+# Build for production
+npm run build:prod
+
+# Docker deployment
+docker-compose -f docker-compose.prod.yml up -d
+
+# PM2 deployment
+pm2 start ecosystem.prod.config.js
+```
+
+## Security Features
+
+Pulse implements enterprise-grade security:
+
+- **🔐 Encryption at Rest**: All sensitive data encrypted with AES-256-GCM
+- **✅ Input Validation**: Comprehensive DTOs with custom validators
+- **🚦 Rate Limiting**: Per-endpoint and per-user rate limits
+- **🔑 Secure Sessions**: Encrypted session storage with rotation
+- **🛡️ Webhook Security**: HMAC signature validation
+- **🔒 Secrets Management**: Environment-based configuration with validation
+
+For detailed security documentation, see:
+- [Security Implementation Guide](docs/SECURITY.md)
+- [Security Improvements](docs/SECURITY_IMPROVEMENTS.md)
+- [Known Vulnerabilities](docs/KNOWN_VULNERABILITIES.md)
+
+### Generating Secure Keys
+
+For production deployment, generate secure keys:
+
+```bash
+# Generate all security keys (encryption, JWT, session, webhook, Nostr)
+./scripts/generate-secure-keys.sh
+
+# Generate only Nostr keys with detailed instructions
+./scripts/generate-nostr-keys.sh
+```
 
 ## License
 
-This project is proprietary and confidential.
+Proprietary - Flash Technologies Ltd.

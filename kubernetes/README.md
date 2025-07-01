@@ -33,8 +33,8 @@ FLASH_API_KEY=<flash-api-key>
 TWILIO_ACCOUNT_SID=<twilio-account-sid>
 TWILIO_AUTH_TOKEN=<twilio-auth-token>
 
-# Maple AI credentials
-MAPLE_AI_API_KEY=<maple-ai-api-key>
+# Gemini AI credentials
+GEMINI_API_KEY=<gemini-api-key>
 
 # JWT Secret
 JWT_SECRET=<jwt-secret>

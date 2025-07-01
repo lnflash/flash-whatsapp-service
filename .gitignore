@@ -43,3 +43,48 @@ lerna-debug.log*
 .npm
 .eslintcache
 .yarn-integrity
+
+# WhatsApp Web.js
+.wwebjs_auth
+.wwebjs_cache
+whatsapp-sessions/
+
+# Sensitive data
+*.pem
+*.key
+*.cert
+private/
+secrets/
+
+# Backup files
+*.backup
+*.bak
+*.tmp
+
+# OS files
+Thumbs.db
+*.swp
+*.swo
+
+yarn.lock
+package-lock.json
+gen-lang*.json
+
+# Production environment
+.env.production
+!.env.production.example
+
+# Test artifacts
+test-reports/
+
+# Google Cloud credentials
+credentials/
+*-service-account.json
+
+# WhatsApp sessions (additional patterns)
+whatsapp-sessions-new/
+
+# PM2
+.pm2/
+pids/
+logs/

@@ -76,15 +76,11 @@ spec:
             secretKeyRef:
               name: flash-whatsapp-twilio
               key: auth_token
-        - name: MAPLE_AI_API_URL
-          valueFrom:
-            configMapKeyRef:
-              name: flash-whatsapp-config
-              key: maple_ai_url
-        - name: MAPLE_AI_API_KEY
+        # Gemini AI doesn't need a URL configuration
+        - name: GEMINI_API_KEY
           valueFrom:
             secretKeyRef:
-              name: flash-whatsapp-maple
+              name: flash-whatsapp-gemini
               key: api_key
         - name: JWT_SECRET
           valueFrom:

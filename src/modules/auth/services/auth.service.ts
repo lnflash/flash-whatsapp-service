@@ -19,42 +19,58 @@ export class AuthService {
   /**
    * Start the account linking process
    */
-  async initiateAccountLinking(linkRequest: AccountLinkRequestDto): Promise<{ sessionId: string; otpSent: boolean }> {
+  async initiateAccountLinking(
+    linkRequest: AccountLinkRequestDto,
+  ): Promise<{ sessionId: string; otpSent: boolean }> {
     try {
       const { whatsappId, phoneNumber } = linkRequest;
-      
-      // Check if the user exists in Flash API
-      const userExists = await this.flashApiService.verifyUserAccount(phoneNumber);
-      
-      if (!userExists) {
-        throw new BadRequestException('No Flash account found with this phone number');
-      }
-      
+
+      // Ensure phone number has country code
+      const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
+
       // Check if there's an existing session
       let session = await this.sessionService.getSessionByWhatsappId(whatsappId);
-      
+
       if (session && session.isVerified) {
         // Already verified
         return { sessionId: session.sessionId, otpSent: false };
       }
-      
+
       // Create or update session
       if (!session) {
-        session = await this.sessionService.createSession(whatsappId, phoneNumber);
+        session = await this.sessionService.createSession(whatsappId, formattedPhone);
       } else {
-        session = await this.sessionService.updateSession(session.sessionId, { phoneNumber });
+        session = await this.sessionService.updateSession(session.sessionId, {
+          phoneNumber: formattedPhone,
+        });
       }
-      
+
       if (!session) {
         throw new Error('Failed to create or update session');
       }
-      
-      // Generate and send OTP
-      const otp = await this.otpService.generateOtp(phoneNumber, session.sessionId);
-      
-      // In a real implementation, we would send this OTP via the Flash API or SMS
-      this.logger.log(`Generated OTP for account linking: ${otp} (This would be sent to the user's Flash app)`);
-      
+
+      // Send OTP via Flash API (to WhatsApp)
+      const result = await this.flashApiService.initiatePhoneVerification(formattedPhone);
+
+      if (!result.success) {
+        const errorMessage = result.errors?.[0]?.message || 'Failed to send verification code';
+        throw new BadRequestException(errorMessage);
+      }
+
+      // Check if this requires the mobile app
+      if (
+        result.errors &&
+        result.errors.length > 0 &&
+        result.errors[0].message === 'REQUIRES_MOBILE_APP'
+      ) {
+        // Throw a specific error so the WhatsApp service can show the right message
+        throw new BadRequestException(
+          'Please open the Flash mobile app to request a verification code, then use that code here.',
+        );
+      } else if (result.errors && result.errors.length > 0) {
+        this.logger.warn(`Phone verification initiated with warning: ${result.errors[0].message}`);
+      }
+
       return { sessionId: session.sessionId, otpSent: true };
     } catch (error) {
       this.logger.error(`Error initiating account linking: ${error.message}`, error.stack);
@@ -68,34 +84,40 @@ export class AuthService {
   async verifyAccountLinking(verifyDto: VerifyOtpDto): Promise<UserSession> {
     try {
       const { sessionId, otpCode } = verifyDto;
-      
+
       // Verify session exists
       const session = await this.sessionService.getSession(sessionId);
       if (!session) {
         throw new UnauthorizedException('Invalid or expired session');
       }
-      
-      // Verify OTP
-      const isValid = await this.otpService.verifyOtp(sessionId, otpCode);
-      if (!isValid) {
-        throw new UnauthorizedException('Invalid or expired OTP code');
+
+      // Validate OTP with Flash API and get auth token
+      const result = await this.flashApiService.validatePhoneVerification(
+        session.phoneNumber,
+        otpCode,
+      );
+
+      if (!result.authToken) {
+        const errorMessage = result.errors?.[0]?.message || 'Invalid or expired verification code';
+        throw new UnauthorizedException(errorMessage);
       }
-      
-      // Get user ID from Flash API using phone number
-      const flashUserId = await this.getFlashUserId(session.phoneNumber);
-      
-      // Update session
+
+      // Get user details using the auth token
+      const userDetails = await this.flashApiService.getUserDetails(result.authToken);
+
+      // Update session with Flash user ID and auth token
       const updatedSession = await this.sessionService.updateSession(sessionId, {
-        flashUserId,
+        flashUserId: userDetails.id,
+        flashAuthToken: result.authToken,
         isVerified: true,
         mfaVerified: true,
         mfaExpiresAt: new Date(Date.now() + 300000), // 5 minutes
       });
-      
+
       if (!updatedSession) {
         throw new Error('Failed to update session after verification');
       }
-      
+
       return updatedSession;
     } catch (error) {
       this.logger.error(`Error verifying account linking: ${error.message}`, error.stack);
@@ -104,31 +126,15 @@ export class AuthService {
   }
 
   /**
-   * Get the Flash user ID from phone number
+   * Get the Flash auth token from session
    */
-  private async getFlashUserId(phoneNumber: string): Promise<string> {
+  async getFlashAuthToken(sessionId: string): Promise<string | null> {
     try {
-      // This is a placeholder - in real implementation, we would call the Flash API
-      // to get the actual user ID associated with the phone number
-      const query = `
-        query GetUserByPhone($phoneNumber: String!) {
-          userByPhone(phoneNumber: $phoneNumber) {
-            id
-          }
-        }
-      `;
-      
-      const variables = { phoneNumber };
-      
-      // Mock response for development
-      // const result = await this.flashApiService.executeQuery<{ userByPhone: { id: string } }>(query, variables);
-      // return result.userByPhone.id;
-      
-      // Simulate API call for now
-      return `user_${Date.now().toString().slice(-6)}`;
+      const session = await this.sessionService.getSession(sessionId);
+      return session?.flashAuthToken || null;
     } catch (error) {
-      this.logger.error(`Error getting Flash user ID: ${error.message}`, error.stack);
-      throw new Error('Failed to retrieve user information');
+      this.logger.error(`Error getting Flash auth token: ${error.message}`, error.stack);
+      return null;
     }
   }
 
@@ -150,21 +156,20 @@ export class AuthService {
   async requestMfaVerification(sessionId: string): Promise<{ otpSent: boolean }> {
     try {
       const session = await this.sessionService.getSession(sessionId);
-      
+
       if (!session) {
         throw new UnauthorizedException('Invalid or expired session');
       }
-      
+
       if (!session.isVerified || !session.flashUserId) {
         throw new UnauthorizedException('Account not linked');
       }
-      
+
       // Generate and send OTP
-      const otp = await this.otpService.generateOtp(session.phoneNumber, sessionId);
-      
+      const _otp = await this.otpService.generateOtp(session.phoneNumber, sessionId);
+
       // In a real implementation, we would send this OTP via the Flash API or SMS
-      this.logger.log(`Generated MFA OTP: ${otp} (This would be sent to the user's Flash app)`);
-      
+
       return { otpSent: true };
     } catch (error) {
       this.logger.error(`Error requesting MFA verification: ${error.message}`, error.stack);
@@ -178,26 +183,26 @@ export class AuthService {
   async verifyMfa(verifyDto: VerifyOtpDto): Promise<{ verified: boolean }> {
     try {
       const { sessionId, otpCode } = verifyDto;
-      
+
       // Verify session exists
       const session = await this.sessionService.getSession(sessionId);
       if (!session) {
         throw new UnauthorizedException('Invalid or expired session');
       }
-      
+
       if (!session.isVerified || !session.flashUserId) {
         throw new UnauthorizedException('Account not linked');
       }
-      
+
       // Verify OTP
       const isValid = await this.otpService.verifyOtp(sessionId, otpCode);
       if (!isValid) {
         throw new UnauthorizedException('Invalid or expired OTP code');
       }
-      
+
       // Update MFA status
       await this.sessionService.setMfaVerified(sessionId, true);
-      
+
       return { verified: true };
     } catch (error) {
       this.logger.error(`Error verifying MFA: ${error.message}`, error.stack);
@@ -213,6 +218,26 @@ export class AuthService {
       return this.sessionService.setConsent(sessionId, consentGiven);
     } catch (error) {
       this.logger.error(`Error recording consent: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  /**
+   * Unlink WhatsApp account from Flash
+   */
+  async unlinkAccount(whatsappId: string): Promise<void> {
+    try {
+      // Get session by WhatsApp ID
+      const session = await this.sessionService.getSessionByWhatsappId(whatsappId);
+
+      if (!session) {
+        throw new BadRequestException('No linked account found');
+      }
+
+      // Delete the session
+      await this.sessionService.deleteSession(session.sessionId);
+    } catch (error) {
+      this.logger.error(`Error unlinking account: ${error.message}`, error.stack);
       throw error;
     }
   }

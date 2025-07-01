@@ -1,201 +1,201 @@
-# Flash Connect - Implementation Plan
+# Implementation Guide
 
-This document outlines the step-by-step implementation plan for building the Flash Connect as specified in [FIP-02](https://github.com/lnflash/fips/blob/main/FIP-02.md).
+This guide provides detailed instructions for developing, testing, and deploying the Flash WhatsApp Service.
 
-## Current Implementation Status
+## Development Setup
 
-- ✅ **Phase 1: Foundation & Infrastructure**: Complete
-- ✅ **Phase 2: Account Security & Linking**: Complete
-- ✅ **Phase 3: Core Functionality**: Complete - [Phase 3 Plan](./PHASE_3_PLAN.md)
-- ✅ **Phase 4: Testing & Security**: Complete - [Phase 4 Plan](./PHASE_4_PLAN.md) | [Phase 4 Summary](./PHASE_4_SUMMARY.md)
-- 🔄 **Phase 5: Production Deployment & Operational Excellence**: In Progress - [Phase 5 Plan](./PHASE_5_PLAN.md)
+### Prerequisites
+1. Install Node.js 18+ and Yarn
+2. Install Redis locally or use Docker
+3. Obtain required API credentials:
+   - Flash backend auth token
+   - Google Gemini API key
 
-## Phase 1: Foundation & Infrastructure Setup
+### Local Development
 
-### Project Initialization
-- ✅ Set up NestJS project with TypeScript
-- ✅ Configure ESLint, Prettier, and other code quality tools
-- ✅ Set up Jest for testing
-- ✅ Initialize Git repository with proper branching strategy
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd flash-whatsapp-service
+   ```
 
-### Environment & Configuration
-- ✅ Implement secure environment variable management using dotenv/Vault
-- ✅ Configure different environments (dev, test, production)
-- ✅ Set up CI/CD pipeline with proper security checks
-- ✅ Implement logging framework with proper redaction of sensitive information
+2. **Install dependencies:**
+   ```bash
+   yarn install
+   ```
 
-### Docker Setup
-- ✅ Create Dockerfile optimized for Node.js applications
-- ✅ Set up Docker Compose for local development
-- ✅ Configure multi-stage builds for production optimization
-- ✅ Implement health checks
+3. **Configure environment:**
+   ```bash
+   cp .env.example .env
+   ```
+   
+   Edit `.env` with your credentials:
+   ```env
+   FLASH_API_URL=https://api.flashapp.me/graphql
+   FLASH_BACKEND_API_KEY=Bearer ory_st_...
+   GEMINI_API_KEY=your_key_here
+   REDIS_HOST=localhost
+   REDIS_PORT=6379
+   ```
 
-### Webhooks & Message Handling
-- ✅ Create webhook controller for Twilio WhatsApp Business API
-- ✅ Implement Twilio signature validation middleware
-- ✅ Set up basic message parsing and routing framework
-- ✅ Create message queue for reliable processing
+4. **Start Redis:**
+   ```bash
+   docker run -d -p 6379:6379 redis:alpine
+   ```
 
-### Initial Data Storage
-- ✅ Set up Redis for session management and rate limiting
-- ✅ Configure secure connections to databases
-- ✅ Implement data encryption at rest
-- ✅ Create schema for minimal user context storage
+5. **Run the service:**
+   ```bash
+   yarn start:dev
+   ```
 
-## Phase 2: Account Security & Linking
+6. **Connect WhatsApp:**
+   - Scan the QR code with WhatsApp
+   - Use a test number, not your personal one
 
-### Account Linking
-- ✅ Design secure account linking flow
-- ✅ Implement one-time password (OTP) generation and validation
-- ✅ Create deep link generation for web confirmation
-- ✅ Build session-to-account mapping with proper TTL
+## Testing
 
-### Authentication & Authorization
-- ✅ Implement JWT or similar token-based authentication
-- ✅ Create middleware for validating user sessions
-- ✅ Set up role-based access control (RBAC)
-- ✅ Implement MFA triggers for sensitive actions
+### Unit Tests
+```bash
+yarn test
+```
 
-### Flash API Integration
-- ✅ Create GraphQL client for Flash backend
-- ✅ Implement secure authentication mechanism
-- ✅ Set up proper error handling and retries
-- ✅ Create data models for API responses
+### Integration Tests
+```bash
+yarn test:e2e
+```
 
-### User Consent Management
-- ✅ Design and implement opt-in/opt-out flows
-- ✅ Create consent storage and validation
-- ✅ Implement privacy policy acceptance tracking
-- ✅ Set up audit logging for consent changes
+### Manual Testing
+1. Send `help` to see available commands
+2. Send `link` to start account linking
+3. Enter the OTP code received
+4. Send `balance` to check wallet balance
+5. Send `refresh` to force update balance
 
-## Phase 3: Core Functionality
+## Code Structure
 
-### Balance Check Flow
-- ✅ Implement secure balance query to Flash API
-- ✅ Create rich message templates for balance information
-- ✅ Add MFA validation for sensitive data requests
-- ✅ Implement rate limiting to prevent abuse
+### Adding New Commands
 
-### Notifications System
-- ✅ Create outbound message framework
-- ✅ Implement templates for different notification types
-- ✅ Set up RabbitMQ listeners for Flash events
-- ✅ Create notification preferences management
+1. Add command type to `CommandType` enum:
+   ```typescript
+   export enum CommandType {
+     // ... existing commands
+     YOUR_COMMAND = 'yourcommand',
+   }
+   ```
 
-### AI Agent Integration
-- ✅ Integrate with Maple AI API
-- ✅ Implement context-aware conversation handling
-- ✅ Create data minimization filters before sending to AI
-- ✅ Build fallback mechanisms for AI failures
+2. Add pattern to `CommandParserService`:
+   ```typescript
+   private readonly commandPatterns = [
+     // ... existing patterns
+     { type: CommandType.YOUR_COMMAND, pattern: /^yourcommand$/i },
+   ];
+   ```
 
-### Conversation Management
-- ✅ Design conversation state management
-- ✅ Implement command parsing and routing
-- ✅ Create help and menu systems
-- ✅ Build conversation timeout and session expiry
+3. Add handler in `WhatsappService`:
+   ```typescript
+   case CommandType.YOUR_COMMAND:
+     return this.handleYourCommand(whatsappId, session);
+   ```
 
-## Phase 4: Testing & Security
+4. Implement the handler method:
+   ```typescript
+   private async handleYourCommand(
+     whatsappId: string, 
+     session: UserSession | null
+   ): Promise<string> {
+     // Your implementation
+   }
+   ```
 
-### Testing Infrastructure
-- ✅ Set up unit testing framework
-- ✅ Create integration tests for external APIs
-- ✅ Implement end-to-end testing for key flows
-- ✅ Set up automated testing scripts
+### Adding New GraphQL Queries
 
-### Security Measures
-- ✅ Conduct thorough security audit and assessment
-- ✅ Implement input validation and sanitization
-- ✅ Set up rate limiting and anti-spam measures
-- ✅ Create robust error handling that doesn't leak information
+1. Define the query in service:
+   ```typescript
+   const query = `
+     query YourQuery($param: String!) {
+       yourQuery(param: $param) {
+         field1
+         field2
+       }
+     }
+   `;
+   ```
 
-### Monitoring & Alerting
-- ✅ Set up application monitoring
-- ✅ Implement custom metrics for business flows
-- ✅ Create alerting for security and operational issues
-- ✅ Set up logging aggregation and analysis
+2. Execute with proper typing:
+   ```typescript
+   const result = await this.flashApiService.executeQuery<{
+     yourQuery: {
+       field1: string;
+       field2: number;
+     };
+   }>(query, variables, authToken);
+   ```
 
-### Abuse Prevention
-- ✅ Implement behavioral analysis
-- ✅ Create suspicious activity detection
-- ✅ Set up account lockout mechanisms
-- ✅ Implement security testing for authentication flows
+## Debugging
 
-## Phase 5: Production Deployment & Operational Excellence
+### Enable Debug Logs
+```bash
+DEBUG=* yarn start:dev
+```
 
-### Infrastructure & Deployment
-- 🔄 Set up production environment infrastructure
-- 🔄 Implement CI/CD pipeline for automated deployment
-- 🔄 Configure production security controls
-- 🔄 Set up high availability and redundancy
+### Common Issues
 
-### Monitoring & Observability
-- 🔄 Implement comprehensive logging and metrics collection
-- 🔄 Create operational dashboards
-- 🔄 Set up alerting and incident response
-- 🔄 Establish performance baselines
+1. **QR Code not appearing:**
+   - Delete `.wwebjs_auth` folder
+   - Restart the service
 
-### Operational Documentation
-- 🔄 Develop operational runbooks and procedures
-- 🔄 Implement backup and disaster recovery
-- 🔄 Create support documentation
-- 🔄 Establish SLAs and service metrics
+2. **Balance showing wrong currency:**
+   - Check user's display currency in Flash app
+   - Verify exchange rate data in logs
 
-### Production Rollout
-- ⏳ Implement blue/green deployment strategy
-- ⏳ Set up canary releases
-- ⏳ Create rollback mechanisms
-- ⏳ Configure deployment approvals and gates
+3. **OTP not received:**
+   - Ensure phone number matches Flash account
+   - Check Flash API logs for errors
 
-### Post-Launch Activities
-- ⏳ Implement feedback collection mechanisms
-- ⏳ Monitor system performance and user feedback
-- ⏳ Conduct regular security reviews
-- ⏳ Plan for feature enhancements
+## Deployment
 
-## Technical Considerations
+### Docker Build
+```bash
+docker build -t flash-whatsapp-service .
+```
 
-### Security Best Practices
-- All sensitive data should be encrypted at rest and in transit
-- Implement principle of least privilege for all components
-- Use secure and updated dependencies
-- Regular security scanning of code and infrastructure
-- Proper secret management with rotation policies
+### Docker Compose
+```bash
+docker-compose up -d
+```
 
-### Scalability Considerations
-- Design for horizontal scaling
-- Implement caching strategies for common requests
-- Use message queues for asynchronous processing
-- Optimize database queries and connections
+### Environment Variables
+Ensure all required environment variables are set in production:
+- `NODE_ENV=production`
+- `FLASH_API_URL`
+- `FLASH_BACKEND_API_KEY`
+- `GEMINI_API_KEY`
+- `REDIS_URL`
 
-### Reliability Measures
-- Implement proper error handling and retries
-- Set up circuit breakers for external dependencies
-- Create idempotent API operations
-- Design for graceful degradation
+## Performance Optimization
 
-## Lessons Learned & Improvements
+1. **Caching**: Balance data cached for 30 seconds
+2. **Message Deduplication**: Prevents duplicate processing
+3. **Connection Pooling**: Redis connection reuse
+4. **Async Operations**: Non-blocking message handling
 
-Based on our experience in implementing Phases 1 and 2, we've identified the following improvements for future phases:
+## Security Best Practices
 
-1. **Type Safety Enhancement**
-   - More consistent null checks and type guards
-   - Better handling of optional values
+1. Never log sensitive data (auth tokens, OTPs)
+2. Use environment variables for secrets
+3. Implement rate limiting for commands
+4. Validate all user inputs
+5. Keep dependencies updated
 
-2. **Test Coverage**
-   - Write tests alongside implementation code
-   - Implement more integration and E2E tests
+## Monitoring
 
-3. **Error Handling**
-   - More granular error types
-   - Better user-facing error messages
+### Health Check
+```bash
+curl http://localhost:3000/health
+```
 
-4. **Dependency Management**
-   - More consistent service initialization
-   - Better handling of external service failures
-
-## Reference Resources
-- [Twilio WhatsApp Business API Documentation](https://www.twilio.com/docs/whatsapp)
-- [NestJS Documentation](https://docs.nestjs.com/)
-- [Maple AI API Documentation](https://trymaple.ai/docs)
-- [OWASP Security Cheat Sheet](https://cheatsheetseries.owasp.org/)
-- [Docker Best Practices](https://docs.docker.com/develop/develop-images/dockerfile_best-practices/)
+### Metrics to Track
+- Message processing time
+- API response times
+- Cache hit/miss rates
+- Error rates by command type

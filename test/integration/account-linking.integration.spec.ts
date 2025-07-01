@@ -12,13 +12,13 @@ import { RedisService } from '../../src/modules/redis/redis.service';
 
 describe('Account Linking Flow (Integration)', () => {
   let app: INestApplication;
-  let authService: AuthService;
+  let _authService: AuthService;
   let sessionService: SessionService;
   let otpService: OtpService;
-  let flashApiService: FlashApiService;
+  let _flashApiService: FlashApiService;
   let redisService: RedisService;
   let configService: ConfigService;
-  
+
   beforeAll(async () => {
     // Create a test module with real services but mocked external dependencies
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -40,15 +40,15 @@ describe('Account Linking Flow (Integration)', () => {
       .compile();
 
     app = moduleFixture.createNestApplication();
-    
+
     // Get service instances
-    authService = moduleFixture.get<AuthService>(AuthService);
+    _authService = moduleFixture.get<AuthService>(AuthService);
     sessionService = moduleFixture.get<SessionService>(SessionService);
     otpService = moduleFixture.get<OtpService>(OtpService);
-    flashApiService = moduleFixture.get<FlashApiService>(FlashApiService);
+    _flashApiService = moduleFixture.get<FlashApiService>(FlashApiService);
     redisService = moduleFixture.get<RedisService>(RedisService);
     configService = moduleFixture.get<ConfigService>(ConfigService);
-    
+
     await app.init();
   });
 
@@ -60,12 +60,12 @@ describe('Account Linking Flow (Integration)', () => {
     it('should initiate account linking for a valid phone number', async () => {
       // Mock Twilio webhook signature validation
       const mockSignature = 'valid-signature';
-      
+
       // Create initial session
       const whatsappId = '18765551234';
       const phoneNumber = '+18765551234';
       const session = await sessionService.createSession(whatsappId, phoneNumber);
-      
+
       // Simulate a "link" command from WhatsApp
       await request(app.getHttpServer())
         .post('/whatsapp/webhook')
@@ -81,7 +81,7 @@ describe('Account Linking Flow (Integration)', () => {
         .expect((res) => {
           expect(res.body.message).toContain('verification code');
         });
-      
+
       // Verify OTP was generated
       const otpKey = `otp:${session.sessionId}`;
       const storedOtp = await redisService.get(otpKey);
@@ -91,12 +91,12 @@ describe('Account Linking Flow (Integration)', () => {
     it('should reject account linking for an invalid phone number', async () => {
       // Mock Twilio webhook signature validation
       const mockSignature = 'valid-signature';
-      
+
       // Create initial session
       const whatsappId = '19999999999';
       const phoneNumber = '+19999999999';
       await sessionService.createSession(whatsappId, phoneNumber);
-      
+
       // Simulate a "link" command from WhatsApp with invalid number
       await request(app.getHttpServer())
         .post('/whatsapp/webhook')
@@ -123,18 +123,19 @@ describe('Account Linking Flow (Integration)', () => {
       const whatsappId = '18765551234';
       const session = await sessionService.createSession(whatsappId, phoneNumber);
       const otp = '123456'; // Test OTP
-      
+
       // Store the OTP in Redis manually for testing
       const otpKey = `otp:${session.sessionId}`;
-      const otpHash = cryptoNode.createHash('sha256')
+      const otpHash = cryptoNode
+        .createHash('sha256')
         .update(otp + configService.get<string>('security.jwtSecret', 'test-secret'))
         .digest('hex');
-      
+
       await redisService.set(otpKey, otpHash, 300); // 5 minutes expiry
-      
+
       // Override the verify method for testing
       jest.spyOn(otpService, 'verifyOtp').mockImplementation(async () => true);
-      
+
       // Simulate a verification command from WhatsApp
       await request(app.getHttpServer())
         .post('/whatsapp/webhook')
@@ -150,7 +151,7 @@ describe('Account Linking Flow (Integration)', () => {
         .expect((res) => {
           expect(res.body.message).toContain('successfully linked');
         });
-      
+
       // Verify session was updated
       const updatedSession = await sessionService.getSessionByWhatsappId(whatsappId);
       expect(updatedSession).toBeTruthy();
@@ -161,10 +162,10 @@ describe('Account Linking Flow (Integration)', () => {
     it('should reject verification with invalid OTP', async () => {
       // Mock Twilio webhook signature validation
       const mockSignature = 'valid-signature';
-      
+
       // Override the verify method for testing
       jest.spyOn(otpService, 'verifyOtp').mockImplementation(async () => false);
-      
+
       // Simulate a verification command with wrong OTP
       await request(app.getHttpServer())
         .post('/whatsapp/webhook')
@@ -180,7 +181,7 @@ describe('Account Linking Flow (Integration)', () => {
         .expect((res) => {
           expect(res.body.message).toContain('Invalid');
         });
-      
+
       // Reset mock
       jest.restoreAllMocks();
     });
@@ -188,17 +189,17 @@ describe('Account Linking Flow (Integration)', () => {
     it('should unlink account when requested', async () => {
       // Mock Twilio webhook signature validation
       const mockSignature = 'valid-signature';
-      
+
       // First ensure we have a session
       const phoneNumber = '+18765551234';
       const whatsappId = '18765551234';
-      
+
       // Create a test session if one doesn't exist
       let session = await sessionService.getSessionByWhatsappId(whatsappId);
       if (!session) {
         await sessionService.createSession(whatsappId, phoneNumber, 'flash-user-123');
       }
-      
+
       // Simulate an unlink command
       await request(app.getHttpServer())
         .post('/whatsapp/webhook')
@@ -214,7 +215,7 @@ describe('Account Linking Flow (Integration)', () => {
         .expect((res) => {
           expect(res.body.message).toContain('unlinked');
         });
-      
+
       // Verify session was deleted
       session = await sessionService.getSessionByWhatsappId(whatsappId);
       expect(session).toBeNull();

@@ -3,6 +3,7 @@ export interface UserSession {
   whatsappId: string;
   phoneNumber: string;
   flashUserId?: string;
+  flashAuthToken?: string;
   isVerified: boolean;
   createdAt: Date;
   expiresAt: Date;

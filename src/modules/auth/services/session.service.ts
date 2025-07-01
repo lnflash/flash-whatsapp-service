@@ -1,4 +1,4 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../../redis/redis.service';
 import { UserSession } from '../interfaces/user-session.interface';
@@ -21,12 +21,16 @@ export class SessionService {
   /**
    * Create a new user session
    */
-  async createSession(whatsappId: string, phoneNumber: string, flashUserId?: string): Promise<UserSession> {
+  async createSession(
+    whatsappId: string,
+    phoneNumber: string,
+    flashUserId?: string,
+  ): Promise<UserSession> {
     try {
       const sessionId = this.generateSessionId();
       const now = new Date();
       const expiresAt = new Date(now.getTime() + this.sessionExpiry * 1000);
-      
+
       const session: UserSession = {
         sessionId,
         whatsappId,
@@ -39,17 +43,15 @@ export class SessionService {
         mfaVerified: false,
         consentGiven: false,
       };
-      
-      // Store in Redis
+
+      // Store in Redis with encryption
       const sessionKey = `session:${sessionId}`;
-      await this.redisService.set(sessionKey, JSON.stringify(session), this.sessionExpiry);
-      
-      // Create secondary index for whatsappId to sessionId mapping
-      const whatsappKey = `whatsapp:${whatsappId}`;
+      await this.redisService.setEncrypted(sessionKey, session, this.sessionExpiry);
+
+      // Create secondary index for whatsappId to sessionId mapping (using hashed key)
+      const whatsappKey = this.redisService.hashKey('whatsapp', whatsappId);
       await this.redisService.set(whatsappKey, sessionId, this.sessionExpiry);
-      
-      this.logger.log(`Created new session ${sessionId} for WhatsApp ID ${whatsappId}`);
-      
+
       return session;
     } catch (error) {
       this.logger.error(`Error creating session: ${error.message}`, error.stack);
@@ -63,13 +65,13 @@ export class SessionService {
   async getSession(sessionId: string): Promise<UserSession | null> {
     try {
       const sessionKey = `session:${sessionId}`;
-      const sessionData = await this.redisService.get(sessionKey);
-      
-      if (!sessionData) {
+      const session = await this.redisService.getEncrypted(sessionKey);
+
+      if (!session) {
         return null;
       }
-      
-      return JSON.parse(sessionData) as UserSession;
+
+      return session as UserSession;
     } catch (error) {
       this.logger.error(`Error getting session: ${error.message}`, error.stack);
       return null;
@@ -81,13 +83,13 @@ export class SessionService {
    */
   async getSessionByWhatsappId(whatsappId: string): Promise<UserSession | null> {
     try {
-      const whatsappKey = `whatsapp:${whatsappId}`;
+      const whatsappKey = this.redisService.hashKey('whatsapp', whatsappId);
       const sessionId = await this.redisService.get(whatsappKey);
-      
+
       if (!sessionId) {
         return null;
       }
-      
+
       return this.getSession(sessionId);
     } catch (error) {
       this.logger.error(`Error getting session by WhatsApp ID: ${error.message}`, error.stack);
@@ -98,25 +100,26 @@ export class SessionService {
   /**
    * Update session data
    */
-  async updateSession(sessionId: string, updates: Partial<UserSession>): Promise<UserSession | null> {
+  async updateSession(
+    sessionId: string,
+    updates: Partial<UserSession>,
+  ): Promise<UserSession | null> {
     try {
       const session = await this.getSession(sessionId);
-      
+
       if (!session) {
         return null;
       }
-      
+
       const updatedSession = {
         ...session,
         ...updates,
         lastActivity: new Date(),
       };
-      
+
       const sessionKey = `session:${sessionId}`;
-      await this.redisService.set(sessionKey, JSON.stringify(updatedSession), this.sessionExpiry);
-      
-      this.logger.log(`Updated session ${sessionId}`);
-      
+      await this.redisService.setEncrypted(sessionKey, updatedSession, this.sessionExpiry);
+
       return updatedSession;
     } catch (error) {
       this.logger.error(`Error updating session: ${error.message}`, error.stack);
@@ -130,14 +133,14 @@ export class SessionService {
   async setMfaVerified(sessionId: string, isVerified: boolean): Promise<UserSession | null> {
     try {
       const session = await this.getSession(sessionId);
-      
+
       if (!session) {
         return null;
       }
-      
+
       const now = new Date();
       const mfaExpiresAt = isVerified ? new Date(now.getTime() + this.mfaExpiry * 1000) : undefined;
-      
+
       return this.updateSession(sessionId, {
         mfaVerified: isVerified,
         mfaExpiresAt,
@@ -154,13 +157,13 @@ export class SessionService {
   async setConsent(sessionId: string, consentGiven: boolean): Promise<UserSession | null> {
     try {
       const session = await this.getSession(sessionId);
-      
+
       if (!session) {
         return null;
       }
-      
+
       const consentTimestamp = consentGiven ? new Date() : undefined;
-      
+
       return this.updateSession(sessionId, {
         consentGiven,
         consentTimestamp,
@@ -177,19 +180,17 @@ export class SessionService {
   async deleteSession(sessionId: string): Promise<boolean> {
     try {
       const session = await this.getSession(sessionId);
-      
+
       if (!session) {
         return false;
       }
-      
+
       const sessionKey = `session:${sessionId}`;
       const whatsappKey = `whatsapp:${session.whatsappId}`;
-      
+
       await this.redisService.del(sessionKey);
       await this.redisService.del(whatsappKey);
-      
-      this.logger.log(`Deleted session ${sessionId}`);
-      
+
       return true;
     } catch (error) {
       this.logger.error(`Error deleting session: ${error.message}`, error.stack);
@@ -203,18 +204,18 @@ export class SessionService {
   async isMfaValidated(sessionId: string): Promise<boolean> {
     try {
       const session = await this.getSession(sessionId);
-      
+
       if (!session) {
         return false;
       }
-      
+
       if (!session.mfaVerified || !session.mfaExpiresAt) {
         return false;
       }
-      
+
       const now = new Date();
       const expiryDate = new Date(session.mfaExpiresAt);
-      
+
       return now < expiryDate;
     } catch (error) {
       this.logger.error(`Error checking MFA status: ${error.message}`, error.stack);
@@ -228,20 +229,20 @@ export class SessionService {
   async isSessionValid(sessionId: string): Promise<boolean> {
     try {
       const session = await this.getSession(sessionId);
-      
+
       if (!session) {
         return false;
       }
-      
+
       const now = new Date();
       const expiryDate = new Date(session.expiresAt);
-      
+
       if (now > expiryDate) {
         // Clean up expired session
         await this.deleteSession(sessionId);
         return false;
       }
-      
+
       return true;
     } catch (error) {
       this.logger.error(`Error validating session: ${error.message}`, error.stack);
@@ -254,5 +255,35 @@ export class SessionService {
    */
   private generateSessionId(): string {
     return crypto.randomBytes(16).toString('hex');
+  }
+
+  /**
+   * Get all active sessions
+   */
+  async getAllActiveSessions(): Promise<UserSession[]> {
+    try {
+      const sessions: UserSession[] = [];
+      const pattern = 'session:*';
+      const keys = await this.redisService.keys(pattern);
+
+      for (const key of keys) {
+        try {
+          const sessionData = (await this.redisService.getEncrypted(key)) as UserSession | null;
+          if (sessionData) {
+            // Only include verified sessions with auth tokens
+            if (sessionData.isVerified && sessionData.flashAuthToken) {
+              sessions.push(sessionData);
+            }
+          }
+        } catch {
+          // Skip sessions that can't be decrypted (old encryption keys)
+        }
+      }
+
+      return sessions;
+    } catch (error) {
+      this.logger.error('Error getting all active sessions:', error);
+      return [];
+    }
   }
 }

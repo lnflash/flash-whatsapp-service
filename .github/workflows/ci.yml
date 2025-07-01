@@ -60,10 +60,21 @@ jobs:
       - name: Run E2E tests
         run: npm run test:e2e
         env:
+          NODE_ENV: test
           REDIS_HOST: localhost
           REDIS_PORT: 6379
+          REDIS_PASSWORD: ''
+          REDIS_DB: 1
           RABBITMQ_URL: amqp://localhost:5672
-          # Add other environment variables needed for testing
+          JWT_SECRET: test_jwt_secret_min_32_chars_for_testing_only
+          ENCRYPTION_KEY: test_encryption_key_min_32_chars_for_testing
+          ENCRYPTION_SALT: test_salt_16char
+          HASH_SALT: test_hash_16char
+          SESSION_SECRET: test_session_secret_min_32_chars_for_testing
+          WEBHOOK_SECRET: test_webhook_secret_min_32_chars_for_testing
+          ENABLE_INTRALEDGER_POLLING: false
+          ENABLE_WEBSOCKET_NOTIFICATIONS: false
+          LOG_LEVEL: error
 
   security-scan:
     runs-on: ubuntu-latest

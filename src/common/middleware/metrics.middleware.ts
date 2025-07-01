@@ -59,17 +59,16 @@ export class MetricsMiddleware implements NestMiddleware {
 
     // Capture original end to intercept response
     const originalEnd = res.end;
-    const self = this;
 
     // Override end
-    res.end = function (this: Response, ...args: any[]) {
+    res.end = (...args: any[]) => {
       // Calculate duration
       const duration = process.hrtime(start);
       const durationInSeconds = duration[0] + duration[1] / 1e9;
 
       // Normalize route path
       let route = req.route ? req.route.path : req.path;
-      
+
       // For dynamic routes, replace parameters with placeholders
       if (req.params) {
         Object.keys(req.params).forEach((param) => {
@@ -78,23 +77,19 @@ export class MetricsMiddleware implements NestMiddleware {
       }
 
       // Record metrics
-      self.httpRequestDurationMicroseconds
+      this.httpRequestDurationMicroseconds
         .labels(req.method, route, res.statusCode.toString())
         .observe(durationInSeconds);
-      
-      self.httpRequestCounter
-        .labels(req.method, route, res.statusCode.toString())
-        .inc();
+
+      this.httpRequestCounter.labels(req.method, route, res.statusCode.toString()).inc();
 
       // Record errors separately
       if (res.statusCode >= 400) {
-        self.httpRequestErrorCounter
-          .labels(req.method, route, res.statusCode.toString())
-          .inc();
+        this.httpRequestErrorCounter.labels(req.method, route, res.statusCode.toString()).inc();
       }
 
       // Call original end
-      return originalEnd.apply(this, args);
+      return originalEnd.apply(res, args);
     };
 
     next();

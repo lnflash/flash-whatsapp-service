@@ -1,0 +1,13 @@
+{
+  "watch": ["dist"],
+  "ext": "js",
+  "ignore": ["node_modules", "dist/**/*.map", "dist/tsconfig.tsbuildinfo"],
+  "exec": "node",
+  "delay": 2500,
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "events": {
+    "restart": "echo 'App restarted due to file change'"
+  }
+}

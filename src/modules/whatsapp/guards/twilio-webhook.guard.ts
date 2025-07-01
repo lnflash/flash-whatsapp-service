@@ -1,24 +1,33 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Request } from 'express';
-import * as crypto from 'crypto';
-import { Observable } from 'rxjs';
+import * as twilio from 'twilio';
 
 @Injectable()
 export class TwilioWebhookGuard implements CanActivate {
-  constructor(private configService: ConfigService) {}
+  private readonly authToken: string;
 
-  canActivate(context: ExecutionContext): boolean | Promise<boolean> | Observable<boolean> {
-    const request = context.switchToHttp().getRequest<Request>();
-    const signature = request.headers['x-twilio-signature'] as string;
-    
-    if (!signature) {
+  constructor(private readonly configService: ConfigService) {
+    this.authToken = this.configService.get<string>('twilio.authToken') || '';
+  }
+
+  canActivate(context: ExecutionContext): boolean {
+    const request = context.switchToHttp().getRequest();
+
+    // Get the webhook URL
+    const webhookUrl = `${request.protocol}://${request.get('host')}${request.originalUrl}`;
+
+    // Get the signature from Twilio
+    const twilioSignature = request.headers['x-twilio-signature'];
+
+    if (!twilioSignature) {
       throw new UnauthorizedException('Missing Twilio signature');
     }
 
-    const isValid = this.validateTwilioRequest(
-      signature,
-      request.url,
+    // Validate the request came from Twilio
+    const isValid = twilio.validateRequest(
+      this.authToken,
+      twilioSignature,
+      webhookUrl,
       request.body,
     );
 
@@ -27,39 +36,5 @@ export class TwilioWebhookGuard implements CanActivate {
     }
 
     return true;
-  }
-
-  private validateTwilioRequest(
-    signature: string,
-    url: string,
-    params: Record<string, any>,
-  ): boolean {
-    // Get the auth token from config
-    const authToken = this.configService.get<string>('twilio.webhookAuthToken');
-    
-    if (!authToken) {
-      throw new UnauthorizedException('Twilio webhook auth token not configured');
-    }
-
-    // Convert the app URL to a full URL
-    const appUrl = this.configService.get<string>('app_url');
-    const fullUrl = url.startsWith('http') ? url : `${appUrl}${url}`;
-
-    // Build the signature string
-    const data = Object.keys(params)
-      .sort()
-      .reduce((str, key) => {
-        return str + key + params[key];
-      }, fullUrl);
-
-    // Compare signatures
-    const hmac = crypto.createHmac('sha1', authToken);
-    const calculatedSignature = Buffer.from(hmac.update(data).digest('hex'), 'hex').toString('base64');
-    
-    // Timing-safe comparison to prevent timing attacks
-    return crypto.timingSafeEqual(
-      Buffer.from(signature),
-      Buffer.from(calculatedSignature),
-    );
   }
 }

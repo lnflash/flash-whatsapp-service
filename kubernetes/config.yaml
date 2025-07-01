@@ -5,7 +5,7 @@ metadata:
   namespace: flash-production
 data:
   flash_api_url: "https://api.flashapp.me/graphql"
-  maple_ai_url: "https://api.trymaple.ai/v1"
+  # Gemini AI doesn't need a URL configuration
   logging_level: "info"
   # Add other non-sensitive configuration values here
 ---
@@ -16,6 +16,6 @@ metadata:
   namespace: flash-test
 data:
   flash_api_url: "https://test.api.flashapp.me/graphql"
-  maple_ai_url: "https://test-api.trymaple.ai/v1"
+  # Gemini AI doesn't need a URL configuration
   logging_level: "debug"
   # Add other non-sensitive configuration values here

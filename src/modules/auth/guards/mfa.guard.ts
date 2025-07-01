@@ -1,4 +1,10 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  UnauthorizedException,
+  Logger,
+} from '@nestjs/common';
 import { SessionService } from '../services/session.service';
 import { Request } from 'express';
 import { UserSession } from '../interfaces/user-session.interface';
@@ -11,24 +17,24 @@ export class MfaGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request & { session?: UserSession }>();
-    
+
     // First, make sure the session is valid
     if (!request.session) {
       // Try to get the sessionId and validate it
       const sessionId = this.extractSessionId(request);
-      
+
       if (!sessionId) {
         this.logger.warn('No session ID found in request');
         throw new UnauthorizedException('Session ID is required');
       }
-      
+
       const isValid = await this.sessionService.isSessionValid(sessionId);
-      
+
       if (!isValid) {
         this.logger.warn(`Invalid or expired session: ${sessionId}`);
         throw new UnauthorizedException('Invalid or expired session');
       }
-      
+
       // Attach session to request for later use
       const session = await this.sessionService.getSession(sessionId);
       if (session) {
@@ -38,21 +44,21 @@ export class MfaGuard implements CanActivate {
         throw new UnauthorizedException('Session not found');
       }
     }
-    
+
     // Now check MFA
     if (!request.session) {
       this.logger.warn('No session found in request');
       throw new UnauthorizedException('Session not found');
     }
-    
+
     const sessionId = request.session.sessionId;
     const isMfaValid = await this.sessionService.isMfaValidated(sessionId);
-    
+
     if (!isMfaValid) {
       this.logger.warn(`MFA not validated for session: ${sessionId}`);
       throw new UnauthorizedException('Multi-factor authentication required');
     }
-    
+
     return true;
   }
 

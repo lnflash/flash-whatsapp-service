@@ -14,7 +14,7 @@ export class AccountLinkRequestDto {
   flashUserId?: string;
 
   @IsString()
-  @ValidateIf(o => o.otpCode !== undefined)
+  @ValidateIf((o) => o.otpCode !== undefined)
   otpCode?: string;
 
   @IsString()

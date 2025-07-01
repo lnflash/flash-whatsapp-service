@@ -27,15 +27,18 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     // For Twilio webhook responses, we need to return a valid TwiML response
     const isTwilioWebhook = request.path.includes('/whatsapp/webhook');
-    
+
     if (isTwilioWebhook) {
       // For Twilio, return a 200 status with a TwiML error message
-      response.status(HttpStatus.OK).type('text/xml').send(
-        `<?xml version="1.0" encoding="UTF-8"?>
+      response
+        .status(HttpStatus.OK)
+        .type('text/xml')
+        .send(
+          `<?xml version="1.0" encoding="UTF-8"?>
         <Response>
           <Message>We're sorry, but we encountered an issue processing your request. Please try again later.</Message>
-        </Response>`
-      );
+        </Response>`,
+        );
     } else {
       // Standard error response
       response.status(status).json({

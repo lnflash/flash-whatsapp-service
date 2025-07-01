@@ -4,12 +4,13 @@ export default () => ({
   port: parseInt(process.env.PORT || '3000', 10),
   app_url: process.env.APP_URL || 'http://localhost:3000',
 
-  // Twilio WhatsApp Settings
-  twilio: {
-    accountSid: process.env.TWILIO_ACCOUNT_SID,
-    authToken: process.env.TWILIO_AUTH_TOKEN,
-    whatsappNumber: process.env.TWILIO_WHATSAPP_NUMBER,
-    webhookAuthToken: process.env.TWILIO_WEBHOOK_AUTH_TOKEN,
+  // WhatsApp Cloud API Settings
+  whatsappCloud: {
+    phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
+    accessToken: process.env.WHATSAPP_ACCESS_TOKEN,
+    verifyToken: process.env.WHATSAPP_VERIFY_TOKEN,
+    appSecret: process.env.WHATSAPP_APP_SECRET,
+    webhookUrl: process.env.WHATSAPP_WEBHOOK_URL || 'https://whatsapp.flashapp.me/whatsapp/webhook',
   },
 
   // Redis Configuration
@@ -23,7 +24,7 @@ export default () => ({
   // Flash API Configuration
   flashApi: {
     url: process.env.FLASH_API_URL || 'https://api.flashapp.me/graphql',
-    apiKey: process.env.FLASH_API_KEY,
+    apiKey: process.env.FLASH_AUTH_TOKEN || process.env.FLASH_API_KEY,
     apiSecret: process.env.FLASH_API_SECRET,
   },
 
@@ -33,10 +34,9 @@ export default () => ({
     queueName: process.env.RABBITMQ_QUEUE_NAME || 'flash_whatsapp_events',
   },
 
-  // Maple AI Configuration
-  mapleAi: {
-    apiUrl: process.env.MAPLE_AI_API_URL || 'https://api.trymaple.ai/',
-    apiKey: process.env.MAPLE_AI_API_KEY,
+  // Google Gemini AI Configuration
+  geminiAi: {
+    apiKey: process.env.GEMINI_API_KEY,
   },
 
   // Security
@@ -48,7 +48,7 @@ export default () => ({
 
   // Caching
   balanceCacheTtl: parseInt(process.env.BALANCE_CACHE_TTL || '300', 10), // 5 minutes in seconds
-  
+
   // Rate Limiting
   rateLimit: {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10), // 1 minute
@@ -57,4 +57,11 @@ export default () => ({
 
   // Logging
   logLevel: process.env.LOG_LEVEL || 'info',
+
+  // Notifications
+  notifications: {
+    enableWebSocket: process.env.ENABLE_WEBSOCKET_NOTIFICATIONS !== 'false',
+    enableIntraledgerPolling: process.env.ENABLE_INTRALEDGER_POLLING !== 'false',
+    pollingInterval: parseInt(process.env.PAYMENT_POLLING_INTERVAL || '10000', 10), // 10 seconds default
+  },
 });

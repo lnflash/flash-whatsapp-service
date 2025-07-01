@@ -1,4 +1,13 @@
-import { IsNotEmpty, IsEnum, IsString, IsOptional, ValidateNested, IsBoolean, IsNumber, IsISO8601 } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsEnum,
+  IsString,
+  IsOptional,
+  ValidateNested,
+  IsBoolean,
+  IsNumber,
+  IsISO8601,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum NotificationType {
