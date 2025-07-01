@@ -74,7 +74,15 @@ export class CommandParserService {
    */
   parseCommand(text: string): ParsedCommand {
     try {
-      const trimmedText = text.trim();
+      let trimmedText = text.trim();
+      
+      // Strip voice-related prefixes to allow "voice balance", "speak help", etc.
+      const voicePrefixes = /^(voice|audio|speak|say it|tell me)\s+/i;
+      const voiceMatch = trimmedText.match(voicePrefixes);
+      if (voiceMatch) {
+        // Remove the voice prefix but keep track that voice was requested
+        trimmedText = trimmedText.replace(voicePrefixes, '').trim();
+      }
 
       for (const { type, pattern } of this.commandPatterns) {
         const match = trimmedText.match(pattern);
@@ -94,7 +102,7 @@ export class CommandParserService {
       return {
         type: CommandType.UNKNOWN,
         args: {},
-        rawText: trimmedText,
+        rawText: text.trim(), // Use original text for unknown commands
       };
     } catch (error) {
       this.logger.error(`Error parsing command: ${error.message}`, error.stack);
