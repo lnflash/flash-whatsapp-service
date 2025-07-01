@@ -57,4 +57,11 @@ export default () => ({
 
   // Logging
   logLevel: process.env.LOG_LEVEL || 'info',
+
+  // Notifications
+  notifications: {
+    enableWebSocket: process.env.ENABLE_WEBSOCKET_NOTIFICATIONS !== 'false',
+    enableIntraledgerPolling: process.env.ENABLE_INTRALEDGER_POLLING !== 'false',
+    pollingInterval: parseInt(process.env.PAYMENT_POLLING_INTERVAL || '10000', 10), // 10 seconds default
+  },
 });

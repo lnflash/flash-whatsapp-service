@@ -30,6 +30,7 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
   private readonly dedupeTimeout = 24 * 60 * 60; // 24 hours
   private pollingIntervals = new Map<string, NodeJS.Timeout>(); // whatsappId -> interval
   private readonly lastTxPrefix = 'last_tx_id:'; // Redis key prefix for last transaction IDs
+  private connectionErrorLogged = new Set<string>(); // Track which users we've logged connection errors for
 
   constructor(
     private readonly configService: ConfigService,
@@ -452,20 +453,29 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
    * Start polling for intraledger payments
    */
   private startPollingForIntraledgerPayments(whatsappId: string, authToken: string): void {
+    // Check if intraledger polling is enabled
+    const pollingEnabled = this.configService.get<boolean>('notifications.enableIntraledgerPolling', true);
+    if (!pollingEnabled) {
+      this.logger.debug(`Intraledger polling is disabled for ${whatsappId}`);
+      return;
+    }
+
     // Clear any existing interval
     const existingInterval = this.pollingIntervals.get(whatsappId);
     if (existingInterval) {
       clearInterval(existingInterval);
     }
 
-    // Poll every 10 seconds for new transactions
+    const pollingInterval = this.configService.get<number>('notifications.pollingInterval', 10000);
+
+    // Poll for new transactions
     const interval = setInterval(async () => {
       try {
         await this.checkForNewIntraledgerPayments(whatsappId, authToken);
       } catch (error) {
         this.logger.error(`Error polling for payments for ${whatsappId}:`, error);
       }
-    }, 10000); // 10 seconds
+    }, pollingInterval);
 
     this.pollingIntervals.set(whatsappId, interval);
 
@@ -579,7 +589,18 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
         await this.setLastTransactionId(whatsappId, transactions.edges[0].node.id);
       }
     } catch (error) {
-      this.logger.error(`Error checking for new intraledger payments:`, error);
+      // Only log connection errors once, not the full stack trace
+      if (error.message?.includes('fetch failed') || error.message?.includes('Connect Timeout')) {
+        // Suppress repetitive connection errors
+        if (!this.connectionErrorLogged.has(whatsappId)) {
+          this.logger.warn(`Flash API connection issue for ${whatsappId}. Payment polling temporarily unavailable.`);
+          this.connectionErrorLogged.add(whatsappId);
+          // Clear the flag after 5 minutes
+          setTimeout(() => this.connectionErrorLogged.delete(whatsappId), 300000);
+        }
+      } else {
+        this.logger.error(`Error checking for new intraledger payments:`, error);
+      }
     }
   }
 

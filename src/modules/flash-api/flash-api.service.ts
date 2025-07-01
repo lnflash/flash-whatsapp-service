@@ -40,6 +40,7 @@ export class FlashApiService {
           query,
           variables,
         }),
+        signal: AbortSignal.timeout(10000), // 10 second timeout
       });
 
       if (!response.ok) {
@@ -55,6 +56,11 @@ export class FlashApiService {
 
       return data.data as T;
     } catch (error) {
+      // Handle connection errors more gracefully
+      if (error.name === 'AbortError' || error.message?.includes('fetch failed')) {
+        this.logger.error(`Flash API connection failed: ${error.message}`);
+        throw new Error('Flash API is currently unreachable. Please try again later.');
+      }
       this.logger.error(`Error executing Flash API query: ${error.message}`, error.stack);
       throw error;
     }
