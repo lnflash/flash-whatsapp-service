@@ -22,7 +22,7 @@ describe('CommandParserService - Natural Language', () => {
       'my wallet balance',
     ];
 
-    balanceVariations.forEach(input => {
+    balanceVariations.forEach((input) => {
       it(`should parse "${input}" as balance command`, () => {
         const result = service.parseCommand(input, true);
         expect(result.type).toBe(CommandType.BALANCE);
@@ -41,7 +41,7 @@ describe('CommandParserService - Natural Language', () => {
       'check the price',
     ];
 
-    priceVariations.forEach(input => {
+    priceVariations.forEach((input) => {
       it(`should parse "${input}" as price command`, () => {
         const result = service.parseCommand(input, true);
         expect(result.type).toBe(CommandType.PRICE);
@@ -60,7 +60,7 @@ describe('CommandParserService - Natural Language', () => {
       'show me what you can do',
     ];
 
-    helpVariations.forEach(input => {
+    helpVariations.forEach((input) => {
       it(`should parse "${input}" as help command`, () => {
         const result = service.parseCommand(input, true);
         expect(result.type).toBe(CommandType.HELP);
@@ -133,7 +133,7 @@ describe('CommandParserService - Natural Language', () => {
       'connect me',
     ];
 
-    linkVariations.forEach(input => {
+    linkVariations.forEach((input) => {
       it(`should parse "${input}" as link command`, () => {
         const result = service.parseCommand(input, true);
         expect(result.type).toBe(CommandType.LINK);
@@ -150,7 +150,7 @@ describe('CommandParserService - Natural Language', () => {
       'payment history',
     ];
 
-    historyVariations.forEach(input => {
+    historyVariations.forEach((input) => {
       it(`should parse "${input}" as history command`, () => {
         const result = service.parseCommand(input, true);
         expect(result.type).toBe(CommandType.HISTORY);
@@ -167,7 +167,7 @@ describe('CommandParserService - Natural Language', () => {
       'create invoice',
     ];
 
-    receiveVariations.forEach(input => {
+    receiveVariations.forEach((input) => {
       it(`should parse "${input}" as receive command`, () => {
         const result = service.parseCommand(input, true);
         expect(result.type).toBe(CommandType.RECEIVE);

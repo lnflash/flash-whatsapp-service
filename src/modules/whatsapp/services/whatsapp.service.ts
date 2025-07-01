@@ -35,6 +35,7 @@ import { UserSession } from '../../auth/interfaces/user-session.interface';
 import { AdminSettingsService, VoiceMode } from './admin-settings.service';
 import { TtsService } from '../../tts/tts.service';
 import { PaymentConfirmationService } from './payment-confirmation.service';
+import { UserVoiceSettingsService, UserVoiceMode } from './user-voice-settings.service';
 // import { WhatsAppCloudService } from './whatsapp-cloud.service'; // Disabled for prototype branch
 
 @Injectable()
@@ -63,6 +64,7 @@ export class WhatsappService {
     private readonly adminSettingsService: AdminSettingsService,
     private readonly ttsService: TtsService,
     private readonly paymentConfirmationService: PaymentConfirmationService,
+    private readonly userVoiceSettingsService: UserVoiceSettingsService,
     // private readonly whatsAppCloudService: WhatsAppCloudService, // Disabled for prototype branch
     @Inject(forwardRef(() => WhatsAppWebService))
     private readonly whatsappWebService?: WhatsAppWebService,
@@ -140,7 +142,12 @@ export class WhatsappService {
       // Check if voice response is requested
       // Mark as AI response if it comes from unknown command (likely AI handled)
       const isAiResponse = command.type === CommandType.UNKNOWN;
-      const shouldUseVoice = await this.ttsService.shouldUseVoice(messageData.text, isAiResponse);
+      const shouldUseVoice = await this.ttsService.shouldUseVoice(
+        messageData.text,
+        isAiResponse,
+        whatsappId,
+      );
+      const shouldSendVoiceOnly = await this.ttsService.shouldSendVoiceOnly(whatsappId);
 
       // Add hints to text responses and optionally add voice
       if (typeof response === 'string') {
@@ -161,6 +168,12 @@ export class WhatsappService {
             }
 
             const audioBuffer = await this.ttsService.textToSpeech(voiceText);
+
+            // If voice-only mode, return with empty text
+            if (shouldSendVoiceOnly) {
+              return { text: '', voice: audioBuffer };
+            }
+
             return { text: finalText, voice: audioBuffer };
           } catch (error) {
             this.logger.error('Failed to generate voice response:', error);
@@ -190,6 +203,16 @@ export class WhatsappService {
             }
 
             const audioBuffer = await this.ttsService.textToSpeech(voiceText);
+
+            // If voice-only mode, return with empty text
+            if (shouldSendVoiceOnly) {
+              return {
+                ...response,
+                text: '',
+                voice: audioBuffer,
+              };
+            }
+
             return {
               ...response,
               text: finalText,
@@ -326,6 +349,9 @@ export class WhatsappService {
 
         case CommandType.PENDING:
           return this.handlePendingCommand(command, whatsappId, session);
+
+        case CommandType.VOICE:
+          return this.handleVoiceCommand(command, whatsappId);
 
         case CommandType.ADMIN:
           return this.handleAdminCommand(command, whatsappId, phoneNumber);
@@ -3105,6 +3131,74 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
 
   /**
    * Handle admin commands for WhatsApp session management
+   */
+  /**
+   * Handle voice settings command
+   */
+  private async handleVoiceCommand(command: ParsedCommand, whatsappId: string): Promise<string> {
+    const action = command.args.action;
+
+    try {
+      switch (action) {
+        case 'help':
+          return this.userVoiceSettingsService.getVoiceHelp();
+
+        case 'status': {
+          const userMode = await this.userVoiceSettingsService.getUserVoiceMode(whatsappId);
+          if (userMode) {
+            return `Your voice setting: ${this.userVoiceSettingsService.formatVoiceMode(userMode)}`;
+          }
+
+          // Show default (admin) setting
+          const adminMode = await this.adminSettingsService.getVoiceMode();
+          return `Your voice setting: Default (follows admin setting: ${adminMode})`;
+        }
+
+        case 'on':
+          await this.userVoiceSettingsService.setUserVoiceMode(whatsappId, UserVoiceMode.ON);
+          return "🔊 Voice ON - You'll hear voice for AI responses when using voice keywords.";
+
+        case 'off':
+          await this.userVoiceSettingsService.setUserVoiceMode(whatsappId, UserVoiceMode.OFF);
+          return "🔇 Voice OFF - You'll only receive text responses.";
+
+        case 'only':
+          await this.userVoiceSettingsService.setUserVoiceMode(whatsappId, UserVoiceMode.ONLY);
+          return "🎤 Voice ONLY - You'll only receive voice responses (no text).";
+
+        default: {
+          // No action specified, show current status
+          const currentMode = await this.userVoiceSettingsService.getUserVoiceMode(whatsappId);
+          if (currentMode) {
+            return (
+              `Your current voice setting: ${this.userVoiceSettingsService.formatVoiceMode(currentMode)}\n\n` +
+              `To change, use:\n` +
+              `• \`voice on\` - Voice for AI responses\n` +
+              `• \`voice off\` - No voice responses\n` +
+              `• \`voice only\` - Voice only (no text)\n` +
+              `• \`voice help\` - See detailed help`
+            );
+          }
+
+          const defaultMode = await this.adminSettingsService.getVoiceMode();
+          return (
+            `Your voice setting: Default (${defaultMode})\n\n` +
+            `To customize, use:\n` +
+            `• \`voice on\` - Voice for AI responses\n` +
+            `• \`voice off\` - No voice responses\n` +
+            `• \`voice only\` - Voice only (no text)\n` +
+            `• \`voice help\` - See detailed help`
+          );
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Error handling voice command: ${error.message}`);
+      return '❌ Failed to update voice settings. Please try again.';
+    }
+  }
+
+  /**
+   * Handle admin commands
    */
   private async handleAdminCommand(
     command: ParsedCommand,

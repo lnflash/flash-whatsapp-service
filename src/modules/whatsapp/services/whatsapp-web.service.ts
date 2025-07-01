@@ -393,7 +393,10 @@ export class WhatsAppWebService
 
                 if (response.voice) {
                   await this.sendVoiceNote(msg.from, response.voice);
-                  await this.sendMessage(msg.from, textWithPrefix);
+                  // Only send text if not in voice-only mode
+                  if (response.text && response.text.trim() !== '') {
+                    await this.sendMessage(msg.from, textWithPrefix);
+                  }
                 } else if (response.media) {
                   await this.sendImage(msg.from, response.media, textWithPrefix);
                 } else {
@@ -448,8 +451,10 @@ export class WhatsAppWebService
             // Send voice note if voice buffer is present
             if (response.voice) {
               await this.sendVoiceNote(msg.from, response.voice);
-              // Also send text for reference
-              await this.sendMessage(msg.from, response.text);
+              // Also send text for reference (unless it's empty for voice-only mode)
+              if (response.text && response.text.trim() !== '') {
+                await this.sendMessage(msg.from, response.text);
+              }
             }
             // Send image with caption if media is present
             else if (response.media) {

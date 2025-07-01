@@ -19,6 +19,7 @@ export enum CommandType {
   VYBZ = 'vybz',
   ADMIN = 'admin',
   PENDING = 'pending',
+  VOICE = 'voice',
   UNKNOWN = 'unknown',
 }
 
@@ -70,6 +71,7 @@ export class CommandParserService {
         /^admin(?:\s+(help|disconnect|reconnect|status|clear-session|settings|lockdown|find|group|add|remove|voice))?\s*(?:support|admin)?\s*(.*)$/i,
     },
     { type: CommandType.PENDING, pattern: /^pending(?:\s+(sent|received|claim))?(?:\s+(.+))?$/i },
+    { type: CommandType.VOICE, pattern: /^voice(?:\s+(on|off|only|status|help))?$/i },
   ];
 
   /**
@@ -477,6 +479,13 @@ export class CommandParserService {
         // Extract claim code for claim action
         if (match[2]) {
           args.claimCode = match[2].trim();
+        }
+        break;
+
+      case CommandType.VOICE:
+        // Extract voice action: on, off, only, status, help
+        if (match[1]) {
+          args.action = match[1].toLowerCase();
         }
         break;
     }

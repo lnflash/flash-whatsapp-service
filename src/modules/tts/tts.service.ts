@@ -1,8 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as googleTTS from 'google-tts-api';
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 import { AdminSettingsService, VoiceMode } from '../whatsapp/services/admin-settings.service';
+import {
+  UserVoiceSettingsService,
+  UserVoiceMode,
+} from '../whatsapp/services/user-voice-settings.service';
 
 export type TtsProvider = 'google-tts-api' | 'google-cloud';
 
@@ -21,6 +25,8 @@ export class TtsService {
   constructor(
     private readonly adminSettingsService: AdminSettingsService,
     private readonly configService: ConfigService,
+    @Inject(forwardRef(() => UserVoiceSettingsService))
+    private readonly userVoiceSettingsService?: UserVoiceSettingsService,
   ) {
     // Check if Google Cloud credentials are configured
     const googleCloudKeyFile = this.configService.get<string>('GOOGLE_CLOUD_KEYFILE');
@@ -172,10 +178,42 @@ export class TtsService {
    * Check if text should be converted to voice note based on mode and keywords
    * @param text - The message text
    * @param isAiResponse - Whether this is an AI response (vs command response)
+   * @param whatsappId - The user's WhatsApp ID to check user-specific settings
    * @returns boolean indicating if voice should be used
    */
-  async shouldUseVoice(text: string, isAiResponse: boolean = false): Promise<boolean> {
+  async shouldUseVoice(
+    text: string,
+    isAiResponse: boolean = false,
+    whatsappId?: string,
+  ): Promise<boolean> {
     try {
+      // First check user-specific settings if whatsappId is provided
+      if (whatsappId && this.userVoiceSettingsService) {
+        const userMode = await this.userVoiceSettingsService.getUserVoiceMode(whatsappId);
+
+        if (userMode !== null) {
+          switch (userMode) {
+            case UserVoiceMode.OFF:
+              // User has disabled voice
+              return false;
+
+            case UserVoiceMode.ONLY:
+              // User wants voice only (always)
+              return true;
+
+            case UserVoiceMode.ON:
+              // User wants voice for AI responses based on keywords
+              if (isAiResponse) {
+                const voiceKeywords = ['voice', 'audio', 'speak', 'say it', 'tell me'];
+                const lowerText = text.toLowerCase();
+                return voiceKeywords.some((keyword) => lowerText.includes(keyword));
+              }
+              return false;
+          }
+        }
+      }
+
+      // Fall back to admin settings if no user preference
       const voiceMode = await this.adminSettingsService.getVoiceMode();
 
       switch (voiceMode) {
@@ -251,6 +289,27 @@ export class TtsService {
       .replace(/[,;:\s]+$/, ''); // Remove trailing punctuation (except . ! ?)
 
     return cleaned;
+  }
+
+  /**
+   * Check if user wants voice-only responses (no text)
+   * @param whatsappId - The user's WhatsApp ID
+   * @returns boolean indicating if only voice should be sent
+   */
+  async shouldSendVoiceOnly(whatsappId?: string): Promise<boolean> {
+    try {
+      if (whatsappId && this.userVoiceSettingsService) {
+        const userMode = await this.userVoiceSettingsService.getUserVoiceMode(whatsappId);
+        return userMode === UserVoiceMode.ONLY;
+      }
+
+      // Check admin settings for 'always' mode
+      const adminMode = await this.adminSettingsService.getVoiceMode();
+      return adminMode === 'always';
+    } catch (error) {
+      this.logger.error('Error checking voice-only mode:', error);
+      return false;
+    }
   }
 
   /**

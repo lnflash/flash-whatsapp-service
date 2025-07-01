@@ -16,6 +16,7 @@ import { InvoiceTrackerService } from './services/invoice-tracker.service';
 import { SupportModeService } from './services/support-mode.service';
 import { AdminSettingsService } from './services/admin-settings.service';
 import { PaymentConfirmationService } from './services/payment-confirmation.service';
+import { UserVoiceSettingsService } from './services/user-voice-settings.service';
 
 // Guards and Templates
 import { RateLimiterGuard } from '../../common/guards/rate-limiter.guard';
@@ -58,7 +59,8 @@ import { SpeechModule } from '../speech/speech.module';
     SupportModeService,
     AdminSettingsService,
     PaymentConfirmationService,
+    UserVoiceSettingsService,
   ],
-  exports: [WhatsappService, WhatsAppWebService, AdminSettingsService],
+  exports: [WhatsappService, WhatsAppWebService, AdminSettingsService, UserVoiceSettingsService],
 })
 export class WhatsappModule {}
