@@ -148,13 +148,13 @@ export class TtsService {
     // Chirp3-HD-Gacrux is Google's latest high-definition voice model
     const voiceMap: Record<string, GoogleCloudVoiceConfig> = {
       en: {
-        languageCode: 'en-US',
-        name: 'en-US-Chirp3-HD-Gacrux', // Chirp3-HD high-definition voice
+        languageCode: 'en-AU',
+        name: 'en-AU-Chirp3-HD-Gacrux', // Chirp3-HD high-definition voice
         ssmlGender: 'NEUTRAL' as const, // Chirp voices use NEUTRAL gender
       },
       es: {
-        languageCode: 'es-US',
-        name: 'es-US-Neural2-A', // Fallback to Neural2 for Spanish (Chirp may not be available)
+        languageCode: 'es-AU',
+        name: 'es-AU-Neural2-A', // Fallback to Neural2 for Spanish (Chirp may not be available)
         ssmlGender: 'FEMALE' as const,
       },
       fr: {
@@ -239,7 +239,7 @@ export class TtsService {
       .replace(/\n\n/g, '. ') // Replace double newlines with periods
       .replace(/\n/g, '. ') // Replace single newlines with periods
       .replace(/[:;]/g, ',') // Replace colons and semicolons with commas
-      .replace(/[!?]{2,}/g, match => match[0]) // Multiple ! or ? to single
+      .replace(/[!?]{2,}/g, (match) => match[0]) // Multiple ! or ? to single
       .replace(/\.{2,}/g, '.') // Multiple periods to single
       .replace(/,{2,}/g, ',') // Multiple commas to single
       .replace(/\s+/g, ' ') // Multiple spaces to single

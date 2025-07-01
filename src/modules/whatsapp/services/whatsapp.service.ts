@@ -142,7 +142,19 @@ export class WhatsappService {
 
         if (shouldUseVoice) {
           try {
-            const audioBuffer = await this.ttsService.textToSpeech(finalText);
+            // Convert hints to TTS-friendly format for voice
+            let voiceText = finalText;
+            if (finalText.includes('💡')) {
+              const parts = finalText.split('💡');
+              if (parts.length > 1) {
+                const beforeHint = parts[0];
+                const hintPart = parts[1].trim();
+                const ttsFriendlyHint = this.makeTtsFriendlyHint(hintPart);
+                voiceText = `${beforeHint}💡 ${ttsFriendlyHint}`;
+              }
+            }
+            
+            const audioBuffer = await this.ttsService.textToSpeech(voiceText);
             return { text: finalText, voice: audioBuffer };
           } catch (error) {
             this.logger.error('Failed to generate voice response:', error);
@@ -156,7 +168,19 @@ export class WhatsappService {
 
         if (shouldUseVoice) {
           try {
-            const audioBuffer = await this.ttsService.textToSpeech(finalText);
+            // Convert hints to TTS-friendly format for voice
+            let voiceText = finalText;
+            if (finalText.includes('💡')) {
+              const parts = finalText.split('💡');
+              if (parts.length > 1) {
+                const beforeHint = parts[0];
+                const hintPart = parts[1].trim();
+                const ttsFriendlyHint = this.makeTtsFriendlyHint(hintPart);
+                voiceText = `${beforeHint}💡 ${ttsFriendlyHint}`;
+              }
+            }
+            
+            const audioBuffer = await this.ttsService.textToSpeech(voiceText);
             return {
               ...response,
               text: finalText,
@@ -202,7 +226,7 @@ export class WhatsappService {
 
       switch (command.type) {
         case CommandType.HELP:
-          return this.getHelpMessage(session);
+          return this.getHelpMessage(session, command);
 
         case CommandType.LINK:
           return this.handleLinkCommand(whatsappId, phoneNumber);
@@ -920,7 +944,11 @@ export class WhatsappService {
   /**
    * Get help message based on session status
    */
-  private getHelpMessage(session: UserSession | null): string {
+  private getHelpMessage(session: UserSession | null, command?: ParsedCommand): string {
+    // Check if a category was requested
+    if (command?.args?.category) {
+      return this.getCategoryHelp(command.args.category);
+    }
     if (!session) {
       return `🌟 *Welcome to Flash WhatsApp Bot!*
 
@@ -956,52 +984,90 @@ Type: \`verify 123456\` (replace with your code)
 Need a new code? Type \`link\` again.`;
     }
 
-    return `⚡ *Flash WhatsApp Bot Commands*
+    return `⚡ *Pulse Commands*
 
-💰 *Wallet & Balance:*
+🚀 *Quick Start:*
+• \`balance\` - Check your balance
+• \`send 10 to @username\` - Send money
+• \`receive 20\` - Request payment
+• \`price\` - Bitcoin price
+
+📚 *All Commands:*
+• \`help wallet\` - Balance & transactions
+• \`help send\` - Sending money  
+• \`help receive\` - Receiving money
+• \`help contacts\` - Managing contacts
+• \`help pending\` - Pending payments
+• \`help voice\` - Voice commands
+
+💡 Need assistance? Type \`support\`
+
+🎙️ *Voice Mode:* Say "voice" before any command!`;
+  }
+
+  /**
+   * Get category-specific help
+   */
+  private getCategoryHelp(category: string): string {
+    const categories: Record<string, string> = {
+      wallet: `💰 *Wallet & Balance Commands*
+
 • \`balance\` - Check your USD balance
 • \`refresh\` - Refresh balance (clear cache)
-• \`username\` - View or set your Lightning username
+• \`username\` - View or set Lightning username
 • \`history\` - View recent transactions
 
-💸 *Send Money:*
+💡 Tip: Set a username to get your own Lightning address!`,
+
+      send: `💸 *Send Money Commands*
+
 • \`send 10 to @username\` - Send to Flash user
-• \`send 5.50 to ayanna\` - Send to saved contact
+• \`send 5.50 to john\` - Send to saved contact
 • \`send 25 to lnbc...\` - Pay Lightning invoice
 
-📥 *Receive Money:*
-• \`receive 10\` - Create $10 invoice
-• \`receive 50 Coffee payment\` - Invoice with memo
-
-📱 *Payment Requests:*
-• \`request 20 from @john\` - Request from Flash user
+📱 *Request from Others:*
+• \`request 20 from @john\` - Request from user
 • \`request 15 from ayanna\` - Request from contact
 
-👥 *Contacts:*
-• \`contacts\` - List saved contacts
-• \`contacts add john 18765551234\` - Add contact
+💡 Tip: Save contacts for easier payments!`,
+
+      receive: `📥 *Receive Money Commands*
+
+• \`receive 10\` - Create $10 invoice
+• \`receive 50 Coffee\` - Add a memo
+• \`pay 12345\` - Claim pending payment
+
+💡 Tip: Share the invoice or QR code to get paid!`,
+
+      contacts: `👥 *Contact Commands*
+
+• \`contacts\` - List all contacts
+• \`contacts add john 18765551234\` - Add new
 • \`contacts remove john\` - Remove contact
 
-💳 *Pending Payments:*
-• \`pending\` - View pending payments to claim
+💡 Tip: Use contact names instead of phone numbers!`,
+
+      pending: `💳 *Pending Payment Commands*
+
+• \`pending\` - View all pending payments
 • \`pending sent\` - View sent pending payments
 • \`pay 12345\` - Claim with code
 
-📊 *Other:*
-• \`price\` - Current Bitcoin price
-• \`help\` - Show this message
+💡 Tip: Pending payments expire after 24 hours!`,
 
-🔊 *Voice Responses:*
-• Include "voice", "audio", or "speak" in your message
-• Example: "voice balance" or "speak help"
-• I'll respond with both voice and text!
+      voice: `🎙️ *Voice Commands*
 
-💡 *Tips:*
-• Set your username to get a Lightning address!
-• Save contacts for easier payments
-• All amounts are in USD by default
+Simply add "voice", "audio", or "speak" to any command:
+• "voice balance"
+• "speak help"
+• "audio price"
 
-Need help? Type "support" to reach our team! 🤝`;
+Current mode: Check with \`admin voice\`
+
+💡 Tip: I'll respond with both voice and text!`,
+    };
+
+    return categories[category.toLowerCase()] || `❓ Unknown category. Try: \`help\`, \`help wallet\`, \`help send\`, \`help receive\`, \`help contacts\`, \`help pending\`, or \`help voice\``;
   }
 
   /**

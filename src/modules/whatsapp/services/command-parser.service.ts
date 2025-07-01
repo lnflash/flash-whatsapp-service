@@ -33,7 +33,7 @@ export class CommandParserService {
   private readonly logger = new Logger(CommandParserService.name);
 
   private readonly commandPatterns = [
-    { type: CommandType.HELP, pattern: /^help|^h$|^\?$/i },
+    { type: CommandType.HELP, pattern: /^help(?:\s+(wallet|send|receive|contacts|pending|voice))?$/i },
     { type: CommandType.BALANCE, pattern: /^balance|^bal$/i },
     { type: CommandType.LINK, pattern: /^link|^connect$/i },
     { type: CommandType.UNLINK, pattern: /^unlink(?:\s+(confirm))?$/i },
@@ -119,6 +119,13 @@ export class CommandParserService {
     const args: Record<string, string> = {};
 
     switch (type) {
+      case CommandType.HELP:
+        // Extract help category if provided
+        if (match[1]) {
+          args.category = match[1];
+        }
+        break;
+
       case CommandType.VERIFY:
         // Extract OTP code
         if (match[1]) {
