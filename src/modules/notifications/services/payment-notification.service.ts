@@ -398,6 +398,11 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
       // Send WhatsApp message
       await this.whatsappWebService.sendMessage(notification.whatsappId, message);
     } catch (error) {
+      // Don't throw if WhatsApp is not ready - just log and continue
+      if (error.message === 'WhatsApp Web client is not ready') {
+        this.logger.debug(`WhatsApp not ready, payment notification queued for ${notification.whatsappId}`);
+        return;
+      }
       this.logger.error('Error sending payment notification:', error);
       throw error;
     }
@@ -604,6 +609,11 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
         await this.setLastTransactionId(whatsappId, transactions.edges[0].node.id);
       }
     } catch (error) {
+      // Don't log errors for WhatsApp not being ready
+      if (error.message === 'WhatsApp Web client is not ready') {
+        return;
+      }
+      
       // Only log connection errors once, not the full stack trace
       if (error.message?.includes('fetch failed') || error.message?.includes('Connect Timeout')) {
         // Suppress repetitive connection errors
