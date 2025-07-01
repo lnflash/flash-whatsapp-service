@@ -165,8 +165,11 @@ export class WhatsappService {
         return finalText;
       } else if (response && typeof response === 'object' && 'text' in response) {
         const finalText = this.addHint(response.text, session, command);
+        
+        // Check for forceVoice flag or normal voice conditions
+        const useVoice = (response as any).forceVoice || shouldUseVoice;
 
-        if (shouldUseVoice) {
+        if (useVoice) {
           try {
             // Convert hints to TTS-friendly format for voice
             let voiceText = finalText;
@@ -442,7 +445,7 @@ export class WhatsappService {
     command: ParsedCommand,
     whatsappId: string,
     session: UserSession | null,
-  ): Promise<string> {
+  ): Promise<string | { text: string; media?: Buffer }> {
     try {
       // Check if we have an OTP in the command
       const otpCode = command.args.otp;
@@ -499,11 +502,17 @@ export class WhatsappService {
 
             if (claimedCount > 0) {
               const totalUsd = (totalClaimed / 100).toFixed(2);
-              const successMessage = `✅ *Account Successfully Linked!*\n\n💰 Great news! You had ${claimedCount} pending payment${claimedCount > 1 ? 's' : ''} totaling $${totalUsd} that ${claimedCount > 1 ? 'have' : 'has'} been automatically credited to your account!`;
-
-              // Add help menu after successful link with pending payments
-              const helpMessage = this.getHelpMessage(updatedSession);
-              return `${successMessage}\n\n${helpMessage}`;
+              const pendingClaimMessage = `💰 Great news! You had ${claimedCount} pending payment${claimedCount > 1 ? 's' : ''} totaling $${totalUsd} that ${claimedCount > 1 ? 'have' : 'has'} been automatically credited to your account!`;
+              
+              // Create welcome message with pending payment info
+              const welcomeMessage = this.getWelcomeMessage(updatedSession, pendingClaimMessage);
+              
+              // Return with special forceVoice flag
+              return {
+                text: welcomeMessage,
+                media: undefined,
+                forceVoice: true,
+              } as any;
             }
           }
         }
@@ -511,12 +520,15 @@ export class WhatsappService {
         this.logger.error(`Error checking for pending payments: ${error.message}`);
       }
 
-      const successMessage =
-        '✅ *Account Successfully Linked!*\n\nYour Flash account is now connected to WhatsApp.';
-
-      // Add help menu after successful link
-      const helpMessage = this.getHelpMessage(updatedSession);
-      return `${successMessage}\n\n${helpMessage}`;
+      // Create warm welcome message
+      const welcomeMessage = this.getWelcomeMessage(updatedSession);
+      
+      // Return with special forceVoice flag
+      return {
+        text: welcomeMessage,
+        media: undefined,
+        forceVoice: true, // Special flag to force voice for important messages
+      } as any;
     } catch (error) {
       this.logger.error(`Error handling verify command: ${error.message}`, error.stack);
 
@@ -1068,6 +1080,49 @@ Current mode: Check with \`admin voice\`
     };
 
     return categories[category.toLowerCase()] || `❓ Unknown category. Try: \`help\`, \`help wallet\`, \`help send\`, \`help receive\`, \`help contacts\`, \`help pending\`, or \`help voice\``;
+  }
+
+  /**
+   * Generate warm welcome message for newly linked users
+   */
+  private getWelcomeMessage(session: UserSession | null, pendingClaimMessage?: string): string {
+    const userName = session?.profileName || 'there';
+    const firstName = userName.split(' ')[0]; // Use first name for friendlier greeting
+    
+    let message = `🎉 *Welcome to Pulse, ${firstName}!*
+
+✅ Your Flash account is now connected to WhatsApp.`;
+
+    if (pendingClaimMessage) {
+      message += `\n\n${pendingClaimMessage}`;
+    }
+
+    // Create a conversational welcome that sounds natural when spoken
+    message += `
+
+I'm Pulse, your personal payment assistant! I can help you send money instantly, check your balance, and manage your Bitcoin wallet - all through WhatsApp.
+
+🚀 *Here's what you can do:*
+
+**Check your money:**
+Type \`balance\` to see how much you have
+
+**Send money instantly:**
+Type \`send 5 to @username\` or to a contact
+
+**Request payments:**
+Type \`receive 10\` to create an invoice
+
+**Check Bitcoin price:**
+Type \`price\` for the current rate
+
+💡 *Quick tip:* Want me to speak? Just say "voice" before any command, like "voice balance"!
+
+Type \`help\` anytime to see all commands, or \`support\` if you need assistance.
+
+**Ready to start?** Try typing \`balance\` to check your account! 💰`;
+
+    return message;
   }
 
   /**
