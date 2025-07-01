@@ -92,3 +92,31 @@ LOG_LEVEL=debug
 ```
 
 This will provide more information about what the application is doing internally.
+
+## E2E Test Failures
+
+**Symptoms:**
+```
+TypeError: Cannot read properties of undefined (reading 'host')
+Exceeded timeout of 5000 ms for a hook
+```
+
+**Cause:**
+E2E tests require Redis and RabbitMQ to be running. The tests are trying to connect to these services but they're not available.
+
+**Solutions:**
+
+1. **Run dependencies before E2E tests**:
+   ```bash
+   docker compose up -d redis rabbitmq
+   npm run test:e2e
+   ```
+
+2. **Skip E2E tests in CI** if dependencies aren't available:
+   ```bash
+   npm test  # Runs unit tests only
+   ```
+
+3. **Use GitHub Actions** for E2E tests (already configured in `.github/workflows/e2e-tests.yml`)
+
+The E2E tests are designed to run in environments where all dependencies are available. For local development, you can focus on unit tests which don't require external dependencies.
