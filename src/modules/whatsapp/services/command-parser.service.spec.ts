@@ -204,4 +204,52 @@ describe('CommandParserService - Natural Language', () => {
       expect(result.args.requiresConfirmation).toBeUndefined();
     });
   });
+
+  describe('Voice Settings Commands', () => {
+    it('should parse "voice off" as voice command', () => {
+      const result = service.parseCommand('voice off');
+      expect(result.type).toBe(CommandType.VOICE);
+      expect(result.args.action).toBe('off');
+    });
+
+    it('should parse "voice on" as voice command', () => {
+      const result = service.parseCommand('voice on');
+      expect(result.type).toBe(CommandType.VOICE);
+      expect(result.args.action).toBe('on');
+    });
+
+    it('should parse "voice only" as voice command', () => {
+      const result = service.parseCommand('voice only');
+      expect(result.type).toBe(CommandType.VOICE);
+      expect(result.args.action).toBe('only');
+    });
+
+    it('should parse "voice status" as voice command', () => {
+      const result = service.parseCommand('voice status');
+      expect(result.type).toBe(CommandType.VOICE);
+      expect(result.args.action).toBe('status');
+    });
+
+    it('should parse "voice help" as voice command', () => {
+      const result = service.parseCommand('voice help');
+      expect(result.type).toBe(CommandType.VOICE);
+      expect(result.args.action).toBe('help');
+    });
+
+    it('should parse "voice" alone as voice command', () => {
+      const result = service.parseCommand('voice');
+      expect(result.type).toBe(CommandType.VOICE);
+      expect(result.args.action).toBeUndefined();
+    });
+
+    it('should parse "voice balance" as balance command', () => {
+      const result = service.parseCommand('voice balance');
+      expect(result.type).toBe(CommandType.BALANCE);
+    });
+
+    it('should parse "voice price" as price command', () => {
+      const result = service.parseCommand('voice price');
+      expect(result.type).toBe(CommandType.PRICE);
+    });
+  });
 });

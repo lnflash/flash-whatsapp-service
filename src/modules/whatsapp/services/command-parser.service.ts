@@ -82,12 +82,19 @@ export class CommandParserService {
       let trimmedText = text.trim();
       const originalText = trimmedText;
 
-      // Strip voice-related prefixes to allow "voice balance", "speak help", etc.
-      const voicePrefixes = /^(voice|audio|speak|say it|tell me)\s+/i;
-      const voiceMatch = trimmedText.match(voicePrefixes);
-      if (voiceMatch) {
-        // Remove the voice prefix but keep track that voice was requested
-        trimmedText = trimmedText.replace(voicePrefixes, '').trim();
+      // Check if this is specifically a voice settings command first
+      const voiceSettingsPattern = /^voice\s*(on|off|only|status|help)?$/i;
+      if (voiceSettingsPattern.test(trimmedText)) {
+        // Don't strip the prefix for voice settings commands
+        // Let it fall through to be matched by the VOICE command pattern
+      } else {
+        // Strip voice-related prefixes to allow "voice balance", "speak help", etc.
+        const voicePrefixes = /^(voice|audio|speak|say it|tell me)\s+/i;
+        const voiceMatch = trimmedText.match(voicePrefixes);
+        if (voiceMatch) {
+          // Remove the voice prefix but keep track that voice was requested
+          trimmedText = trimmedText.replace(voicePrefixes, '').trim();
+        }
       }
 
       // If this is voice input, try natural language patterns first
