@@ -1,10 +1,10 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
-import { AppModule } from '../../src/app.module';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../../src/modules/redis/redis.service';
 import { RateLimiterGuard } from '../../src/common/guards/rate-limiter.guard';
+import { createTestApplication } from '../test-utils';
 
 /**
  * Security test for rate limiting functionality
@@ -17,13 +17,11 @@ describe('Rate Limiter Security Tests', () => {
   let configService: ConfigService;
 
   beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleFixture.createNestApplication();
-    redisService = moduleFixture.get<RedisService>(RedisService);
-    configService = moduleFixture.get<ConfigService>(ConfigService);
+    const { app: testApp, moduleRef } = await createTestApplication();
+    
+    app = testApp;
+    redisService = moduleRef.get<RedisService>(RedisService);
+    configService = moduleRef.get<ConfigService>(ConfigService);
 
     // Override rate limiting settings for testing
     jest.spyOn(configService, 'get').mockImplementation((key: string) => {
@@ -35,8 +33,6 @@ describe('Rate Limiter Security Tests', () => {
       }
       return undefined;
     });
-
-    await app.init();
   });
 
   afterAll(async () => {

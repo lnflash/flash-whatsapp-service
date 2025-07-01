@@ -15,6 +15,7 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(EventsService.name);
   private readonly queueName: string;
   private readonly rabbitmqUrl: string;
+  private reconnectTimeout: NodeJS.Timeout | null = null;
 
   constructor(private readonly configService: ConfigService) {
     this.rabbitmqUrl = this.configService.get<string>('rabbitmq.url') || '';
@@ -26,6 +27,11 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit() {
+    // Skip initialization in test environment
+    if (process.env.NODE_ENV === 'test') {
+      return;
+    }
+    
     try {
       if (!this.rabbitmqUrl || !this.queueName) {
         this.logger.warn('Skipping RabbitMQ connection due to missing configuration');
@@ -40,6 +46,12 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleDestroy() {
     try {
+      // Clear any pending reconnect timeout
+      if (this.reconnectTimeout) {
+        clearTimeout(this.reconnectTimeout);
+        this.reconnectTimeout = null;
+      }
+
       if (this.channel) {
         await this.channel.close();
       }
@@ -99,9 +111,15 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
 
     const delay = Math.min(1000 * Math.pow(2, attempt - 1), 30000);
 
-    setTimeout(async () => {
+    // Clear any existing timeout
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+    }
+
+    this.reconnectTimeout = setTimeout(async () => {
       try {
         await this.connect();
+        this.reconnectTimeout = null;
       } catch (error) {
         this.logger.error(`Reconnection attempt ${attempt} failed: ${error.message}`);
         await this.reconnect(attempt + 1, maxAttempts);

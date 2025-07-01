@@ -21,3 +21,9 @@ process.env.ADMIN_PHONE_NUMBERS = '1234567890';
 
 // Set longer timeout for E2E tests
 jest.setTimeout(30000);
+
+// Global teardown to ensure all resources are cleaned up
+afterAll(async () => {
+  // Give time for any pending operations to complete
+  await new Promise(resolve => setTimeout(resolve, 100));
+});

@@ -25,6 +25,10 @@ export class InvoiceTrackerService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
+    // Skip initialization in test environment
+    if (process.env.NODE_ENV === 'test') {
+      return;
+    }
     this.startTracking();
   }
 

@@ -29,7 +29,7 @@
     "test:watch": "jest --config jest.config.js --watch",
     "test:cov": "jest --config jest.config.js --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:e2e": "jest --config ./test/jest-e2e.json --detectOpenHandles --forceExit",
     "ai:train": "ts-node scripts/manage-ai-training.ts",
     "ai:add": "ts-node scripts/manage-ai-training.ts add",
     "ai:test": "ts-node scripts/manage-ai-training.ts test",

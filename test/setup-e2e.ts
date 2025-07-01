@@ -6,7 +6,7 @@ import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter
 import { RedisService } from '../src/modules/redis/redis.service';
 import { WhatsAppWebService } from '../src/modules/whatsapp/services/whatsapp-web.service';
 import { EventsService } from '../src/modules/events/events.service';
-import { SubscriptionService } from '../src/modules/notifications/services/subscription.service';
+import { SubscriptionService } from '../src/modules/flash-api/services/subscription.service';
 import { SpeechService } from '../src/modules/speech/speech.service';
 import { GeminiAiService } from '../src/modules/gemini-ai/gemini-ai.service';
 
@@ -182,8 +182,8 @@ export class MockEventsService {
     // No-op for tests
   }
   
-  async subscribeToEvents(patterns: { pattern: string; handler: Function }[]): Promise<void> {
-    // No-op for tests
+  async subscribeToEvents(callback: (eventType: string, data: any) => Promise<void>): Promise<void> {
+    // No-op for tests - matches the signature expected by PaymentEventListener
   }
 }
 

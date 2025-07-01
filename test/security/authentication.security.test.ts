@@ -1,10 +1,10 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { AppModule } from '../../src/app.module';
 import { SessionService } from '../../src/modules/auth/services/session.service';
 import { OtpService } from '../../src/modules/auth/services/otp.service';
 import { RedisService } from '../../src/modules/redis/redis.service';
+import { createTestApplication } from '../test-utils';
 
 /**
  * Security tests for authentication and session management
@@ -22,16 +22,12 @@ describe('Authentication & Session Security Tests', () => {
   let redisService: RedisService;
 
   beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleFixture.createNestApplication();
-    sessionService = moduleFixture.get<SessionService>(SessionService);
-    otpService = moduleFixture.get<OtpService>(OtpService);
-    redisService = moduleFixture.get<RedisService>(RedisService);
-
-    await app.init();
+    const { app: testApp, moduleRef } = await createTestApplication();
+    
+    app = testApp;
+    sessionService = moduleRef.get<SessionService>(SessionService);
+    otpService = moduleRef.get<OtpService>(OtpService);
+    redisService = moduleRef.get<RedisService>(RedisService);
   });
 
   afterAll(async () => {
