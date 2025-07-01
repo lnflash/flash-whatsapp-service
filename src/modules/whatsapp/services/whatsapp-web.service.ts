@@ -284,7 +284,10 @@ export class WhatsAppWebService
                 if (typeof pendingResponse === 'string') {
                   await this.sendMessage(msg.from, pendingResponse);
                 } else if (typeof pendingResponse === 'object' && 'text' in pendingResponse) {
-                  if (pendingResponse.media) {
+                  if (pendingResponse.voice) {
+                    await this.sendVoiceNote(msg.from, pendingResponse.voice);
+                    await this.sendMessage(msg.from, pendingResponse.text);
+                  } else if (pendingResponse.media) {
                     await this.sendImage(msg.from, pendingResponse.media, pendingResponse.text);
                   } else {
                     await this.sendMessage(msg.from, pendingResponse.text);
@@ -305,7 +308,10 @@ export class WhatsAppWebService
                   if (typeof response === 'string') {
                     await this.sendMessage(msg.from, response);
                   } else if (typeof response === 'object' && 'text' in response) {
-                    if (response.media) {
+                    if (response.voice) {
+                      await this.sendVoiceNote(msg.from, response.voice);
+                      await this.sendMessage(msg.from, response.text);
+                    } else if (response.media) {
                       await this.sendImage(msg.from, response.media, response.text);
                     } else {
                       await this.sendMessage(msg.from, response.text);
@@ -355,8 +361,14 @@ export class WhatsAppWebService
         if (response) {
           // Check if response is an object with text property
           if (typeof response === 'object' && 'text' in response) {
+            // Send voice note if voice buffer is present
+            if (response.voice) {
+              await this.sendVoiceNote(msg.from, response.voice);
+              // Also send text for reference
+              await this.sendMessage(msg.from, response.text);
+            }
             // Send image with caption if media is present
-            if (response.media) {
+            else if (response.media) {
               await this.sendImage(msg.from, response.media, response.text);
             } else {
               // Just send text if no media
@@ -798,6 +810,36 @@ export class WhatsAppWebService
       this.logger.log(`Image sent to ${to}`);
     } catch (error) {
       this.logger.error(`Failed to send image to ${to}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send voice note
+   */
+  async sendVoiceNote(to: string, audioBuffer: Buffer): Promise<void> {
+    if (!this.isReady) {
+      throw new Error('WhatsApp Web client is not ready');
+    }
+
+    try {
+      // Import MessageMedia from whatsapp-web.js
+      const { MessageMedia } = await import('whatsapp-web.js');
+
+      // Ensure the number has @c.us suffix
+      const chatId = to.includes('@') ? to : `${to}@c.us`;
+
+      // Create media from buffer - using audio/ogg for voice notes
+      const media = new MessageMedia('audio/ogg', audioBuffer.toString('base64'), 'voice-note.ogg');
+
+      // Send as voice note
+      await this.client.sendMessage(chatId, media, {
+        sendAudioAsVoice: true,
+      });
+
+      this.logger.log(`Voice note sent to ${to}`);
+    } catch (error) {
+      this.logger.error(`Failed to send voice note to ${to}:`, error);
       throw error;
     }
   }

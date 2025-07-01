@@ -32,7 +32,8 @@ import { BalanceTemplate } from '../templates/balance-template';
 import { AccountLinkRequestDto } from '../../auth/dto/account-link-request.dto';
 import { VerifyOtpDto } from '../../auth/dto/verify-otp.dto';
 import { UserSession } from '../../auth/interfaces/user-session.interface';
-import { AdminSettingsService } from './admin-settings.service';
+import { AdminSettingsService, VoiceMode } from './admin-settings.service';
+import { TtsService } from '../../tts/tts.service';
 // import { WhatsAppCloudService } from './whatsapp-cloud.service'; // Disabled for prototype branch
 
 @Injectable()
@@ -59,6 +60,7 @@ export class WhatsappService {
     private readonly balanceTemplate: BalanceTemplate,
     private readonly supportModeService: SupportModeService,
     private readonly adminSettingsService: AdminSettingsService,
+    private readonly ttsService: TtsService,
     // private readonly whatsAppCloudService: WhatsAppCloudService, // Disabled for prototype branch
     @Inject(forwardRef(() => WhatsAppWebService))
     private readonly whatsappWebService?: WhatsAppWebService,
@@ -90,7 +92,7 @@ export class WhatsappService {
     messageId: string;
     timestamp: string;
     name?: string;
-  }): Promise<string | { text: string; media?: Buffer }> {
+  }): Promise<string | { text: string; media?: Buffer; voice?: Buffer }> {
     try {
       const whatsappId = this.extractWhatsappId(messageData.from);
       const phoneNumber = this.normalizePhoneNumber(messageData.from);
@@ -129,13 +131,49 @@ export class WhatsappService {
       // Handle the command
       const response = await this.handleCommand(command, whatsappId, phoneNumber, session);
 
-      // Add hints to text responses
+      // Check if voice response is requested
+      // Mark as AI response if it comes from unknown command (likely AI handled)
+      const isAiResponse = command.type === CommandType.UNKNOWN;
+      const shouldUseVoice = await this.ttsService.shouldUseVoice(messageData.text, isAiResponse);
+
+      // Add hints to text responses and optionally add voice
       if (typeof response === 'string') {
-        return this.addHint(response, session, command);
+        const finalText = this.addHint(response, session, command);
+
+        if (shouldUseVoice) {
+          try {
+            const audioBuffer = await this.ttsService.textToSpeech(finalText);
+            return { text: finalText, voice: audioBuffer };
+          } catch (error) {
+            this.logger.error('Failed to generate voice response:', error);
+            return finalText;
+          }
+        }
+
+        return finalText;
       } else if (response && typeof response === 'object' && 'text' in response) {
+        const finalText = this.addHint(response.text, session, command);
+
+        if (shouldUseVoice) {
+          try {
+            const audioBuffer = await this.ttsService.textToSpeech(finalText);
+            return {
+              ...response,
+              text: finalText,
+              voice: audioBuffer,
+            };
+          } catch (error) {
+            this.logger.error('Failed to generate voice response:', error);
+            return {
+              ...response,
+              text: finalText,
+            };
+          }
+        }
+
         return {
           ...response,
-          text: this.addHint(response.text, session, command),
+          text: finalText,
         };
       }
 
@@ -952,6 +990,11 @@ Need a new code? Type \`link\` again.`;
 📊 *Other:*
 • \`price\` - Current Bitcoin price
 • \`help\` - Show this message
+
+🔊 *Voice Responses:*
+• Include "voice", "audio", or "speak" in your message
+• Example: "voice balance" or "speak help"
+• I'll respond with both voice and text!
 
 💡 *Tips:*
 • Set your username to get a Lightning address!
@@ -1879,7 +1922,7 @@ Need help? Type "support" to reach our team! 🤝`;
     whatsappId: string,
     contactName: string,
     phoneNumber: string,
-  ): Promise<string | { text: string; media?: Buffer } | null> {
+  ): Promise<string | { text: string; media?: Buffer; voice?: Buffer } | null> {
     try {
       // Check for pending send first
       const pendingSendKey = `pending_send:${whatsappId}`;
@@ -2973,6 +3016,7 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
             `⚙️ *Admin Settings*\n\n` +
             `🔒 Lockdown: ${settings.lockdown ? 'ENABLED' : 'Disabled'}\n` +
             `👥 Groups: ${settings.groupsEnabled ? 'Enabled' : 'DISABLED'}\n` +
+            `🔊 Voice: ${settings.voiceMode.toUpperCase()}\n` +
             `💸 Payments: ${settings.paymentsEnabled ? 'Enabled' : 'Disabled'}\n` +
             `📥 Requests: ${settings.requestsEnabled ? 'Enabled' : 'Disabled'}\n\n` +
             `👮 Admins: ${settings.adminNumbers.length}\n` +
@@ -3015,6 +3059,31 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
           return (
             `👥 Groups ${groupsEnabled ? 'ENABLED' : 'DISABLED'}\n\n` +
             `${groupsEnabled ? 'Bot will now respond in group chats.' : 'Bot will ignore group messages.'}`
+          );
+
+        case 'voice':
+          const voiceMode = command.args.mode as VoiceMode;
+          if (!voiceMode || !['always', 'on', 'off'].includes(voiceMode)) {
+            const currentMode = await this.adminSettingsService.getVoiceMode();
+            return (
+              `🔊 *Voice Mode*: ${currentMode.toUpperCase()}\n\n` +
+              `• \`always\` - All responses include voice notes\n` +
+              `• \`on\` - AI responds with voice to keywords\n` +
+              `• \`off\` - Voice notes disabled\n\n` +
+              `Current: ${currentMode === 'always' ? 'Everything gets voice' : currentMode === 'on' ? 'AI uses voice for "voice", "speak", etc.' : 'No voice notes'}\n\n` +
+              `To change: \`admin voice always/on/off\``
+            );
+          }
+          await this.adminSettingsService.setVoiceMode(voiceMode, phoneNumber);
+          return (
+            `🔊 Voice mode set to: ${voiceMode.toUpperCase()}\n\n` +
+            `${
+              voiceMode === 'always'
+                ? '• All responses will include voice notes\n• Both commands and AI will speak'
+                : voiceMode === 'on'
+                  ? '• AI responds with voice to keywords\n• Say "voice", "speak", "audio" to activate'
+                  : '• Voice notes are disabled\n• Text-only responses'
+            }`
           );
 
         case 'find':
@@ -3106,7 +3175,8 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
       `• \`admin reconnect\` - Connect a new number\n\n` +
       `🔒 *System Control:*\n` +
       `• \`admin lockdown on/off\` - Enable/disable lockdown\n` +
-      `• \`admin group on/off\` - Enable/disable groups\n\n` +
+      `• \`admin group on/off\` - Enable/disable groups\n` +
+      `• \`admin voice always/on/off\` - Control voice responses\n\n` +
       `👥 *User Management:*\n` +
       `• \`admin add admin <phone>\` - Add admin\n` +
       `• \`admin add support <phone>\` - Add support agent\n` +
@@ -3205,6 +3275,50 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
     } catch (error) {
       this.logger.error(`Error checking lockdown: ${error.message}`);
       return null;
+    }
+  }
+
+  /**
+   * Send response as voice note if requested
+   */
+  private async sendResponseWithVoice(
+    whatsappId: string,
+    response: string,
+    originalMessage: string,
+  ): Promise<void> {
+    try {
+      // Check if voice response was requested
+      const shouldUseVoice = await this.ttsService.shouldUseVoice(originalMessage);
+
+      if (shouldUseVoice && this.whatsappWebService) {
+        // Clean the text for TTS
+        const cleanedText = this.ttsService.cleanTextForTTS(response);
+
+        // Convert to speech
+        try {
+          const audioBuffer = await this.ttsService.textToSpeech(cleanedText);
+
+          // Send voice note
+          await this.whatsappWebService.sendVoiceNote(whatsappId, audioBuffer);
+
+          // Also send the text message for reference
+          await this.whatsappWebService.sendMessage(whatsappId, response);
+
+          this.logger.log(`Voice response sent to ${whatsappId}`);
+          return;
+        } catch (ttsError) {
+          this.logger.error('TTS conversion failed, sending text only:', ttsError);
+          // Fall back to text-only
+        }
+      }
+
+      // Send text message normally
+      if (this.whatsappWebService) {
+        await this.whatsappWebService.sendMessage(whatsappId, response);
+      }
+    } catch (error) {
+      this.logger.error(`Error sending response: ${error.message}`);
+      throw error;
     }
   }
 

@@ -26,9 +26,18 @@ import { AuthModule } from '../auth/auth.module';
 import { FlashApiModule } from '../flash-api/flash-api.module';
 import { GeminiAiModule } from '../gemini-ai/gemini-ai.module';
 import { EventsModule } from '../events/events.module';
+import { TtsModule } from '../tts/tts.module';
 
 @Module({
-  imports: [ConfigModule, RedisModule, AuthModule, FlashApiModule, GeminiAiModule, EventsModule],
+  imports: [
+    ConfigModule,
+    RedisModule,
+    AuthModule,
+    FlashApiModule,
+    GeminiAiModule,
+    EventsModule,
+    TtsModule,
+  ],
   controllers: [
     // WhatsappController,    // Cloud API Controller (disabled for prototype)
     WhatsAppWebController, // WhatsApp Web.js Controller
@@ -46,6 +55,6 @@ import { EventsModule } from '../events/events.module';
     SupportModeService,
     AdminSettingsService,
   ],
-  exports: [WhatsappService, WhatsAppWebService],
+  exports: [WhatsappService, WhatsAppWebService, AdminSettingsService],
 })
 export class WhatsappModule {}

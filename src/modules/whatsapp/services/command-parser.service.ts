@@ -64,7 +64,7 @@ export class CommandParserService {
     {
       type: CommandType.ADMIN,
       pattern:
-        /^admin(?:\s+(help|disconnect|reconnect|status|clear-session|settings|lockdown|find|group|add|remove))?\s*(?:support|admin)?\s*(.*)$/i,
+        /^admin(?:\s+(help|disconnect|reconnect|status|clear-session|settings|lockdown|find|group|add|remove|voice))?\s*(?:support|admin)?\s*(.*)$/i,
     },
     { type: CommandType.PENDING, pattern: /^pending(?:\s+(sent|received|claim))?(?:\s+(.+))?$/i },
   ];
@@ -254,6 +254,8 @@ export class CommandParserService {
           } else if (args.action === 'lockdown') {
             args.mode = match[2].trim().toLowerCase();
           } else if (args.action === 'group') {
+            args.mode = match[2].trim().toLowerCase();
+          } else if (args.action === 'voice') {
             args.mode = match[2].trim().toLowerCase();
           }
         }

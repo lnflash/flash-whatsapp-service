@@ -21,6 +21,7 @@ import { InvoiceTrackerService } from './invoice-tracker.service';
 import { EventsService } from '../../events/events.service';
 import { AdminSettingsService } from './admin-settings.service';
 import { SupportModeService } from './support-mode.service';
+import { TtsService } from '../../tts/tts.service';
 
 describe('WhatsappService', () => {
   let service: WhatsappService;
@@ -191,11 +192,14 @@ describe('WhatsappService', () => {
               requestsEnabled: true,
               supportNumbers: ['18762909250'],
               adminNumbers: ['13059244435'],
+              voiceMode: 'on',
               lastUpdated: new Date(),
               updatedBy: 'system',
             }),
             isLockdown: jest.fn().mockResolvedValue(false),
             isAdmin: jest.fn().mockResolvedValue(false),
+            getVoiceMode: jest.fn().mockResolvedValue('on'),
+            setVoiceMode: jest.fn(),
           },
         },
         {
@@ -205,6 +209,14 @@ describe('WhatsappService', () => {
             isRequestingSupport: jest.fn().mockReturnValue(false),
             initiateSupportMode: jest.fn(),
             routeMessage: jest.fn(),
+          },
+        },
+        {
+          provide: TtsService,
+          useValue: {
+            shouldUseVoice: jest.fn().mockResolvedValue(false),
+            textToSpeech: jest.fn(),
+            cleanTextForTTS: jest.fn(),
           },
         },
       ],

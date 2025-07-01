@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../../redis/redis.service';
 
+export type VoiceMode = 'always' | 'on' | 'off';
+
 export interface AdminSettings {
   lockdown: boolean;
   groupsEnabled: boolean;
@@ -9,6 +11,7 @@ export interface AdminSettings {
   requestsEnabled: boolean;
   supportNumbers: string[];
   adminNumbers: string[];
+  voiceMode: VoiceMode;
   lastUpdated: Date;
   updatedBy: string;
 }
@@ -19,6 +22,7 @@ export class AdminSettingsService {
   private readonly SETTINGS_KEY = 'admin:settings';
   private readonly LOCKDOWN_KEY = 'admin:lockdown';
   private readonly GROUPS_ENABLED_KEY = 'admin:groups_enabled';
+  private readonly VOICE_MODE_KEY = 'admin:voice_mode';
 
   constructor(
     private readonly configService: ConfigService,
@@ -61,6 +65,7 @@ export class AdminSettingsService {
       requestsEnabled: true,
       supportNumbers,
       adminNumbers,
+      voiceMode: 'on' as VoiceMode, // Default to 'on' - AI responds to voice keywords
       lastUpdated: new Date(),
       updatedBy: 'system',
     };
@@ -87,6 +92,9 @@ export class AdminSettingsService {
       }
       if (updates.groupsEnabled !== undefined) {
         await this.redisService.set(this.GROUPS_ENABLED_KEY, updates.groupsEnabled ? '1' : '0');
+      }
+      if (updates.voiceMode !== undefined) {
+        await this.redisService.set(this.VOICE_MODE_KEY, updates.voiceMode);
       }
 
       this.logger.log(`Admin settings updated by ${updatedBy}: ${JSON.stringify(updates)}`);
@@ -161,5 +169,29 @@ export class AdminSettingsService {
   async isSupport(phoneNumber: string): Promise<boolean> {
     const settings = await this.getSettings();
     return settings.supportNumbers.includes(phoneNumber);
+  }
+
+  /**
+   * Get current voice mode
+   */
+  async getVoiceMode(): Promise<VoiceMode> {
+    try {
+      const mode = await this.redisService.get(this.VOICE_MODE_KEY);
+      if (mode && ['always', 'on', 'off'].includes(mode)) {
+        return mode as VoiceMode;
+      }
+      // Return default if not set
+      return 'on';
+    } catch (error) {
+      this.logger.error(`Error getting voice mode: ${error.message}`);
+      return 'on';
+    }
+  }
+
+  /**
+   * Set voice mode
+   */
+  async setVoiceMode(mode: VoiceMode, updatedBy: string): Promise<AdminSettings> {
+    return this.updateSettings({ voiceMode: mode }, updatedBy);
   }
 }
