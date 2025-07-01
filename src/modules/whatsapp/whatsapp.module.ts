@@ -27,6 +27,7 @@ import { FlashApiModule } from '../flash-api/flash-api.module';
 import { GeminiAiModule } from '../gemini-ai/gemini-ai.module';
 import { EventsModule } from '../events/events.module';
 import { TtsModule } from '../tts/tts.module';
+import { SpeechModule } from '../speech/speech.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { TtsModule } from '../tts/tts.module';
     GeminiAiModule,
     EventsModule,
     TtsModule,
+    SpeechModule,
   ],
   controllers: [
     // WhatsappController,    // Cloud API Controller (disabled for prototype)

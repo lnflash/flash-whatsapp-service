@@ -12,6 +12,7 @@ import { WhatsappService } from './whatsapp.service';
 import { QrCodeService } from './qr-code.service';
 import { RedisService } from '../../redis/redis.service';
 import { SupportModeService } from './support-mode.service';
+import { SpeechService } from '../../speech/speech.service';
 
 @Injectable()
 export class WhatsAppWebService
@@ -32,6 +33,7 @@ export class WhatsAppWebService
     private readonly qrCodeService: QrCodeService,
     private readonly redisService: RedisService,
     private readonly supportModeService: SupportModeService,
+    private readonly speechService: SpeechService,
   ) {
     this.logger.log('WhatsAppWebService constructor called');
     // Initialize WhatsApp Web client with persistent session
@@ -188,8 +190,8 @@ export class WhatsAppWebService
           return;
         }
 
-        // Ignore empty messages (unless it's a vCard)
-        if ((!msg.body || msg.body.trim() === '') && msg.type !== 'vcard') {
+        // Ignore empty messages (unless it's a vCard or audio)
+        if ((!msg.body || msg.body.trim() === '') && msg.type !== 'vcard' && msg.type !== 'ptt') {
           return;
         }
 
@@ -325,6 +327,82 @@ export class WhatsAppWebService
                 '❌ Unable to save contact. Missing name or phone number.',
               );
             }
+          }
+          return;
+        }
+
+        // Handle voice messages (PTT - Push To Talk)
+        if (msg.type === 'ptt') {
+          this.logger.log('🎤 Voice message received!');
+          
+          // Check if speech service is available
+          if (!this.speechService?.isAvailable()) {
+            await this.sendMessage(
+              msg.from,
+              '🎤 Voice messages are not currently available. Please type your command instead.'
+            );
+            return;
+          }
+
+          try {
+            // Download the audio
+            const media = await msg.downloadMedia();
+            if (!media) {
+              this.logger.error('Failed to download voice message');
+              await this.sendMessage(msg.from, '❌ Unable to process voice message. Please try typing your command.');
+              return;
+            }
+
+            // Convert base64 to buffer
+            const audioBuffer = Buffer.from(media.data, 'base64');
+            
+            // Transcribe the audio
+            const transcribedText = await this.speechService.speechToText(audioBuffer, media.mimetype);
+            
+            if (!transcribedText) {
+              await this.sendMessage(
+                msg.from,
+                '🎤 I couldn\'t understand that. Please speak clearly or type your command.'
+              );
+              return;
+            }
+
+            // Process the transcribed text as a regular message
+            const response = await this.whatsappService.processCloudMessage({
+              from: msg.from.replace('@c.us', ''),
+              text: transcribedText,
+              messageId: msg.id._serialized,
+              timestamp: msg.timestamp.toString(),
+              name: (await msg.getContact()).pushname,
+              isVoiceCommand: true, // Flag to indicate this came from voice
+            });
+
+            // Send response
+            if (response) {
+              // Add a prefix to show this was transcribed
+              const prefix = `🎤 *I heard: "${transcribedText}"*\n\n`;
+              
+              if (typeof response === 'object' && 'text' in response) {
+                const textWithPrefix = prefix + response.text;
+                
+                if (response.voice) {
+                  await this.sendVoiceNote(msg.from, response.voice);
+                  await this.sendMessage(msg.from, textWithPrefix);
+                } else if (response.media) {
+                  await this.sendImage(msg.from, response.media, textWithPrefix);
+                } else {
+                  await this.sendMessage(msg.from, textWithPrefix);
+                }
+              } else if (typeof response === 'string') {
+                await this.sendMessage(msg.from, prefix + response);
+              }
+            }
+          } catch (error) {
+            this.logger.error('Error processing voice message:', error);
+            await this.sendMessage(
+              msg.from,
+              '❌ Error processing voice message. Please try typing your command.'
+            );
           }
           return;
         }

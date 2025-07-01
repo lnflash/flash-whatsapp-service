@@ -92,6 +92,7 @@ export class WhatsappService {
     messageId: string;
     timestamp: string;
     name?: string;
+    isVoiceCommand?: boolean;
   }): Promise<string | { text: string; media?: Buffer; voice?: Buffer }> {
     try {
       const whatsappId = this.extractWhatsappId(messageData.from);
