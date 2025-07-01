@@ -69,7 +69,7 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
       setTimeout(async () => {
         // Check if WhatsApp is ready before enabling subscriptions
         if (!this.whatsappWebService.isClientReady()) {
-          this.logger.info('WhatsApp not ready yet, will retry payment subscriptions later');
+          this.logger.log('WhatsApp not ready yet, will retry payment subscriptions later');
           // Retry again in 30 seconds
           setTimeout(() => this.initialize(), 30000);
           return;
