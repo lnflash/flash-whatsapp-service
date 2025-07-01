@@ -13,14 +13,24 @@ export default () => {
       throw new Error(`${envVar} must be set in production`);
     }
 
-    // For development, generate a consistent key based on the env var name
-    const generated = crypto
-      .createHash('sha256')
-      .update(`flash-connect-${envVar}-${process.env.NODE_ENV || 'dev'}`)
-      .digest('hex')
-      .substring(0, length);
+    // For development, generate cryptographically secure random keys
+    // Store in memory for session consistency
+    const memoryKey = `_generated_${envVar}`;
+    if ((process as any)[memoryKey]) {
+      return (process as any)[memoryKey];
+    }
 
-    console.warn(`⚠️  ${envVar} not set, using generated value for development`);
+    // Generate cryptographically secure random bytes
+    const generated = crypto
+      .randomBytes(Math.ceil(length / 2))
+      .toString('hex')
+      .substring(0, length);
+    (process as any)[memoryKey] = generated;
+
+    console.warn(
+      `⚠️  ${envVar} not set, using cryptographically secure random value for development`,
+    );
+    console.warn(`   To persist this value, add to .env: ${envVar}=${generated}`);
     return generated;
   };
 

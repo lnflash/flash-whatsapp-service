@@ -284,6 +284,64 @@ export const TRAINING_EXAMPLES: TrainingExample[] = [
     keywords: ['countries', 'available', 'where', 'location'],
   },
 
+  // Lightning Address
+  {
+    question: 'What is a Lightning Address?',
+    answer:
+      "A Lightning Address looks like an email (e.g., john@flashapp.me) but it's for receiving Bitcoin payments. It's a human-readable way to receive money instead of using long invoice codes. Think of it as your payment email - simple to share and remember!",
+    category: 'lightning',
+    keywords: ['lightning', 'address', 'email', 'receive', 'payment'],
+  },
+  {
+    question: 'How do Lightning Addresses work?',
+    answer:
+      "Lightning Addresses work by automatically creating payment invoices when someone wants to send you money. When someone sends to your address (like john@flashapp.me), the system generates a Lightning invoice in the background. It's like having a permanent payment link that always works!",
+    category: 'lightning',
+    keywords: ['lightning', 'address', 'work', 'how', 'function'],
+  },
+  {
+    question: 'Can I get a Lightning Address?',
+    answer:
+      'Lightning Addresses are currently being rolled out to Flash users. Premium features like custom Lightning Addresses may be available soon. For now, you can receive payments using the "receive" command to create invoices.',
+    category: 'lightning',
+    keywords: ['lightning', 'address', 'get', 'create', 'obtain'],
+  },
+  {
+    question: "What's the difference between a Lightning Address and a Lightning invoice?",
+    answer:
+      'A Lightning invoice (starting with "lnbc") is a one-time payment request that expires. A Lightning Address (like john@flashapp.me) is permanent and reusable - it creates fresh invoices automatically each time someone sends you money. Address = permanent, Invoice = temporary.',
+    category: 'lightning',
+    keywords: ['lightning', 'address', 'invoice', 'difference', 'compare'],
+  },
+  {
+    question: 'How do I send money to a Lightning Address?',
+    answer:
+      'To send to a Lightning Address, many wallets support entering it directly (like john@flashapp.me). In Flash, this feature is coming soon. For now, ask the recipient to use "receive" command to generate an invoice you can pay.',
+    category: 'lightning',
+    keywords: ['send', 'lightning', 'address', 'pay', 'transfer'],
+  },
+  {
+    question: 'Are Lightning Addresses secure?',
+    answer:
+      "Yes! Lightning Addresses are secure. They only allow people to SEND you money, not take it. Each payment still requires the sender to confirm the amount. It's like sharing your email - people can send to it but can't access your account.",
+    category: 'lightning',
+    keywords: ['lightning', 'address', 'secure', 'safe', 'security'],
+  },
+  {
+    question: "Lightning Address explain it like I'm 5",
+    answer:
+      'A Lightning Address is like a magic mailbox for money! Instead of giving people a long, confusing code every time, you give them something easy like "yourname@flashapp.me". When they put money in your magic mailbox, it automatically comes to your wallet!',
+    category: 'lightning',
+    keywords: ['lightning', 'address', 'simple', 'explain', 'eli5', 'easy'],
+  },
+  {
+    question: 'Technical explanation of Lightning Address',
+    answer:
+      'Lightning Address is an internet identifier (like email) that provides a simple way to receive Lightning payments. It uses LNURL-pay protocol underneath, where the address resolves to an HTTPS endpoint that returns Lightning invoices on demand. When someone sends to your address, their wallet queries the endpoint, receives payment details, and completes the transaction. It abstracts away the complexity of invoice generation and sharing.',
+    category: 'lightning',
+    keywords: ['lightning', 'address', 'technical', 'lnurl', 'protocol', 'advanced'],
+  },
+
   // Support
   {
     question: 'How do I contact support?',

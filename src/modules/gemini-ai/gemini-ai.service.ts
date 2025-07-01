@@ -38,7 +38,7 @@ export class GeminiAiService {
             temperature: 0.7,
             topP: 0.8,
             topK: 40,
-            maxOutputTokens: 100, // Allow slightly longer responses for clarity
+            maxOutputTokens: 1024, // Increased from 100 to prevent message truncation
           },
           safetySettings: [
             {
@@ -174,13 +174,15 @@ Instructions:
 1. Answer the user's question directly and helpfully
 2. If they're trying to use a command that requires authentication and they're not linked, guide them to link first
 3. For the "receive" command, ALWAYS remind users it's USD only (not BTC)
-4. Prioritize CLARITY and UNDERSTANDING over brevity
+4. Prioritize CLARITY and UNDERSTANDING - provide complete explanations
 5. Be helpful and informative, explaining things clearly
 6. For commands, show examples and explain what they do
 7. For typos like "sent" instead of "send", explain the correct usage
-8. Aim for responses between 140-280 characters when needed for clarity
+8. Provide COMPLETE responses - do NOT truncate or cut off mid-sentence
+9. Responses can be as long as needed to fully answer the question
+10. For technical topics like Lightning Addresses, match the complexity level to the user's question
 
-Please provide a clear, helpful response:`;
+Please provide a clear, complete, and helpful response:`;
   }
 
   /**

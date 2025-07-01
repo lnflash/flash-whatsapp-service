@@ -661,7 +661,7 @@ export class WhatsappService {
         const currentUsername = await this.usernameService.getUsername(session.flashAuthToken);
 
         if (currentUsername) {
-          return `Your username is: @${currentUsername}`;
+          return `Your username is: @${currentUsername}. \n\n Your lightning address is: ${currentUsername}@flashapp.me. \n\n Want to know more about lightning addresses? Just ask!`;
         } else {
           return 'You haven\'t set a username yet. To set one, type "username" followed by your desired username.\n\nExample: username johndoe';
         }

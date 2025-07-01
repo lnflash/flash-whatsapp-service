@@ -18,6 +18,9 @@ import { CommandParserService, CommandType } from './command-parser.service';
 import { BalanceTemplate } from '../templates/balance-template';
 import { WhatsAppWebService } from './whatsapp-web.service';
 import { InvoiceTrackerService } from './invoice-tracker.service';
+import { EventsService } from '../../events/events.service';
+import { AdminSettingsService } from './admin-settings.service';
+import { SupportModeService } from './support-mode.service';
 
 describe('WhatsappService', () => {
   let service: WhatsappService;
@@ -172,6 +175,38 @@ describe('WhatsappService', () => {
             untrackInvoice: jest.fn(),
           },
         },
+        {
+          provide: EventsService,
+          useValue: {
+            publishEvent: jest.fn(),
+          },
+        },
+        {
+          provide: AdminSettingsService,
+          useValue: {
+            getSettings: jest.fn().mockResolvedValue({
+              lockdown: false,
+              groupsEnabled: false,
+              paymentsEnabled: true,
+              requestsEnabled: true,
+              supportNumbers: ['18762909250'],
+              adminNumbers: ['13059244435'],
+              lastUpdated: new Date(),
+              updatedBy: 'system',
+            }),
+            isLockdown: jest.fn().mockResolvedValue(false),
+            isAdmin: jest.fn().mockResolvedValue(false),
+          },
+        },
+        {
+          provide: SupportModeService,
+          useValue: {
+            isInSupportMode: jest.fn().mockResolvedValue(false),
+            isRequestingSupport: jest.fn().mockReturnValue(false),
+            initiateSupportMode: jest.fn(),
+            routeMessage: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -214,7 +249,7 @@ describe('WhatsappService', () => {
       // Verify response is a string (help message)
       expect(response).toBeDefined();
       expect(typeof response).toBe('string');
-      expect(response).toContain('Welcome!');
+      expect(response).toContain('Welcome to Flash WhatsApp Bot');
 
       // Verify command parser was called
       expect(commandParserService.parseCommand).toHaveBeenCalledWith('help');

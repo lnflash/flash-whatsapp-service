@@ -33,6 +33,7 @@ describe('SupportModeService', () => {
             get: jest.fn(),
             set: jest.fn(),
             del: jest.fn(),
+            keys: jest.fn().mockResolvedValue([]),
           },
         },
         {
@@ -183,18 +184,22 @@ describe('SupportModeService', () => {
 
       expect(whatsappWebService.sendMessage).toHaveBeenCalledWith(
         '18762909250@c.us',
-        expect.stringContaining('From 1234567890:'),
+        expect.stringContaining('@1234567890'),
       );
     });
 
     it('should route support message to user', async () => {
+      // Mock Redis keys to return the active session
+      redisService.keys.mockResolvedValueOnce(['support_mode:1234567890@c.us']);
+
       redisService.get
+        .mockResolvedValueOnce(JSON.stringify(mockSession)) // session data for keys lookup
         .mockResolvedValueOnce('1234567890@c.us') // last active session
         .mockResolvedValueOnce(JSON.stringify(mockSession)); // session data
 
       const result = await service.routeMessage(
-        '+18769202950@c.us',
-        'I can help you with that payment issue',
+        '18762909250@c.us',
+        '@1234567890: I can help you with that payment issue',
         true,
       );
 
