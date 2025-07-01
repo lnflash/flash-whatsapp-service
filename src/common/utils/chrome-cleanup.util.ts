@@ -21,7 +21,7 @@ export class ChromeCleanupUtil {
     'whatsapp-sessions',
     '.wwebjs',
   ];
-  
+
   private static readonly EXCLUDE_PATTERNS = [
     'Adobe',
     'Creative Cloud',
@@ -102,10 +102,8 @@ export class ChromeCleanupUtil {
 
       for (const line of lines) {
         // Check if this process should be excluded
-        const shouldExclude = this.EXCLUDE_PATTERNS.some((pattern) =>
-          line.includes(pattern),
-        );
-        
+        const shouldExclude = this.EXCLUDE_PATTERNS.some((pattern) => line.includes(pattern));
+
         if (shouldExclude) {
           continue;
         }
@@ -150,12 +148,10 @@ export class ChromeCleanupUtil {
         if (parts.length >= 3) {
           const command = parts[1];
           const pid = parts[2];
-          
+
           // Check if this process should be excluded
-          const shouldExclude = this.EXCLUDE_PATTERNS.some((pattern) =>
-            command.includes(pattern),
-          );
-          
+          const shouldExclude = this.EXCLUDE_PATTERNS.some((pattern) => command.includes(pattern));
+
           if (shouldExclude) {
             continue;
           }

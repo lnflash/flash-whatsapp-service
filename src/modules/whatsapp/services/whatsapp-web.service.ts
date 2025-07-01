@@ -849,20 +849,26 @@ export class WhatsAppWebService
    * Send a text message
    */
   async sendMessage(to: string, message: string): Promise<void> {
+    this.logger.log(`sendMessage called with to: ${to}, message length: ${message.length}`);
+
     if (!this.isReady) {
+      this.logger.error('WhatsApp Web client is not ready');
       throw new Error('WhatsApp Web client is not ready');
     }
 
     try {
       // Ensure the number has @c.us suffix
       const chatId = to.includes('@') ? to : `${to}@c.us`;
+      this.logger.log(`Sending message to chatId: ${chatId}`);
 
       // Check if client is properly initialized
       if (!this.client) {
+        this.logger.error('WhatsApp client is not initialized');
         throw new Error('WhatsApp client is not initialized');
       }
 
       await this.client.sendMessage(chatId, message);
+      this.logger.log(`Message sent successfully to ${chatId}`);
     } catch (error) {
       this.logger.error(`Failed to send message to ${to}:`, error);
       // Log more details about the error

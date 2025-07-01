@@ -289,8 +289,8 @@ async function loadSessions() {
                             <tr>
                                 <th>WhatsApp ID</th>
                                 <th>Phone Number</th>
-                                <th>Flash Username</th>
-                                <th>Linked At</th>
+                                <th>Account Status</th>
+                                <th>Created At</th>
                                 <th>Last Activity</th>
                                 <th>Actions</th>
                             </tr>
@@ -300,8 +300,8 @@ async function loadSessions() {
                                 <tr>
                                     <td>${session.whatsappId}</td>
                                     <td>${session.phoneNumber || '-'}</td>
-                                    <td>${session.flashUsername || '<span class="text-muted">Not linked</span>'}</td>
-                                    <td>${session.linkedAt ? new Date(session.linkedAt).toLocaleDateString() : '-'}</td>
+                                    <td>${session.flashUserId ? `<span class="badge bg-success">Linked</span>` : '<span class="text-muted">Not linked</span>'}</td>
+                                    <td>${session.createdAt ? new Date(session.createdAt).toLocaleDateString() : '-'}</td>
                                     <td>${session.lastActivity ? new Date(session.lastActivity).toLocaleString() : '-'}</td>
                                     <td>
                                         <button class="btn btn-sm btn-outline-primary" onclick="toggleSupport('${session.whatsappId}')">
@@ -461,9 +461,9 @@ async function loadAnnouncements() {
     content.innerHTML = `
         <h2 class="mb-4">Send Announcement</h2>
         
-        <div class="card">
+        <div class="card mb-3">
             <div class="card-body">
-                <form onsubmit="sendAnnouncement(event)">
+                <form id="announcementForm">
                     <div class="mb-3">
                         <label class="form-label">Announcement Message</label>
                         <textarea class="form-control" id="announcementMessage" rows="5" 
@@ -473,9 +473,9 @@ async function loadAnnouncements() {
                     
                     <div class="mb-3">
                         <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="includeUnlinked">
+                            <input class="form-check-input" type="checkbox" id="includeUnlinked" checked>
                             <label class="form-check-label" for="includeUnlinked">
-                                Include unlinked users (users without Flash accounts)
+                                Send to all WhatsApp users (including those without Flash accounts)
                             </label>
                         </div>
                         
@@ -487,13 +487,32 @@ async function loadAnnouncements() {
                         </div>
                     </div>
                     
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary" id="sendBtn">
                         <i class="bi bi-megaphone"></i> Send Announcement
                     </button>
                 </form>
             </div>
         </div>
+        
+        <div id="announcementResults" style="display: none;">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Announcement Results</h5>
+                </div>
+                <div class="card-body" id="resultsContent">
+                    <!-- Results will be shown here -->
+                </div>
+            </div>
+        </div>
     `;
+    
+    // Add event listener after DOM is created
+    setTimeout(() => {
+        const form = document.getElementById('announcementForm');
+        if (form) {
+            form.addEventListener('submit', sendAnnouncement);
+        }
+    }, 0);
 }
 
 async function loadLogs() {
@@ -631,9 +650,13 @@ async function executeCommand(e) {
 
 async function sendAnnouncement(e) {
     e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    
     const message = document.getElementById('announcementMessage').value;
     const includeUnlinked = document.getElementById('includeUnlinked').checked;
     const testMode = document.getElementById('testMode').checked;
+    const sendBtn = document.getElementById('sendBtn');
     
     const confirmMsg = testMode 
         ? 'Send test announcement (no messages will be sent)?'
@@ -641,11 +664,39 @@ async function sendAnnouncement(e) {
     
     if (!confirm(confirmMsg)) return;
     
+    // Disable button and show loading
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sending...';
+    
     try {
         const result = await adminAPI.sendAnnouncement(message, {
             includeUnlinked,
             testMode,
         });
+        
+        // Show results on the page
+        const resultsDiv = document.getElementById('announcementResults');
+        const resultsContent = document.getElementById('resultsContent');
+        
+        resultsDiv.style.display = 'block';
+        resultsContent.innerHTML = `
+            <div class="alert alert-${result.sent > 0 ? 'success' : 'warning'}">
+                <h6>Announcement ${testMode ? 'Test' : 'Send'} Complete!</h6>
+                <ul class="mb-0">
+                    <li><strong>Successful:</strong> ${result.sent}</li>
+                    <li><strong>Failed:</strong> ${result.failed}</li>
+                    <li><strong>Total Recipients:</strong> ${result.recipients ? result.recipients.length : 0}</li>
+                </ul>
+            </div>
+            ${result.recipients && result.recipients.length > 0 ? `
+            <div class="mt-3">
+                <h6>Recipients:</h6>
+                <div class="small">
+                    ${result.recipients.map(r => `<span class="badge bg-secondary me-1">${r}</span>`).join('')}
+                </div>
+            </div>
+            ` : ''}
+        `;
         
         showToast(
             `Announcement ${testMode ? 'tested' : 'sent'}! ` +
@@ -653,10 +704,29 @@ async function sendAnnouncement(e) {
             'success'
         );
         
-        e.target.reset();
+        // Clear the form
+        document.getElementById('announcementMessage').value = '';
     } catch (error) {
         showToast(error.message, 'danger');
+        
+        // Show error in results
+        const resultsDiv = document.getElementById('announcementResults');
+        const resultsContent = document.getElementById('resultsContent');
+        
+        resultsDiv.style.display = 'block';
+        resultsContent.innerHTML = `
+            <div class="alert alert-danger">
+                <h6>Error Sending Announcement</h6>
+                <p class="mb-0">${error.message}</p>
+            </div>
+        `;
+    } finally {
+        // Re-enable button
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = '<i class="bi bi-megaphone"></i> Send Announcement';
     }
+    
+    return false; // Prevent any navigation
 }
 
 async function filterLogs() {

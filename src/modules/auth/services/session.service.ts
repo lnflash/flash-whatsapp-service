@@ -288,6 +288,33 @@ export class SessionService {
   }
 
   /**
+   * Get all sessions (including unlinked ones) for admin purposes
+   */
+  async getAllSessions(): Promise<UserSession[]> {
+    try {
+      const sessions: UserSession[] = [];
+      const pattern = 'session:*';
+      const keys = await this.redisService.keys(pattern);
+
+      for (const key of keys) {
+        try {
+          const sessionData = (await this.redisService.getEncrypted(key)) as UserSession | null;
+          if (sessionData) {
+            sessions.push(sessionData);
+          }
+        } catch {
+          // Skip sessions that can't be decrypted (old encryption keys)
+        }
+      }
+
+      return sessions;
+    } catch (error) {
+      this.logger.error('Error getting all sessions:', error);
+      return [];
+    }
+  }
+
+  /**
    * Generic key-value operations for admin dashboard
    */
   async set(key: string, value: any, ttl?: number): Promise<void> {

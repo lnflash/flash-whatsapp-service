@@ -100,15 +100,19 @@ export class AdminDashboardService {
     page: number;
     totalPages: number;
   }> {
-    const allSessions = await this.sessionService.getAllActiveSessions();
+    const allSessions = await this.sessionService.getAllSessions();
 
     // Sort by last activity
     const sortedSessions = allSessions.sort((a, b) => {
-      const aTime = a.lastActivity 
-        ? (typeof a.lastActivity === 'string' ? new Date(a.lastActivity).getTime() : a.lastActivity.getTime())
+      const aTime = a.lastActivity
+        ? typeof a.lastActivity === 'string'
+          ? new Date(a.lastActivity).getTime()
+          : a.lastActivity.getTime()
         : 0;
-      const bTime = b.lastActivity 
-        ? (typeof b.lastActivity === 'string' ? new Date(b.lastActivity).getTime() : b.lastActivity.getTime())
+      const bTime = b.lastActivity
+        ? typeof b.lastActivity === 'string'
+          ? new Date(b.lastActivity).getTime()
+          : b.lastActivity.getTime()
         : 0;
       return bTime - aTime;
     });
@@ -116,22 +120,8 @@ export class AdminDashboardService {
     const start = (page - 1) * limit;
     const sessions = sortedSessions.slice(start, start + limit);
 
-    // Map sessions to include display data
-    const mappedSessions = sessions.map((session) => ({
-      ...session,
-      whatsappId: session.whatsappId,
-      phoneNumber: session.phoneNumber,
-      flashUsername: session.metadata?.flashUsername || null,
-      linkedAt: session.createdAt 
-        ? (typeof session.createdAt === 'string' ? new Date(session.createdAt) : session.createdAt)
-        : null,
-      lastActivity: session.lastActivity
-        ? (typeof session.lastActivity === 'string' ? new Date(session.lastActivity) : session.lastActivity)
-        : null,
-    }));
-
     return {
-      sessions: mappedSessions,
+      sessions,
       total: allSessions.length,
       page,
       totalPages: Math.ceil(allSessions.length / limit),
@@ -152,20 +142,40 @@ export class AdminDashboardService {
     failed: number;
     recipients: string[];
   }> {
-    const sessions = await this.sessionService.getAllActiveSessions();
+    const sessions = await this.sessionService.getAllSessions();
     const results = {
       sent: 0,
       failed: 0,
       recipients: [] as string[],
     };
 
+    this.logger.log(`Sending announcement to ${sessions.length} sessions`);
+    sessions.forEach(s => {
+      this.logger.log(`Session: ${s.whatsappId}, phoneNumber: ${s.phoneNumber}, flashUserId: ${s.flashUserId}`);
+    });
+
+    // Check WhatsApp status first
+    const whatsappReady = this.whatsappWebService.isClientReady();
+    this.logger.log(`WhatsApp client ready status: ${whatsappReady}`);
+
+    if (!whatsappReady && !options?.testMode) {
+      throw new BadRequestException(
+        'WhatsApp client is not ready. Please check WhatsApp connection.',
+      );
+    }
+
     for (const session of sessions) {
-      // Skip unlinked users if specified
-      if (!options?.includeUnlinked && !session.flashUserId) {
+      // Only skip unlinked users if explicitly set to false (default is to include all)
+      if (options?.includeUnlinked === false && !session.flashUserId) {
+        this.logger.log(`Skipping unlinked user: ${session.whatsappId}`);
         continue;
       }
 
       try {
+        this.logger.log(
+          `Attempting to send announcement to ${session.whatsappId} (linked: ${!!session.flashUserId})`,
+        );
+
         if (!options?.testMode) {
           await this.whatsappWebService.sendMessage(
             session.whatsappId,
@@ -174,6 +184,7 @@ export class AdminDashboardService {
         }
         results.sent++;
         results.recipients.push(session.whatsappId);
+        this.logger.log(`Successfully sent to ${session.whatsappId}`);
       } catch (error) {
         this.logger.error(`Failed to send announcement to ${session.whatsappId}:`, error);
         results.failed++;
@@ -204,7 +215,7 @@ export class AdminDashboardService {
    * Clear all sessions
    */
   async clearAllSessions(): Promise<{ cleared: number }> {
-    const sessions = await this.sessionService.getAllActiveSessions();
+    const sessions = await this.sessionService.getAllSessions();
     let cleared = 0;
 
     for (const session of sessions) {
@@ -309,16 +320,17 @@ export class AdminDashboardService {
    * Private helper methods
    */
   private async getUserStats() {
-    const sessions = await this.sessionService.getAllActiveSessions();
+    const sessions = await this.sessionService.getAllSessions();
     const activeCutoff = Date.now() - 24 * 60 * 60 * 1000; // 24 hours
 
     return {
       totalSessions: sessions.length,
       activeSessions: sessions.filter((s) => {
         if (!s.lastActivity) return false;
-        const lastActivityTime = typeof s.lastActivity === 'string' 
-          ? new Date(s.lastActivity).getTime() 
-          : s.lastActivity.getTime();
+        const lastActivityTime =
+          typeof s.lastActivity === 'string'
+            ? new Date(s.lastActivity).getTime()
+            : s.lastActivity.getTime();
         return lastActivityTime > activeCutoff;
       }).length,
       linkedAccounts: sessions.filter((s) => s.flashUserId).length,
