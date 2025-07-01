@@ -275,7 +275,7 @@ export class SessionService {
               sessions.push(sessionData);
             }
           }
-        } catch (error) {
+        } catch {
           // Skip sessions that can't be decrypted (old encryption keys)
         }
       }

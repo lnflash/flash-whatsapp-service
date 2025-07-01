@@ -60,11 +60,8 @@ export class MetricsMiddleware implements NestMiddleware {
     // Capture original end to intercept response
     const originalEnd = res.end;
 
-    // Capture middleware instance for use in the response handler
-    const middleware = this;
-
     // Override end
-    res.end = function (this: Response, ...args: any[]) {
+    res.end = (...args: any[]) => {
       // Calculate duration
       const duration = process.hrtime(start);
       const durationInSeconds = duration[0] + duration[1] / 1e9;
@@ -80,17 +77,15 @@ export class MetricsMiddleware implements NestMiddleware {
       }
 
       // Record metrics
-      middleware.httpRequestDurationMicroseconds
+      this.httpRequestDurationMicroseconds
         .labels(req.method, route, res.statusCode.toString())
         .observe(durationInSeconds);
 
-      middleware.httpRequestCounter.labels(req.method, route, res.statusCode.toString()).inc();
+      this.httpRequestCounter.labels(req.method, route, res.statusCode.toString()).inc();
 
       // Record errors separately
       if (res.statusCode >= 400) {
-        middleware.httpRequestErrorCounter
-          .labels(req.method, route, res.statusCode.toString())
-          .inc();
+        this.httpRequestErrorCounter.labels(req.method, route, res.statusCode.toString()).inc();
       }
 
       // Call original end

@@ -3220,8 +3220,12 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
 
         case 'clear-session': {
           try {
+            // Clear the session - this will handle the messaging internally
             await this.whatsappWebService.clearSession();
-            return `✅ WhatsApp session cleared successfully.\n\nAll session data has been removed. Use \`admin reconnect\` to connect a new number.`;
+
+            // Return a message for logging purposes only
+            // The actual user notification is handled by clearSession()
+            return '✅ Session cleared. The bot is now disconnected.';
           } catch (error) {
             return `❌ Failed to clear session: ${error.message}`;
           }

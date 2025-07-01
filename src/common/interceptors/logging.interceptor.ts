@@ -8,20 +8,20 @@ export class LoggingInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const req = context.switchToHttp().getRequest();
-    const { method, url, body } = req;
-    const userAgent = req.get('user-agent') || '';
+    const { method: _method, url: _url, body } = req;
+    const _userAgent = req.get('user-agent') || '';
     const startTime = Date.now();
 
     // Sanitize request body before logging (remove sensitive data)
-    const sanitizedBody = this.sanitizeBody(body);
+    const _sanitizedBody = this.sanitizeBody(body);
 
     return next.handle().pipe(
       tap((data) => {
         const endTime = Date.now();
-        const responseTime = endTime - startTime;
+        const _responseTime = endTime - startTime;
 
         // Sanitize response data before logging
-        const sanitizedResponse = this.sanitizeResponse(data);
+        const _sanitizedResponse = this.sanitizeResponse(data);
       }),
     );
   }

@@ -13,7 +13,6 @@ import { QrCodeService } from './qr-code.service';
 import { RedisService } from '../../redis/redis.service';
 import { SupportModeService } from './support-mode.service';
 import { SpeechService } from '../../speech/speech.service';
-import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 import * as path from 'path';
 
@@ -72,9 +71,7 @@ export class WhatsAppWebService
       }, this.startupGracePeriod);
 
       // Check if session exists
-      if (fs.existsSync('./whatsapp-sessions/session')) {
-      } else {
-      }
+      // Session check happens during client initialization
 
       await this.client.initialize();
     } catch (error) {
@@ -86,7 +83,7 @@ export class WhatsAppWebService
     await this.cleanup();
   }
 
-  async beforeApplicationShutdown(signal?: string) {
+  async beforeApplicationShutdown(_signal?: string) {
     await this.cleanup();
   }
 
@@ -113,7 +110,9 @@ export class WhatsAppWebService
     });
 
     // Authentication success
-    this.client.on('authenticated', () => {});
+    this.client.on('authenticated', () => {
+      // Placeholder for authentication success handling
+    });
 
     // Authentication failure
     this.client.on('auth_failure', (msg) => {
@@ -125,7 +124,7 @@ export class WhatsAppWebService
       this.isReady = true;
 
       // Log the connected phone number
-      const info = this.client.info;
+      const _info = this.client.info;
     });
 
     // Disconnection
@@ -199,7 +198,7 @@ export class WhatsAppWebService
         // Check for vCard (contact sharing)
         if (msg.type === 'vcard' || msg.vCards?.length > 0) {
           if (msg.vCards && msg.vCards.length > 0) {
-            msg.vCards.forEach((vcard, index) => {
+            msg.vCards.forEach((vcard) => {
               // Parse vCard data
               const lines = vcard.split('\n');
               const contactInfo: any = {};
@@ -384,9 +383,7 @@ export class WhatsAppWebService
           return;
         }
 
-        // Log other message types for debugging
-        if (msg.type !== 'chat') {
-        }
+        // Log other message types for debugging (placeholder)
 
         // Check if this is a message from support
         const supportPhone =
@@ -487,10 +484,14 @@ export class WhatsAppWebService
     });
 
     // Loading screen
-    this.client.on('loading_screen', (percent, message) => {});
+    this.client.on('loading_screen', (_percent, _message) => {
+      // Placeholder for loading screen handling
+    });
 
     // State changes
-    this.client.on('change_state', (state) => {});
+    this.client.on('change_state', (_state) => {
+      // Placeholder for state change handling
+    });
   }
 
   /**
@@ -517,6 +518,39 @@ export class WhatsAppWebService
    */
   async clearSession(): Promise<void> {
     try {
+      // Send notification message before clearing if we're connected
+      if (this.isReady && this.client) {
+        try {
+          // Get admin numbers
+          const adminNumbers = process.env.ADMIN_PHONE_NUMBERS?.split(',') || [];
+          const clearMessage =
+            `⚠️ *Session Clear Initiated*\n\n` +
+            `The WhatsApp connection will be terminated after this message.\n\n` +
+            `To reconnect:\n` +
+            `1. Make sure the bot is running\n` +
+            `2. Send \`admin reconnect\` from any admin number\n` +
+            `3. Scan the QR code to authenticate\n\n` +
+            `Clearing session now...`;
+
+          // Send message to all admins
+          for (const adminNumber of adminNumbers) {
+            const chatId = adminNumber.includes('@') ? adminNumber : `${adminNumber}@c.us`;
+            try {
+              await this.client.sendMessage(chatId, clearMessage);
+            } catch (err) {
+              this.logger.warn(
+                `Failed to send clear notification to ${adminNumber}: ${err.message}`,
+              );
+            }
+          }
+
+          // Wait a moment to ensure messages are sent
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        } catch (error) {
+          this.logger.warn('Failed to send clear session notifications:', error);
+        }
+      }
+
       // First disconnect if connected (with logout to clear session)
       if (this.isReady) {
         await this.disconnect(true);
@@ -527,6 +561,7 @@ export class WhatsAppWebService
 
       try {
         await fsPromises.rm(sessionPath, { recursive: true, force: true });
+        this.logger.log('WhatsApp session data cleared');
       } catch (err) {
         this.logger.warn('Session directory may not exist:', err);
       }
@@ -534,9 +569,13 @@ export class WhatsAppWebService
       // Destroy and recreate the client
       await this.cleanup();
 
-      // Reinitialize with fresh client
+      // Mark client as not ready since we cleared the session
+      this.isReady = false;
+
+      // Create new client instance but don't initialize yet
       this.client = new Client({
         authStrategy: new LocalAuth({
+          clientId: 'pulse-bot',
           dataPath: './whatsapp-sessions',
         }),
         puppeteer: {
@@ -556,6 +595,10 @@ export class WhatsAppWebService
       });
 
       this.setupEventHandlers();
+
+      this.logger.log(
+        'WhatsApp client recreated. Use "admin reconnect" to authenticate with a new number.',
+      );
     } catch (error) {
       this.logger.error('Error clearing session:', error);
       throw error;
@@ -651,7 +694,6 @@ export class WhatsAppWebService
       };
 
       // Store reference to this service for use in handlers
-      const whatsappWebService = this;
 
       // Set up ready handler to switch clients
       const readyHandler = async () => {
@@ -666,17 +708,14 @@ export class WhatsAppWebService
         await new Promise((resolve) => setTimeout(resolve, 3000));
 
         // Send welcome message using the service method (not direct client)
-        if (whatsappWebService.reconnectingAdminNumber) {
+        if (this.reconnectingAdminNumber) {
           try {
             const welcomeMessage = `🎉 *Reconnection Successful!*\n\n✅ Bot is now connected to the new number: ${info.wid.user}\n✅ Bot name: ${info.pushname || 'Pulse'}\n\n📱 *Important Reminders:*\n• The old number is no longer connected\n• All messages should now be sent to this new number\n• Your admin privileges have been maintained\n\nType \`admin status\` to verify the connection.`;
 
-            await whatsappWebService.sendMessage(
-              whatsappWebService.reconnectingAdminNumber,
-              welcomeMessage,
-            );
+            await this.sendMessage(this.reconnectingAdminNumber, welcomeMessage);
 
             // Clear the admin number after sending
-            whatsappWebService.reconnectingAdminNumber = null;
+            this.reconnectingAdminNumber = null;
           } catch (error) {
             this.logger.error('Failed to send welcome message to admin:', error);
           }
@@ -714,11 +753,11 @@ export class WhatsAppWebService
         newClient.off('ready', readyHandler);
 
         // Re-setup all event handlers on the new client BEFORE we start using it
-        whatsappWebService.setupEventHandlers();
+        this.setupEventHandlers();
 
         // Test the new client by getting its state
         try {
-          const state = await newClient.getState();
+          const _state = await newClient.getState();
         } catch (error) {
           this.logger.error('Error checking client state:', error);
         }

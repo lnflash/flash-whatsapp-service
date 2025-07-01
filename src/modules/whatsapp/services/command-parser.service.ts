@@ -125,8 +125,6 @@ export class CommandParserService {
             result.args.isVoiceCommand = 'true';
           }
 
-          if (type === CommandType.SEND) {
-          }
           return result;
         }
       }

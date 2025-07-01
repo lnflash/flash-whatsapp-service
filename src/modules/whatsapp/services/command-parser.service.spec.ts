@@ -205,6 +205,128 @@ describe('CommandParserService - Natural Language', () => {
     });
   });
 
+  describe('Natural Language Processing', () => {
+    describe('Balance Commands', () => {
+      const balanceVariations = [
+        'what is my balance',
+        'check my balance',
+        'show me my balance',
+        'how much do i have',
+        'how much money do I have',
+        'my wallet balance',
+      ];
+
+      balanceVariations.forEach((text) => {
+        it(`should parse "${text}" as balance command`, () => {
+          const result = service.parseCommand(text, true);
+          expect(result.type).toBe(CommandType.BALANCE);
+        });
+      });
+    });
+
+    describe('Send Commands', () => {
+      it('should parse "send five dollars to john"', () => {
+        const result = service.parseCommand('send five dollars to john', true);
+        expect(result.type).toBe(CommandType.SEND);
+        expect(result.args.amount).toBe('5');
+        expect(result.args.recipient).toBe('john');
+        expect(result.args.requiresConfirmation).toBe('true');
+      });
+
+      it('should parse "send 20 to alice"', () => {
+        const result = service.parseCommand('send 20 to alice', true);
+        expect(result.type).toBe(CommandType.SEND);
+        expect(result.args.amount).toBe('20');
+        expect(result.args.recipient).toBe('alice');
+      });
+
+      it('should parse "transfer 100 to bob"', () => {
+        const result = service.parseCommand('transfer 100 to bob', true);
+        expect(result.type).toBe(CommandType.SEND);
+        expect(result.args.amount).toBe('100');
+        expect(result.args.recipient).toBe('bob');
+      });
+    });
+
+    describe('Request Commands', () => {
+      it('should parse "request 10 from sarah"', () => {
+        const result = service.parseCommand('request 10 from sarah', true);
+        expect(result.type).toBe(CommandType.REQUEST);
+        expect(result.args.amount).toBe('10');
+        expect(result.args.username).toBe('sarah');
+        expect(result.args.requiresConfirmation).toBe('true');
+      });
+
+      it('should parse "ask mike for 50 dollars"', () => {
+        const result = service.parseCommand('ask mike for 50 dollars', true);
+        expect(result.type).toBe(CommandType.REQUEST);
+        expect(result.args.amount).toBe('50');
+        expect(result.args.username).toBe('mike');
+      });
+    });
+
+    describe('Price Commands', () => {
+      const priceVariations = [
+        'bitcoin price',
+        'btc price',
+        'price of bitcoin',
+        'how much is bitcoin',
+        'what is bitcoin worth',
+        'current bitcoin price',
+        'check the price',
+      ];
+
+      priceVariations.forEach((text) => {
+        it(`should parse "${text}" as price command`, () => {
+          const result = service.parseCommand(text, true);
+          expect(result.type).toBe(CommandType.PRICE);
+        });
+      });
+    });
+
+    describe('Number Word Conversion', () => {
+      const conversions = [
+        { word: 'one', number: '1' },
+        { word: 'two', number: '2' },
+        { word: 'three', number: '3' },
+        { word: 'ten', number: '10' },
+        { word: 'twenty', number: '20' },
+        { word: 'fifty', number: '50' },
+        { word: 'hundred', number: '100' },
+        { word: 'thousand', number: '1000' },
+      ];
+
+      conversions.forEach(({ word, number }) => {
+        it(`should convert "${word}" to ${number}`, () => {
+          const result = service.parseCommand(`send ${word} to alice`, true);
+          expect(result.args.amount).toBe(number);
+          expect(result.args.recipient).toBe('alice');
+        });
+      });
+    });
+
+    describe('Edge Cases', () => {
+      it('should handle mixed case', () => {
+        const result = service.parseCommand('SEND Five DOLLARS to JOHN', true);
+        expect(result.type).toBe(CommandType.SEND);
+        expect(result.args.amount).toBe('5');
+        expect(result.args.recipient).toBe('JOHN'); // Natural language parser preserves case
+      });
+
+      it('should handle extra spaces', () => {
+        const result = service.parseCommand('  send   five    to   john  ', true);
+        expect(result.type).toBe(CommandType.SEND);
+        expect(result.args.amount).toBe('5');
+        expect(result.args.recipient).toBe('john');
+      });
+
+      it('should fall back to standard parsing for unrecognized patterns', () => {
+        const result = service.parseCommand('gibberish nonsense', true);
+        expect(result.type).toBe(CommandType.UNKNOWN);
+      });
+    });
+  });
+
   describe('Voice Settings Commands', () => {
     it('should parse "voice off" as voice command', () => {
       const result = service.parseCommand('voice off');

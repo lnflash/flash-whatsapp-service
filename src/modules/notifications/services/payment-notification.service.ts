@@ -67,10 +67,9 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
         // Try to enable WebSocket subscriptions but don't fail if they don't work
         try {
           await this.enableWebSocketSubscriptions();
-        } catch (wsError) {
+        } catch {
           this.logger.warn('WebSocket subscriptions failed, relying on RabbitMQ events');
         }
-      } else {
       }
     } catch (error) {
       this.logger.error('Failed to initialize payment notification service:', error);

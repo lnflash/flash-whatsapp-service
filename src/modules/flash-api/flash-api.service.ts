@@ -16,7 +16,6 @@ export class FlashApiService {
 
     if (!this.apiUrl) {
       this.logger.warn('Flash API URL not configured. Flash API functionality will be limited.');
-    } else {
     }
   }
 
@@ -147,8 +146,7 @@ export class FlashApiService {
         userPhoneRegistrationInitiate: { success: boolean; errors?: Array<{ message: string }> };
       }>(mutation, variables, backendAuthToken);
 
-      if (result.userPhoneRegistrationInitiate.success) {
-      } else {
+      if (!result.userPhoneRegistrationInitiate.success) {
         this.logger.warn(
           `Failed to send verification code: ${JSON.stringify(result.userPhoneRegistrationInitiate.errors)}`,
         );

@@ -69,7 +69,6 @@ export class AuthService {
         );
       } else if (result.errors && result.errors.length > 0) {
         this.logger.warn(`Phone verification initiated with warning: ${result.errors[0].message}`);
-      } else {
       }
 
       return { sessionId: session.sessionId, otpSent: true };
@@ -167,7 +166,7 @@ export class AuthService {
       }
 
       // Generate and send OTP
-      const otp = await this.otpService.generateOtp(session.phoneNumber, sessionId);
+      const _otp = await this.otpService.generateOtp(session.phoneNumber, sessionId);
 
       // In a real implementation, we would send this OTP via the Flash API or SMS
 

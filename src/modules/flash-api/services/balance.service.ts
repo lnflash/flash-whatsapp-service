@@ -178,9 +178,7 @@ export class BalanceService {
 
       // Log wallet data for debugging
 
-      // Log exchange rate if available
-      if (account.realtimePrice) {
-      }
+      // Log exchange rate if available (placeholder for future use)
 
       // Log the exact response for debugging
 

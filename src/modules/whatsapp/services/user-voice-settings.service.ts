@@ -25,21 +25,21 @@ export class UserVoiceSettingsService {
    * Get user voice settings
    */
   async getUserVoiceSettings(whatsappId: string): Promise<UserVoiceSettings | null> {
-    const key = `${this.SETTINGS_PREFIX}${whatsappId}`;
-    const data = await this.redisService.get(key);
-
-    if (!data) {
-      return null;
-    }
-
     try {
+      const key = `${this.SETTINGS_PREFIX}${whatsappId}`;
+      const data = await this.redisService.get(key);
+
+      if (!data) {
+        return null;
+      }
+
       const settings = JSON.parse(data);
       return {
         ...settings,
         updatedAt: new Date(settings.updatedAt),
       };
     } catch (error) {
-      this.logger.error(`Error parsing user voice settings: ${error.message}`);
+      this.logger.error(`Error getting user voice settings: ${error.message}`);
       return null;
     }
   }
@@ -48,14 +48,19 @@ export class UserVoiceSettingsService {
    * Set user voice mode
    */
   async setUserVoiceMode(whatsappId: string, mode: UserVoiceMode): Promise<void> {
-    const key = `${this.SETTINGS_PREFIX}${whatsappId}`;
-    const settings: UserVoiceSettings = {
-      whatsappId,
-      mode,
-      updatedAt: new Date(),
-    };
+    try {
+      const key = `${this.SETTINGS_PREFIX}${whatsappId}`;
+      const settings: UserVoiceSettings = {
+        whatsappId,
+        mode,
+        updatedAt: new Date(),
+      };
 
-    await this.redisService.set(key, JSON.stringify(settings), this.SETTINGS_TTL);
+      await this.redisService.set(key, JSON.stringify(settings), this.SETTINGS_TTL);
+    } catch (error) {
+      this.logger.error(`Error setting user voice mode: ${error.message}`);
+      // Swallow the error to maintain backwards compatibility
+    }
   }
 
   /**
