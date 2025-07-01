@@ -65,17 +65,28 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
       // Subscribe to RabbitMQ events as backup
       await this.subscribeToRabbitMQEvents();
 
-      // Check if WebSocket subscriptions are enabled
-      const wsEnabled = this.configService.get<boolean>('notifications.enableWebSocket', true);
-
-      if (wsEnabled) {
-        // Try to enable WebSocket subscriptions but don't fail if they don't work
-        try {
-          await this.enableWebSocketSubscriptions();
-        } catch {
-          this.logger.warn('WebSocket subscriptions failed, relying on RabbitMQ events');
+      // Delay WebSocket subscriptions to give WhatsApp time to initialize
+      setTimeout(async () => {
+        // Check if WhatsApp is ready before enabling subscriptions
+        if (!this.whatsappWebService.isClientReady()) {
+          this.logger.info('WhatsApp not ready yet, will retry payment subscriptions later');
+          // Retry again in 30 seconds
+          setTimeout(() => this.initialize(), 30000);
+          return;
         }
-      }
+
+        // Check if WebSocket subscriptions are enabled
+        const wsEnabled = this.configService.get<boolean>('notifications.enableWebSocket', true);
+
+        if (wsEnabled) {
+          // Try to enable WebSocket subscriptions but don't fail if they don't work
+          try {
+            await this.enableWebSocketSubscriptions();
+          } catch {
+            this.logger.warn('WebSocket subscriptions failed, relying on RabbitMQ events');
+          }
+        }
+      }, 5000); // Wait 5 seconds before trying to subscribe
     } catch (error) {
       this.logger.error('Failed to initialize payment notification service:', error);
     }
@@ -149,6 +160,12 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
    */
   async subscribeUserToPayments(whatsappId: string, authToken: string): Promise<void> {
     try {
+      // Don't subscribe if WhatsApp is not ready
+      if (!this.whatsappWebService.isClientReady()) {
+        this.logger.debug(`Skipping payment subscription for ${whatsappId} - WhatsApp not ready`);
+        return;
+      }
+
       // Check if already subscribed
       if (this.activeSubscriptions.has(whatsappId)) {
         return;
@@ -399,7 +416,7 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
       await this.whatsappWebService.sendMessage(notification.whatsappId, message);
     } catch (error) {
       // Don't throw if WhatsApp is not ready - just log and continue
-      if (error.message === 'WhatsApp Web client is not ready') {
+      if (error.message && error.message.includes('WhatsApp Web client is not ready')) {
         this.logger.debug(`WhatsApp not ready, payment notification queued for ${notification.whatsappId}`);
         return;
       }
@@ -610,7 +627,7 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
       }
     } catch (error) {
       // Don't log errors for WhatsApp not being ready
-      if (error.message === 'WhatsApp Web client is not ready') {
+      if (error.message && error.message.includes('WhatsApp Web client is not ready')) {
         return;
       }
       
