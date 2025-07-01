@@ -87,5 +87,29 @@ describe('TtsService', () => {
       const result = service.cleanTextForTTS(input);
       expect(result).toBe('Bold text. New paragraph');
     });
+
+    it('should remove various punctuation marks', () => {
+      const input = 'Hello `world`! Check_this_out: $50.25 & more';
+      const result = service.cleanTextForTTS(input);
+      expect(result).toBe('Hello world! Check this out, 50.25 dollars and more');
+    });
+
+    it('should handle complex symbols', () => {
+      const input = 'User@example.com | Balance: ₿0.5 + $100 [PENDING]';
+      const result = service.cleanTextForTTS(input);
+      expect(result).toBe('User and example.com Balance, 0.5 bitcoin plus 100 dollars PENDING');
+    });
+
+    it('should clean up multiple punctuation', () => {
+      const input = 'Wait!!! What??? Really... Yes!!!';
+      const result = service.cleanTextForTTS(input);
+      expect(result).toBe('Wait! What? Really. Yes!');
+    });
+
+    it('should handle code-like text', () => {
+      const input = 'Use command: `admin_settings --enable` or {config: true}';
+      const result = service.cleanTextForTTS(input);
+      expect(result).toBe('Use command, admin settings enable or config, true');
+    });
   });
 });

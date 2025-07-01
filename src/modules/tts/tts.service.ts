@@ -213,22 +213,42 @@ export class TtsService {
    * @returns Cleaned text suitable for TTS
    */
   cleanTextForTTS(text: string): string {
-    // Remove emojis and special characters that don't translate well to speech
+    // First, handle special cases for currency and common symbols
     let cleaned = text
+      .replace(/\$(\d+(?:\.\d+)?)/g, '$1 dollars') // $100 -> 100 dollars, $10.50 -> 10.50 dollars
+      .replace(/₿(\d+(?:\.\d+)?)/g, '$1 bitcoin') // ₿0.001 -> 0.001 bitcoin
+      .replace(/USD/g, 'U S D')
+      .replace(/BTC/g, 'bitcoin');
+
+    // Remove emojis and special characters that don't translate well to speech
+    cleaned = cleaned
       .replace(/[🟢🔴⚡💸🎉✅❌🤖💡🔒🚀📱💰⚠️🔊👮🆘💸📥📅👤💡]/g, '')
       .replace(/\*\*/g, '') // Remove markdown bold
+      .replace(/__|_/g, ' ') // Replace underscores with spaces
+      .replace(/`+/g, '') // Remove backticks
+      .replace(/[~^]/g, '') // Remove tildes and carets
+      .replace(/[#*]/g, '') // Remove hash and asterisk
+      .replace(/[<>]/g, '') // Remove angle brackets
+      .replace(/[{}[\]]/g, '') // Remove curly and square brackets
+      .replace(/[|\\]/g, '') // Remove pipes and backslashes
+      .replace(/[@&]/g, ' and ') // Replace @ and & with "and"
+      .replace(/[=%]/g, ' ') // Replace equals and percent with space
+      .replace(/[+]/g, ' plus ') // Replace plus with "plus"
+      .replace(/[-]{2,}/g, ' ') // Replace multiple dashes with space
+      .replace(/[_$]/g, '') // Remove remaining underscores and dollar signs
       .replace(/\n\n/g, '. ') // Replace double newlines with periods
       .replace(/\n/g, '. ') // Replace single newlines with periods
-      .replace(/\.+/g, '.') // Multiple periods to single
+      .replace(/[:;]/g, ',') // Replace colons and semicolons with commas
+      .replace(/[!?]{2,}/g, match => match[0]) // Multiple ! or ? to single
+      .replace(/\.{2,}/g, '.') // Multiple periods to single
+      .replace(/,{2,}/g, ',') // Multiple commas to single
       .replace(/\s+/g, ' ') // Multiple spaces to single
       .trim();
 
-    // Replace common abbreviations and symbols
+    // Clean up any punctuation at the start or end
     cleaned = cleaned
-      .replace(/USD/g, 'U S D')
-      .replace(/BTC/g, 'bitcoin')
-      .replace(/\$(\d+)/g, '$1 dollars') // $100 -> 100 dollars
-      .replace(/₿/g, 'bitcoin');
+      .replace(/^[.,;:!?\s]+/, '') // Remove leading punctuation
+      .replace(/[,;:\s]+$/, ''); // Remove trailing punctuation (except . ! ?)
 
     return cleaned;
   }
