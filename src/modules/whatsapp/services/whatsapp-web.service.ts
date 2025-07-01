@@ -334,12 +334,12 @@ export class WhatsAppWebService
         // Handle voice messages (PTT - Push To Talk)
         if (msg.type === 'ptt') {
           this.logger.log('🎤 Voice message received!');
-          
+
           // Check if speech service is available
           if (!this.speechService?.isAvailable()) {
             await this.sendMessage(
               msg.from,
-              '🎤 Voice messages are not currently available. Please type your command instead.'
+              '🎤 Voice messages are not currently available. Please type your command instead.',
             );
             return;
           }
@@ -349,20 +349,26 @@ export class WhatsAppWebService
             const media = await msg.downloadMedia();
             if (!media) {
               this.logger.error('Failed to download voice message');
-              await this.sendMessage(msg.from, '❌ Unable to process voice message. Please try typing your command.');
+              await this.sendMessage(
+                msg.from,
+                '❌ Unable to process voice message. Please try typing your command.',
+              );
               return;
             }
 
             // Convert base64 to buffer
             const audioBuffer = Buffer.from(media.data, 'base64');
-            
+
             // Transcribe the audio
-            const transcribedText = await this.speechService.speechToText(audioBuffer, media.mimetype);
-            
+            const transcribedText = await this.speechService.speechToText(
+              audioBuffer,
+              media.mimetype,
+            );
+
             if (!transcribedText) {
               await this.sendMessage(
                 msg.from,
-                '🎤 I couldn\'t understand that. Please speak clearly or type your command.'
+                "🎤 I couldn't understand that. Please speak clearly or type your command.",
               );
               return;
             }
@@ -381,10 +387,10 @@ export class WhatsAppWebService
             if (response) {
               // Add a prefix to show this was transcribed
               const prefix = `🎤 *I heard: "${transcribedText}"*\n\n`;
-              
+
               if (typeof response === 'object' && 'text' in response) {
                 const textWithPrefix = prefix + response.text;
-                
+
                 if (response.voice) {
                   await this.sendVoiceNote(msg.from, response.voice);
                   await this.sendMessage(msg.from, textWithPrefix);
@@ -401,7 +407,7 @@ export class WhatsAppWebService
             this.logger.error('Error processing voice message:', error);
             await this.sendMessage(
               msg.from,
-              '❌ Error processing voice message. Please try typing your command.'
+              '❌ Error processing voice message. Please try typing your command.',
             );
           }
           return;

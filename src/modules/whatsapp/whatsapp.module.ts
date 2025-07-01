@@ -15,6 +15,7 @@ import { QrCodeService } from './services/qr-code.service';
 import { InvoiceTrackerService } from './services/invoice-tracker.service';
 import { SupportModeService } from './services/support-mode.service';
 import { AdminSettingsService } from './services/admin-settings.service';
+import { PaymentConfirmationService } from './services/payment-confirmation.service';
 
 // Guards and Templates
 import { RateLimiterGuard } from '../../common/guards/rate-limiter.guard';
@@ -56,6 +57,7 @@ import { SpeechModule } from '../speech/speech.module';
     InvoiceTrackerService,
     SupportModeService,
     AdminSettingsService,
+    PaymentConfirmationService,
   ],
   exports: [WhatsappService, WhatsAppWebService, AdminSettingsService],
 })

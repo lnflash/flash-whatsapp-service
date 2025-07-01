@@ -47,12 +47,12 @@ export class SpeechService {
 
     try {
       this.logger.debug(`Processing audio: ${mimeType}, ${audioBuffer.length} bytes`);
-      
+
       // Determine audio encoding from mime type
       // WhatsApp typically sends voice notes as audio/ogg with opus codec
       let encoding: any = 'OGG_OPUS'; // Default for WhatsApp voice notes
       let sampleRateHertz = 16000; // WhatsApp uses 16kHz
-      
+
       if (mimeType.includes('ogg') || mimeType.includes('opus')) {
         encoding = 'OGG_OPUS';
         sampleRateHertz = 16000;
@@ -102,7 +102,7 @@ export class SpeechService {
       for (const config of configs) {
         try {
           this.logger.debug(`Trying config: ${JSON.stringify(config)}`);
-          
+
           const request = {
             audio: {
               content: audioBuffer.toString('base64'),
@@ -125,14 +125,14 @@ export class SpeechService {
       if (!response && lastError) {
         throw lastError;
       }
-      
+
       if (!response) {
         this.logger.warn('No response from any configuration');
         return null;
       }
-      
+
       this.logger.log(`Transcription response:`, JSON.stringify(response, null, 2));
-      
+
       if (!response.results || response.results.length === 0) {
         this.logger.warn('No transcription results');
         return null;
@@ -153,7 +153,7 @@ export class SpeechService {
       return transcription;
     } catch (error) {
       this.logger.error('Error transcribing speech:', error);
-      
+
       // Log more details about the error
       if (error.code) {
         this.logger.error(`Error code: ${error.code}`);
@@ -164,7 +164,7 @@ export class SpeechService {
       if (error.message) {
         this.logger.error(`Error message: ${error.message}`);
       }
-      
+
       return null;
     }
   }

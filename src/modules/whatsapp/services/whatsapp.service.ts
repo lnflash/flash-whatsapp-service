@@ -34,6 +34,7 @@ import { VerifyOtpDto } from '../../auth/dto/verify-otp.dto';
 import { UserSession } from '../../auth/interfaces/user-session.interface';
 import { AdminSettingsService, VoiceMode } from './admin-settings.service';
 import { TtsService } from '../../tts/tts.service';
+import { PaymentConfirmationService } from './payment-confirmation.service';
 // import { WhatsAppCloudService } from './whatsapp-cloud.service'; // Disabled for prototype branch
 
 @Injectable()
@@ -61,6 +62,7 @@ export class WhatsappService {
     private readonly supportModeService: SupportModeService,
     private readonly adminSettingsService: AdminSettingsService,
     private readonly ttsService: TtsService,
+    private readonly paymentConfirmationService: PaymentConfirmationService,
     // private readonly whatsAppCloudService: WhatsAppCloudService, // Disabled for prototype branch
     @Inject(forwardRef(() => WhatsAppWebService))
     private readonly whatsappWebService?: WhatsAppWebService,
@@ -103,8 +105,11 @@ export class WhatsappService {
       // Store the incoming message for traceability
       await this.storeCloudMessage(messageData);
 
-      // Parse command from message
-      const command = this.commandParserService.parseCommand(messageData.text);
+      // Parse command from message (with voice flag if it came from voice)
+      const command = this.commandParserService.parseCommand(
+        messageData.text,
+        messageData.isVoiceCommand,
+      );
 
       // Get session if it exists
       let session = await this.sessionService.getSessionByWhatsappId(whatsappId);
@@ -154,7 +159,7 @@ export class WhatsappService {
                 voiceText = `${beforeHint}💡 ${ttsFriendlyHint}`;
               }
             }
-            
+
             const audioBuffer = await this.ttsService.textToSpeech(voiceText);
             return { text: finalText, voice: audioBuffer };
           } catch (error) {
@@ -166,7 +171,7 @@ export class WhatsappService {
         return finalText;
       } else if (response && typeof response === 'object' && 'text' in response) {
         const finalText = this.addHint(response.text, session, command);
-        
+
         // Check for forceVoice flag or normal voice conditions
         const useVoice = (response as any).forceVoice || shouldUseVoice;
 
@@ -183,7 +188,7 @@ export class WhatsappService {
                 voiceText = `${beforeHint}💡 ${ttsFriendlyHint}`;
               }
             }
-            
+
             const audioBuffer = await this.ttsService.textToSpeech(voiceText);
             return {
               ...response,
@@ -222,10 +227,52 @@ export class WhatsappService {
     session: UserSession | null,
   ): Promise<string | { text: string; media?: Buffer }> {
     try {
+      // Check if user has a pending payment confirmation
+      const pendingPayment = await this.paymentConfirmationService.getPendingPayment(whatsappId);
+      if (pendingPayment) {
+        // Check if this is a confirmation response
+        const confirmText = command.rawText.toLowerCase().trim();
+        if (confirmText === 'yes' || confirmText === 'y' || confirmText === 'confirm') {
+          // Clear the pending payment and execute it
+          await this.paymentConfirmationService.clearPendingPayment(whatsappId);
+
+          // Execute the original command
+          const originalCommand = pendingPayment.command;
+          if (originalCommand.type === CommandType.SEND) {
+            return this.handleSendCommand(originalCommand, whatsappId, session);
+          } else if (originalCommand.type === CommandType.REQUEST) {
+            return this.handleRequestCommand(originalCommand, whatsappId, session);
+          }
+        } else if (confirmText === 'no' || confirmText === 'n' || confirmText === 'cancel') {
+          // Cancel the pending payment
+          await this.paymentConfirmationService.clearPendingPayment(whatsappId);
+          return '❌ Payment cancelled.';
+        } else {
+          // Show the pending payment details again
+          const details = this.paymentConfirmationService.formatPaymentDetails(
+            pendingPayment.command,
+          );
+          return `⏳ You have a pending payment:\n\n${details}\n\nPlease type "yes" to confirm or "no" to cancel.`;
+        }
+      }
+
       // Check lockdown status first
       const lockdownMessage = await this.checkLockdown(whatsappId, command);
       if (lockdownMessage) {
         return lockdownMessage;
+      }
+
+      // Check if this is a voice payment command that requires confirmation
+      if (command.args.requiresConfirmation === 'true') {
+        const details = this.paymentConfirmationService.formatPaymentDetails(command);
+        await this.paymentConfirmationService.storePendingPayment(
+          whatsappId,
+          phoneNumber,
+          command,
+          session?.sessionId,
+        );
+
+        return `🎤 Voice Payment Confirmation Required\n\n${details}\n\nPlease type "yes" to confirm or "no" to cancel.\n\n⏱️ This request will expire in 5 minutes.`;
       }
 
       switch (command.type) {
@@ -504,10 +551,10 @@ export class WhatsappService {
             if (claimedCount > 0) {
               const totalUsd = (totalClaimed / 100).toFixed(2);
               const pendingClaimMessage = `💰 Great news! You had ${claimedCount} pending payment${claimedCount > 1 ? 's' : ''} totaling $${totalUsd} that ${claimedCount > 1 ? 'have' : 'has'} been automatically credited to your account!`;
-              
+
               // Create welcome message with pending payment info
               const welcomeMessage = this.getWelcomeMessage(updatedSession, pendingClaimMessage);
-              
+
               // Return with special forceVoice flag
               return {
                 text: welcomeMessage,
@@ -523,7 +570,7 @@ export class WhatsappService {
 
       // Create warm welcome message
       const welcomeMessage = this.getWelcomeMessage(updatedSession);
-      
+
       // Return with special forceVoice flag
       return {
         text: welcomeMessage,
@@ -1080,7 +1127,10 @@ Current mode: Check with \`admin voice\`
 💡 Tip: I'll respond with both voice and text!`,
     };
 
-    return categories[category.toLowerCase()] || `❓ Unknown category. Try: \`help\`, \`help wallet\`, \`help send\`, \`help receive\`, \`help contacts\`, \`help pending\`, or \`help voice\``;
+    return (
+      categories[category.toLowerCase()] ||
+      `❓ Unknown category. Try: \`help\`, \`help wallet\`, \`help send\`, \`help receive\`, \`help contacts\`, \`help pending\`, or \`help voice\``
+    );
   }
 
   /**
@@ -1089,7 +1139,7 @@ Current mode: Check with \`admin voice\`
   private getWelcomeMessage(session: UserSession | null, pendingClaimMessage?: string): string {
     const userName = session?.profileName || 'there';
     const firstName = userName.split(' ')[0]; // Use first name for friendlier greeting
-    
+
     let message = `🎉 *Welcome to Pulse, ${firstName}!*
 
 ✅ Your Flash account is now connected to WhatsApp.`;
@@ -3415,7 +3465,7 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
       if (shouldUseVoice && this.whatsappWebService) {
         // Make hints TTS-friendly before cleaning
         let ttsFriendlyResponse = response;
-        
+
         // Check if response contains a hint (💡)
         if (response.includes('💡')) {
           // Extract hint part and make it TTS-friendly
@@ -3520,22 +3570,43 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
   private makeTtsFriendlyHint(hint: string): string {
     // First, apply phrase-level replacements for better context
     let ttsFriendly = hint;
-    
+
     // Convert common phrases to more natural language
     const phraseReplacements: [RegExp | string, string][] = [
-      ['Type `link` to connect your Flash account', "You can connect your Flash account by typing 'link'"],
-      ['Complete verification with `verify 123456`', "Complete the verification by typing 'verify' followed by your 6-digit code"],
-      ['Send money with `send 10 to @username`', "You can send money by typing 'send', then the amount, then 'to' and the username"],
+      [
+        'Type `link` to connect your Flash account',
+        "You can connect your Flash account by typing 'link'",
+      ],
+      [
+        'Complete verification with `verify 123456`',
+        "Complete the verification by typing 'verify' followed by your 6-digit code",
+      ],
+      [
+        'Send money with `send 10 to @username`',
+        "You can send money by typing 'send', then the amount, then 'to' and the username",
+      ],
       ['Check balance with `balance`', "You can check your balance by typing 'balance'"],
-      ['Share this invoice to get paid', "Share this invoice with someone to receive payment"],
-      ['Receive Bitcoin with `receive 20`', "You can receive Bitcoin by typing 'receive' followed by the amount"],
-      ['Send to contacts: `send 5 to john`', "To send money to your contacts, type 'send 5 to' followed by the contact name"],
+      ['Share this invoice to get paid', 'Share this invoice with someone to receive payment'],
+      [
+        'Receive Bitcoin with `receive 20`',
+        "You can receive Bitcoin by typing 'receive' followed by the amount",
+      ],
+      [
+        'Send to contacts: `send 5 to john`',
+        "To send money to your contacts, type 'send 5 to' followed by the contact name",
+      ],
       ['Type `help` to see all commands', "To see all available commands, type 'help'"],
       ['Need assistance? Type `support`', "If you need assistance, type 'support'"],
-      ['Set username for easy payments', "Set up a username to make payments easier"],
+      ['Set username for easy payments', 'Set up a username to make payments easier'],
       ['Save contacts with `contacts add`', "You can save contacts by typing 'contacts add'"],
-      ['Check Bitcoin price with `price`', "You can check the current price of Bitcoin by typing 'price'"],
-      ['View transactions with `history`', "You can view your transaction history by typing 'history'"],
+      [
+        'Check Bitcoin price with `price`',
+        "You can check the current price of Bitcoin by typing 'price'",
+      ],
+      [
+        'View transactions with `history`',
+        "You can view your transaction history by typing 'history'",
+      ],
     ];
 
     // Apply phrase replacements

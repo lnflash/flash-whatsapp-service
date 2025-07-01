@@ -33,7 +33,10 @@ export class CommandParserService {
   private readonly logger = new Logger(CommandParserService.name);
 
   private readonly commandPatterns = [
-    { type: CommandType.HELP, pattern: /^help(?:\s+(wallet|send|receive|contacts|pending|voice))?$/i },
+    {
+      type: CommandType.HELP,
+      pattern: /^help(?:\s+(wallet|send|receive|contacts|pending|voice))?$/i,
+    },
     { type: CommandType.BALANCE, pattern: /^balance|^bal$/i },
     { type: CommandType.LINK, pattern: /^link|^connect$/i },
     { type: CommandType.UNLINK, pattern: /^unlink(?:\s+(confirm))?$/i },
@@ -72,10 +75,11 @@ export class CommandParserService {
   /**
    * Parse an incoming message text into a command
    */
-  parseCommand(text: string): ParsedCommand {
+  parseCommand(text: string, isVoiceInput = false): ParsedCommand {
     try {
       let trimmedText = text.trim();
-      
+      const originalText = trimmedText;
+
       // Strip voice-related prefixes to allow "voice balance", "speak help", etc.
       const voicePrefixes = /^(voice|audio|speak|say it|tell me)\s+/i;
       const voiceMatch = trimmedText.match(voicePrefixes);
@@ -84,11 +88,34 @@ export class CommandParserService {
         trimmedText = trimmedText.replace(voicePrefixes, '').trim();
       }
 
+      // If this is voice input, try natural language patterns first
+      if (isVoiceInput) {
+        const naturalCommand = this.parseNaturalLanguage(trimmedText);
+        if (naturalCommand.type !== CommandType.UNKNOWN) {
+          // Add voice confirmation flag for payment commands
+          if (
+            naturalCommand.type === CommandType.SEND ||
+            naturalCommand.type === CommandType.REQUEST
+          ) {
+            naturalCommand.args.requiresConfirmation = 'true';
+            naturalCommand.args.isVoiceCommand = 'true';
+          }
+          return naturalCommand;
+        }
+      }
+
       for (const { type, pattern } of this.commandPatterns) {
         const match = trimmedText.match(pattern);
 
         if (match) {
           const result = this.extractCommand(type, match, trimmedText);
+
+          // Add voice confirmation flag for payment commands from voice
+          if (isVoiceInput && (type === CommandType.SEND || type === CommandType.REQUEST)) {
+            result.args.requiresConfirmation = 'true';
+            result.args.isVoiceCommand = 'true';
+          }
+
           if (type === CommandType.SEND) {
             this.logger.log(
               `SEND command matched: amount=${result.args.amount}, username=${result.args.username}, recipient=${result.args.recipient}`,
@@ -102,7 +129,7 @@ export class CommandParserService {
       return {
         type: CommandType.UNKNOWN,
         args: {},
-        rawText: text.trim(), // Use original text for unknown commands
+        rawText: originalText, // Use original text for unknown commands
       };
     } catch (error) {
       this.logger.error(`Error parsing command: ${error.message}`, error.stack);
@@ -114,6 +141,172 @@ export class CommandParserService {
         rawText: text,
       };
     }
+  }
+
+  /**
+   * Parse natural language variations for voice commands
+   */
+  private parseNaturalLanguage(text: string): ParsedCommand {
+    const lowerText = text.toLowerCase();
+
+    // Balance variations
+    if (
+      lowerText.includes('check my balance') ||
+      lowerText.includes('what is my balance') ||
+      lowerText.includes('show me my balance') ||
+      lowerText.includes('how much do i have') ||
+      lowerText.includes('how much money') ||
+      lowerText.includes('my wallet balance')
+    ) {
+      return { type: CommandType.BALANCE, args: {}, rawText: text };
+    }
+
+    // Price variations
+    if (
+      lowerText.includes('bitcoin price') ||
+      lowerText.includes('btc price') ||
+      lowerText.includes('price of bitcoin') ||
+      lowerText.includes('how much is bitcoin') ||
+      lowerText.includes('what is bitcoin worth') ||
+      lowerText.includes('current bitcoin price') ||
+      lowerText.includes('check the price')
+    ) {
+      return { type: CommandType.PRICE, args: {}, rawText: text };
+    }
+
+    // Help variations
+    if (
+      lowerText === 'help please' ||
+      lowerText === 'please help' ||
+      lowerText === 'help me' ||
+      lowerText === 'i need help' ||
+      lowerText === 'can you help me' ||
+      lowerText === 'what can you do' ||
+      lowerText === 'show me what you can do'
+    ) {
+      return { type: CommandType.HELP, args: {}, rawText: text };
+    }
+
+    // Send variations with natural language
+    const sendPatterns = [
+      /(?:please\s+)?send\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?to\s+(\w+)/i,
+      /(?:please\s+)?send\s+(\w+)\s+(?:dollars?\s+)?to\s+(\w+)/i, // "send one dollar to john"
+      /(?:please\s+)?pay\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?to\s+(\w+)/i,
+      /(?:please\s+)?pay\s+(\w+)\s+(?:dollars?\s+)?to\s+(\w+)/i,
+      /transfer\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?to\s+(\w+)/i,
+      /give\s+(\w+)\s+(\d+(?:\.\d+)?)\s+(?:dollars?)?/i,
+      /give\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?to\s+(\w+)/i,
+    ];
+
+    for (const pattern of sendPatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        let amount = match[1];
+        const recipient = match[2];
+
+        // Convert word numbers to digits
+        const wordNumbers: Record<string, string> = {
+          one: '1',
+          two: '2',
+          three: '3',
+          four: '4',
+          five: '5',
+          six: '6',
+          seven: '7',
+          eight: '8',
+          nine: '9',
+          ten: '10',
+          twenty: '20',
+          thirty: '30',
+          forty: '40',
+          fifty: '50',
+          hundred: '100',
+          thousand: '1000',
+        };
+
+        if (wordNumbers[amount.toLowerCase()]) {
+          amount = wordNumbers[amount.toLowerCase()];
+        }
+
+        return {
+          type: CommandType.SEND,
+          args: { amount, recipient },
+          rawText: text,
+        };
+      }
+    }
+
+    // Request variations
+    const requestPatterns = [
+      /(?:please\s+)?request\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?from\s+(\w+)/i,
+      /(?:please\s+)?ask\s+(\w+)\s+for\s+(\d+(?:\.\d+)?)\s+(?:dollars?)?/i,
+      /(?:can you\s+)?request\s+(\d+(?:\.\d+)?)\s+from\s+(\w+)/i,
+    ];
+
+    for (const pattern of requestPatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        let amount, username;
+        if (pattern.toString().includes('ask')) {
+          username = match[1];
+          amount = match[2];
+        } else {
+          amount = match[1];
+          username = match[2];
+        }
+
+        return {
+          type: CommandType.REQUEST,
+          args: { amount, username },
+          rawText: text,
+        };
+      }
+    }
+
+    // Link account variations
+    if (
+      lowerText.includes('link my account') ||
+      lowerText.includes('connect my account') ||
+      lowerText.includes('link my flash') ||
+      lowerText.includes('connect to flash') ||
+      lowerText === 'link me' ||
+      lowerText === 'connect me'
+    ) {
+      return { type: CommandType.LINK, args: {}, rawText: text };
+    }
+
+    // History variations
+    if (
+      lowerText.includes('show my history') ||
+      lowerText.includes('transaction history') ||
+      lowerText.includes('show my transactions') ||
+      lowerText.includes('recent transactions') ||
+      lowerText.includes('payment history')
+    ) {
+      return { type: CommandType.HISTORY, args: {}, rawText: text };
+    }
+
+    // Receive variations
+    if (
+      lowerText.includes('receive money') ||
+      lowerText.includes('receive payment') ||
+      lowerText.includes('get paid') ||
+      lowerText.includes('request money') ||
+      lowerText.includes('create invoice')
+    ) {
+      // Try to extract amount if mentioned
+      const amountMatch = text.match(/(\d+(?:\.\d+)?)/);
+      if (amountMatch) {
+        return {
+          type: CommandType.RECEIVE,
+          args: { amount: amountMatch[1] },
+          rawText: text,
+        };
+      }
+      return { type: CommandType.RECEIVE, args: {}, rawText: text };
+    }
+
+    return { type: CommandType.UNKNOWN, args: {}, rawText: text };
   }
 
   /**
