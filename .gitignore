@@ -68,3 +68,4 @@ Thumbs.db
 
 yarn.lock
 package-lock.json
+gen-lang*.json

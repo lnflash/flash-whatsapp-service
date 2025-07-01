@@ -1,12 +1,50 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as googleTTS from 'google-tts-api';
+import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 import { AdminSettingsService, VoiceMode } from '../whatsapp/services/admin-settings.service';
+
+export type TtsProvider = 'google-tts-api' | 'google-cloud';
+
+interface GoogleCloudVoiceConfig {
+  languageCode: string;
+  name?: string; // Specific voice name (e.g., "en-US-Wavenet-D")
+  ssmlGender?: 'MALE' | 'FEMALE' | 'NEUTRAL';
+}
 
 @Injectable()
 export class TtsService {
   private readonly logger = new Logger(TtsService.name);
+  private readonly provider: TtsProvider;
+  private googleCloudClient?: TextToSpeechClient;
 
-  constructor(private readonly adminSettingsService: AdminSettingsService) {}
+  constructor(
+    private readonly adminSettingsService: AdminSettingsService,
+    private readonly configService: ConfigService,
+  ) {
+    // Check if Google Cloud credentials are configured
+    const googleCloudKeyFile = this.configService.get<string>('GOOGLE_CLOUD_KEYFILE');
+    const googleApplicationCredentials = this.configService.get<string>(
+      'GOOGLE_APPLICATION_CREDENTIALS',
+    );
+
+    if (googleCloudKeyFile || googleApplicationCredentials) {
+      try {
+        // Initialize Google Cloud client
+        this.googleCloudClient = new TextToSpeechClient({
+          keyFilename: googleCloudKeyFile,
+        });
+        this.provider = 'google-cloud';
+        this.logger.log('Using Google Cloud Text-to-Speech (premium quality)');
+      } catch (error) {
+        this.logger.warn('Failed to initialize Google Cloud TTS, falling back to free API:', error);
+        this.provider = 'google-tts-api';
+      }
+    } else {
+      this.provider = 'google-tts-api';
+      this.logger.log('Using free google-tts-api (basic quality)');
+    }
+  }
 
   /**
    * Convert text to speech and return audio buffer
@@ -18,37 +56,116 @@ export class TtsService {
     try {
       // Clean the text first to get accurate length
       const cleanedText = this.cleanTextForTTS(text);
-      
-      // Limit text length to avoid API limits (leave room for ellipsis)
-      const maxLength = 197; // 200 - 3 for "..."
-      const truncatedText = cleanedText.length > maxLength 
-        ? cleanedText.substring(0, maxLength) + '...' 
-        : cleanedText;
 
-      this.logger.debug(`Converting text to speech: ${truncatedText.substring(0, 50)}...`);
-
-      // Get audio URL from Google TTS
-      const audioUrl = googleTTS.getAudioUrl(truncatedText, {
-        lang: language,
-        slow: false,
-        host: 'https://translate.google.com',
-      });
-
-      // Fetch the audio data
-      const response = await fetch(audioUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch audio: ${response.statusText}`);
+      if (this.provider === 'google-cloud' && this.googleCloudClient) {
+        return this.textToSpeechGoogleCloud(cleanedText, language);
+      } else {
+        return this.textToSpeechFreeApi(cleanedText, language);
       }
-
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-
-      this.logger.debug(`Successfully converted text to speech (${buffer.length} bytes)`);
-      return buffer;
     } catch (error) {
       this.logger.error('Error converting text to speech:', error);
       throw error;
     }
+  }
+
+  /**
+   * Use free google-tts-api (limited to 200 chars)
+   */
+  private async textToSpeechFreeApi(text: string, language: string): Promise<Buffer> {
+    // Limit text length to avoid API limits (leave room for ellipsis)
+    const maxLength = 197; // 200 - 3 for "..."
+    const truncatedText = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+
+    this.logger.debug(`[Free API] Converting text to speech: ${truncatedText.substring(0, 50)}...`);
+
+    // Get audio URL from Google TTS
+    const audioUrl = googleTTS.getAudioUrl(truncatedText, {
+      lang: language,
+      slow: false,
+      host: 'https://translate.google.com',
+    });
+
+    // Fetch the audio data
+    const response = await fetch(audioUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch audio: ${response.statusText}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    this.logger.debug(`[Free API] Successfully converted text to speech (${buffer.length} bytes)`);
+    return buffer;
+  }
+
+  /**
+   * Use Google Cloud Text-to-Speech (no length limit, better quality)
+   */
+  private async textToSpeechGoogleCloud(text: string, language: string): Promise<Buffer> {
+    if (!this.googleCloudClient) {
+      throw new Error('Google Cloud client not initialized');
+    }
+
+    // For very long texts, we might want to truncate even with Cloud TTS
+    const maxLength = 5000; // Much higher limit
+    const truncatedText = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+
+    this.logger.debug(
+      `[Cloud TTS] Converting text to speech: ${truncatedText.substring(0, 50)}...`,
+    );
+
+    // Get voice configuration
+    const voiceConfig = this.getVoiceConfig(language);
+
+    // Construct the request
+    const request = {
+      input: { text: truncatedText },
+      voice: voiceConfig,
+      audioConfig: {
+        audioEncoding: 'OGG_OPUS' as const, // Best for WhatsApp voice notes
+        speakingRate: 1.0,
+        pitch: 0,
+      },
+    };
+
+    // Perform the text-to-speech request
+    const [response] = await this.googleCloudClient.synthesizeSpeech(request);
+
+    if (!response.audioContent) {
+      throw new Error('No audio content in response');
+    }
+
+    const buffer = Buffer.from(response.audioContent as string, 'base64');
+    this.logger.debug(`[Cloud TTS] Successfully converted text to speech (${buffer.length} bytes)`);
+    return buffer;
+  }
+
+  /**
+   * Get voice configuration based on language
+   */
+  private getVoiceConfig(language: string): GoogleCloudVoiceConfig {
+    // Use Chirp3-HD voices for the best quality
+    // Chirp3-HD-Gacrux is Google's latest high-definition voice model
+    const voiceMap: Record<string, GoogleCloudVoiceConfig> = {
+      en: {
+        languageCode: 'en-US',
+        name: 'en-US-Chirp3-HD-Gacrux', // Chirp3-HD high-definition voice
+        ssmlGender: 'NEUTRAL' as const, // Chirp voices use NEUTRAL gender
+      },
+      es: {
+        languageCode: 'es-US',
+        name: 'es-US-Neural2-A', // Fallback to Neural2 for Spanish (Chirp may not be available)
+        ssmlGender: 'FEMALE' as const,
+      },
+      fr: {
+        languageCode: 'fr-FR',
+        name: 'fr-FR-Neural2-A', // Fallback to Neural2 for French (Chirp may not be available)
+        ssmlGender: 'FEMALE' as const,
+      },
+      // Add more languages as needed
+    };
+
+    return voiceMap[language] || voiceMap['en'];
   }
 
   /**
@@ -98,7 +215,7 @@ export class TtsService {
   cleanTextForTTS(text: string): string {
     // Remove emojis and special characters that don't translate well to speech
     let cleaned = text
-      .replace(/[🟢🔴⚡💸🎉✅❌🤖💡🔒🚀📱💰⚠️]/g, '')
+      .replace(/[🟢🔴⚡💸🎉✅❌🤖💡🔒🚀📱💰⚠️🔊👮🆘💸📥📅👤💡]/g, '')
       .replace(/\*\*/g, '') // Remove markdown bold
       .replace(/\n\n/g, '. ') // Replace double newlines with periods
       .replace(/\n/g, '. ') // Replace single newlines with periods
@@ -114,5 +231,24 @@ export class TtsService {
       .replace(/₿/g, 'bitcoin');
 
     return cleaned;
+  }
+
+  /**
+   * Get current TTS provider info
+   */
+  getProviderInfo(): { provider: TtsProvider; quality: string; limits: string } {
+    if (this.provider === 'google-cloud') {
+      return {
+        provider: 'google-cloud',
+        quality: 'Premium (Chirp3-HD voices)',
+        limits: 'Up to 5,000 characters per request',
+      };
+    } else {
+      return {
+        provider: 'google-tts-api',
+        quality: 'Basic (Google Translate)',
+        limits: '200 characters per request',
+      };
+    }
   }
 }

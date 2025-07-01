@@ -44,6 +44,7 @@
   ],
   "author": "Flash Engineering Team",
   "dependencies": {
+    "@google-cloud/text-to-speech": "^6.1.0",
     "@google/generative-ai": "^0.24.1",
     "@nestjs/common": "^11.1.0",
     "@nestjs/config": "^4.0.2",

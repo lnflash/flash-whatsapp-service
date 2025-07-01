@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { TtsService } from './tts.service';
 import { AdminSettingsService } from '../whatsapp/services/admin-settings.service';
 
@@ -14,6 +15,12 @@ describe('TtsService', () => {
           provide: AdminSettingsService,
           useValue: {
             getVoiceMode: jest.fn().mockResolvedValue('on'),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn().mockReturnValue(undefined), // No Google Cloud config by default
           },
         },
       ],
