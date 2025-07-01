@@ -760,7 +760,7 @@ export class WhatsappService {
         const priceInfo = await this.priceService.getBitcoinPrice(currency);
         return (
           this.priceService.formatPriceMessage(priceInfo) +
-          '\n\n💡 Tip: Link your account to see prices in your preferred currency!'
+          '\n\n💡 Tip: You can link your Flash account to see prices in your preferred currency!'
         );
       }
     } catch (error) {
@@ -3291,8 +3291,23 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
       const shouldUseVoice = await this.ttsService.shouldUseVoice(originalMessage);
 
       if (shouldUseVoice && this.whatsappWebService) {
+        // Make hints TTS-friendly before cleaning
+        let ttsFriendlyResponse = response;
+        
+        // Check if response contains a hint (💡)
+        if (response.includes('💡')) {
+          // Extract hint part and make it TTS-friendly
+          const parts = response.split('💡');
+          if (parts.length > 1) {
+            const beforeHint = parts[0];
+            const hintPart = parts[1].trim();
+            const ttsFriendlyHint = this.makeTtsFriendlyHint(hintPart);
+            ttsFriendlyResponse = `${beforeHint}💡 ${ttsFriendlyHint}`;
+          }
+        }
+
         // Clean the text for TTS
-        const cleanedText = this.ttsService.cleanTextForTTS(response);
+        const cleanedText = this.ttsService.cleanTextForTTS(ttsFriendlyResponse);
 
         // Convert to speech
         try {
@@ -3301,7 +3316,7 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
           // Send voice note
           await this.whatsappWebService.sendVoiceNote(whatsappId, audioBuffer);
 
-          // Also send the text message for reference
+          // Also send the text message for reference (original with backticks)
           await this.whatsappWebService.sendMessage(whatsappId, response);
 
           this.logger.log(`Voice response sent to ${whatsappId}`);
@@ -3374,5 +3389,48 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
     }
 
     return message;
+  }
+
+  /**
+   * Convert hints to TTS-friendly format
+   * Transforms technical commands into natural language
+   */
+  private makeTtsFriendlyHint(hint: string): string {
+    // First, apply phrase-level replacements for better context
+    let ttsFriendly = hint;
+    
+    // Convert common phrases to more natural language
+    const phraseReplacements: [RegExp | string, string][] = [
+      ['Type `link` to connect your Flash account', "You can connect your Flash account by typing 'link'"],
+      ['Complete verification with `verify 123456`', "Complete the verification by typing 'verify' followed by your 6-digit code"],
+      ['Send money with `send 10 to @username`', "You can send money by typing 'send', then the amount, then 'to' and the username"],
+      ['Check balance with `balance`', "You can check your balance by typing 'balance'"],
+      ['Share this invoice to get paid', "Share this invoice with someone to receive payment"],
+      ['Receive Bitcoin with `receive 20`', "You can receive Bitcoin by typing 'receive' followed by the amount"],
+      ['Send to contacts: `send 5 to john`', "To send money to your contacts, type 'send 5 to' followed by the contact name"],
+      ['Type `help` to see all commands', "To see all available commands, type 'help'"],
+      ['Need assistance? Type `support`', "If you need assistance, type 'support'"],
+      ['Set username for easy payments', "Set up a username to make payments easier"],
+      ['Save contacts with `contacts add`', "You can save contacts by typing 'contacts add'"],
+      ['Check Bitcoin price with `price`', "You can check the current price of Bitcoin by typing 'price'"],
+      ['View transactions with `history`', "You can view your transaction history by typing 'history'"],
+    ];
+
+    // Apply phrase replacements
+    for (const [pattern, replacement] of phraseReplacements) {
+      if (typeof pattern === 'string' && ttsFriendly.includes(pattern)) {
+        ttsFriendly = ttsFriendly.replace(pattern, replacement);
+      }
+    }
+
+    // If no phrase replacement was applied, handle remaining backticks
+    if (ttsFriendly.includes('`')) {
+      ttsFriendly = ttsFriendly.replace(/`([^`]+)`/g, (_, cmd) => {
+        // Default: just wrap in quotes
+        return `'${cmd}'`;
+      });
+    }
+
+    return ttsFriendly;
   }
 }
