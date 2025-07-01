@@ -128,6 +128,11 @@ export class SpeechService {
         throw lastError;
       }
       
+      if (!response) {
+        this.logger.warn('No response from any configuration');
+        return null;
+      }
+      
       this.logger.log(`Transcription response:`, JSON.stringify(response, null, 2));
       
       if (!response.results || response.results.length === 0) {
