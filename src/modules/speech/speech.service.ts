@@ -46,34 +46,89 @@ export class SpeechService {
     }
 
     try {
+      this.logger.log(`Processing audio with mime type: ${mimeType}, size: ${audioBuffer.length} bytes`);
+      
       // Determine audio encoding from mime type
-      let encoding: any = 'WEBM_OPUS'; // Default for WhatsApp voice notes
-      if (mimeType.includes('ogg')) {
+      // WhatsApp typically sends voice notes as audio/ogg with opus codec
+      let encoding: any = 'OGG_OPUS'; // Default for WhatsApp voice notes
+      let sampleRateHertz = 16000; // Try lower sample rate first
+      
+      if (mimeType.includes('ogg') || mimeType.includes('opus')) {
         encoding = 'OGG_OPUS';
+        sampleRateHertz = 16000; // WhatsApp often uses 16kHz
       } else if (mimeType.includes('mp3')) {
         encoding = 'MP3';
+        sampleRateHertz = 16000;
       } else if (mimeType.includes('wav')) {
         encoding = 'LINEAR16';
+        sampleRateHertz = 16000;
+      } else if (mimeType.includes('webm')) {
+        encoding = 'WEBM_OPUS';
+        sampleRateHertz = 16000;
       }
 
-      // Configure the request
-      const request = {
-        audio: {
-          content: audioBuffer.toString('base64'),
-        },
-        config: {
-          encoding,
-          sampleRateHertz: 48000, // Standard for WhatsApp voice notes
-          languageCode: 'en-US', // Default to English
-          alternativeLanguageCodes: ['es-US', 'fr-FR'], // Support Spanish and French
-          enableAutomaticPunctuation: true,
-          model: 'latest_long', // Best model for conversational speech
-          useEnhanced: true, // Use enhanced model if available
-        },
-      };
+      this.logger.log(`Using encoding: ${encoding}, sample rate: ${sampleRateHertz}`);
 
-      // Perform the transcription
-      const [response] = await this.speechClient.recognize(request);
+      // Try with different configurations
+      const configs = [
+        {
+          encoding,
+          sampleRateHertz,
+          languageCode: 'en-US',
+          enableAutomaticPunctuation: true,
+          model: 'latest_short', // Try short model for voice commands
+          audioChannelCount: 1,
+        },
+        {
+          encoding,
+          sampleRateHertz: 48000, // Try higher sample rate
+          languageCode: 'en-US',
+          enableAutomaticPunctuation: true,
+          model: 'latest_short',
+          audioChannelCount: 1,
+        },
+        {
+          encoding: 'WEBM_OPUS', // Try WEBM if OGG fails
+          sampleRateHertz: 48000,
+          languageCode: 'en-US',
+          enableAutomaticPunctuation: true,
+          model: 'latest_short',
+          audioChannelCount: 1,
+        },
+      ];
+
+      let response = null;
+      let lastError = null;
+
+      // Try each configuration until one works
+      for (const config of configs) {
+        try {
+          this.logger.log(`Trying config: ${JSON.stringify(config)}`);
+          
+          const request = {
+            audio: {
+              content: audioBuffer.toString('base64'),
+            },
+            config,
+          };
+
+          const [result] = await this.speechClient.recognize(request);
+          if (result && result.results && result.results.length > 0) {
+            response = result;
+            break;
+          }
+        } catch (error) {
+          lastError = error;
+          this.logger.warn(`Config failed: ${error.message}`);
+          continue;
+        }
+      }
+
+      if (!response && lastError) {
+        throw lastError;
+      }
+      
+      this.logger.log(`Transcription response:`, JSON.stringify(response, null, 2));
       
       if (!response.results || response.results.length === 0) {
         this.logger.warn('No transcription results');
@@ -95,6 +150,18 @@ export class SpeechService {
       return transcription;
     } catch (error) {
       this.logger.error('Error transcribing speech:', error);
+      
+      // Log more details about the error
+      if (error.code) {
+        this.logger.error(`Error code: ${error.code}`);
+      }
+      if (error.details) {
+        this.logger.error(`Error details: ${error.details}`);
+      }
+      if (error.message) {
+        this.logger.error(`Error message: ${error.message}`);
+      }
+      
       return null;
     }
   }
