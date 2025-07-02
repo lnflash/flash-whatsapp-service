@@ -54,7 +54,7 @@ export class HealthController {
   @ApiOperation({ summary: 'Detailed health check with service status' })
   @ApiQuery({ name: 'includeMetrics', required: false, type: Boolean })
   async detailedHealthCheck(
-    @Query('includeMetrics') includeMetrics?: boolean,
+    @Query('includeMetrics') includeMetrics?: string,
   ): Promise<HealthStatus> {
     const [whatsapp, redis, rabbitmq] = await Promise.all([
       this.checkWhatsApp(),
