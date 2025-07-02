@@ -1,9 +1,10 @@
 # Pulse
 
-## A WhatsApp integration service for Flash that enables users to check their Bitcoin wallet balance and interact with Flash services through WhatsApp. Now branded as "Pulse" to capture the pulse of the Lightning Network.
+## Keep your finger on it.
 
 ![logo](https://github.com/user-attachments/assets/f54a0c3e-0614-404f-a98f-087a0d61a056)
 
+### A WhatsApp integration service for Flash that enables users to check their Bitcoin wallet balance and interact with Flash services through WhatsApp. Now branded as "Pulse" to capture the pulse of the Lightning Network.
 
 > **Version**: 1.9.9 - "Pulse Party like its 199"  
 > **Status**: Production Ready
@@ -311,12 +312,49 @@ Flash API → WebSocket/RabbitMQ → PaymentNotificationService → WhatsApp Mes
 
 ## Production Deployment
 
+### Minimum Recommended Specs with DigitalOcean pricing as of July 2025:
+
+For Development/Testing:
+
+- CPU: 1 vCPU
+- RAM: 2GB
+- Storage: 25GB SSD
+- Droplet: Basic Regular Intel ($12/month)
+
+For Production (Small-Medium Scale):
+
+- CPU: 2 vCPUs
+- RAM: 4GB
+- Storage: 80GB SSD
+- Droplet: Basic Regular Intel ($24/month)
+
+For Production (High Traffic):
+
+- CPU: 4 vCPUs
+- RAM: 8GB
+- Storage: 160GB SSD
+- Droplet: General Purpose ($48/month)
+
+  
 ### 🚀 One-Command Deploy (Recommended)
 
 Deploy Pulse on Ubuntu 24 VPS with a single command:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/lnflash/pulse/admin-panel/scripts/quick-install.sh | sudo bash
+```
+
+Or if you prefer to review the script first:
+
+```bash
+# 1. Download the setup script
+wget https://raw.githubusercontent.com/lnflash/pulse/admin-panel/scripts/setup-ubuntu-vps.sh
+
+# 2. Review script & add permissions
+chmod +x setup-ubuntu-vps.sh
+
+# 3. Run it
+sudo ./setup-ubuntu-vps.sh
 ```
 
 This automated script handles the complete production setup including SSL, Docker, security, and monitoring.
