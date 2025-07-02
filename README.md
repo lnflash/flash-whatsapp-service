@@ -313,10 +313,17 @@ Flash API → WebSocket/RabbitMQ → PaymentNotificationService → WhatsApp Mes
 
 ### 🚀 One-Command Deploy (Recommended)
 
-Deploy Pulse on Ubuntu 24 VPS with a single command:
+Deploy Pulse on Ubuntu 24 VPS with a 3 commands:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/lnflash/pulse/main/scripts/quick-install.sh | sudo bash
+# 1. Download the setup script
+wget https://raw.githubusercontent.com/lnflash/pulse/admin-panel/scripts/setup-ubuntu-vps.sh
+
+# 2. Review script & add permissions
+chmod +x setup-ubuntu-vps.sh
+
+# 3. Run it
+sudo ./setup-ubuntu-vps.sh
 ```
 
 This automated script handles the complete production setup including SSL, Docker, security, and monitoring.
