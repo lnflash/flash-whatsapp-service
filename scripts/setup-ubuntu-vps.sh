@@ -42,6 +42,16 @@ echo "     Pulse WhatsApp Bot - Production Setup"
 echo "=================================================="
 echo -e "${NC}"
 
+# Check if Pulse is already installed
+if [ -f /opt/pulse/.env ] && [ -f /etc/systemd/system/pulse.service ]; then
+    print_warning "Pulse appears to be already installed!"
+    read -p "Do you want to continue and reconfigure? (y/n): " CONTINUE_INSTALL
+    if [[ ! "$CONTINUE_INSTALL" =~ ^[Yy]$ ]]; then
+        print_info "Exiting. To update Pulse, use: cd /opt/pulse && git pull"
+        exit 0
+    fi
+fi
+
 # Get domain name
 echo ""
 read -p "Enter your domain name (e.g., pulse.yourdomain.com): " DOMAIN_NAME
@@ -113,25 +123,41 @@ apt install -y certbot python3-certbot-nginx
 
 # Configure firewall
 print_info "Configuring firewall..."
-ufw default deny incoming
-ufw default allow outgoing
+# Set defaults if not already set
+ufw --force default deny incoming
+ufw --force default allow outgoing
+
+# Add rules (these are idempotent - won't duplicate)
 ufw allow ssh
 ufw allow http
 ufw allow https
 ufw allow 3000/tcp  # Pulse API
 ufw allow 5672/tcp  # RabbitMQ
 ufw allow 15672/tcp # RabbitMQ Management
-ufw --force enable
+
+# Enable firewall if not already enabled
+if ! ufw status | grep -q "Status: active"; then
+    ufw --force enable
+else
+    print_info "Firewall already active"
+fi
 
 # Create application directory
 print_info "Creating application directory..."
 mkdir -p /opt/pulse
 cd /opt/pulse
 
-# Clone the repository
-print_info "Cloning Pulse repository..."
-git clone https://github.com/lnflash/pulse.git .
-git checkout admin-panel  # Or your preferred branch
+# Clone or update the repository
+if [ -d ".git" ]; then
+    print_info "Repository already exists, updating..."
+    git fetch origin
+    git checkout admin-panel  # Or your preferred branch
+    git pull origin admin-panel
+else
+    print_info "Cloning Pulse repository..."
+    git clone https://github.com/lnflash/pulse.git .
+    git checkout admin-panel  # Or your preferred branch
+fi
 
 # Create necessary directories
 mkdir -p whatsapp-sessions
@@ -151,8 +177,12 @@ HASH_SALT=$(openssl rand -hex 16)
 SESSION_SECRET=$(openssl rand -hex 32)
 WEBHOOK_SECRET=$(openssl rand -hex 32)
 
-# Create .env file
+# Create .env file (backup existing if present)
 print_info "Creating environment configuration..."
+if [ -f .env ]; then
+    print_warning "Existing .env file found, backing up to .env.backup-$(date +%Y%m%d-%H%M%S)"
+    cp .env .env.backup-$(date +%Y%m%d-%H%M%S)
+fi
 cat > .env << EOF
 # Pulse Production Configuration
 # Generated on $(date)
@@ -387,8 +417,9 @@ EOF
 
 
 # Enable the site
-ln -sf /etc/nginx/sites-available/pulse /etc/nginx/sites-enabled/
-rm -f /etc/nginx/sites-enabled/default
+ln -sf /etc/nginx/sites-available/pulse /etc/nginx/sites-enabled/pulse
+# Only remove default if it exists
+[ -L /etc/nginx/sites-enabled/default ] && rm -f /etc/nginx/sites-enabled/default
 
 # Restart Nginx with the HTTP-only configuration
 print_info "Starting Nginx with HTTP configuration..."
@@ -397,7 +428,24 @@ systemctl restart nginx
 # Obtain SSL certificate
 # Note: This only gets a certificate for the exact domain specified, not for www subdomain
 print_info "Obtaining SSL certificate for $DOMAIN_NAME (without www)..."
-certbot certonly --webroot -w /var/www/html -d $DOMAIN_NAME --non-interactive --agree-tos -m $SSL_EMAIL
+
+# Check if certificate already exists
+if [ -d "/etc/letsencrypt/live/$DOMAIN_NAME" ]; then
+    print_warning "SSL certificate already exists for $DOMAIN_NAME"
+    print_info "To renew: certbot renew"
+else
+    # Create webroot directory if it doesn't exist
+    mkdir -p /var/www/html
+    
+    # Obtain certificate
+    certbot certonly --webroot -w /var/www/html -d $DOMAIN_NAME --non-interactive --agree-tos -m $SSL_EMAIL
+    
+    if [ $? -ne 0 ]; then
+        print_error "Failed to obtain SSL certificate"
+        print_info "You can try manually: certbot certonly --webroot -w /var/www/html -d $DOMAIN_NAME"
+        exit 1
+    fi
+fi
 
 # Now update Nginx configuration with HTTPS
 print_info "Updating Nginx configuration with SSL..."
@@ -667,7 +715,15 @@ systemctl restart fail2ban
 # Build and start the application
 print_info "Building and starting Pulse..."
 cd /opt/pulse
-docker compose -f docker-compose.production.yml build
+
+# Stop existing containers if running
+if docker compose -f docker-compose.production.yml ps --quiet 2>/dev/null | grep -q .; then
+    print_info "Stopping existing containers..."
+    docker compose -f docker-compose.production.yml down
+fi
+
+# Build and start fresh
+docker compose -f docker-compose.production.yml build --no-cache
 docker compose -f docker-compose.production.yml up -d
 
 # Wait for services to be ready

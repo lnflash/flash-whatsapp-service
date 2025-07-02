@@ -338,7 +338,13 @@ For Production (High Traffic):
   
 ### 🚀 One-Command Deploy (Recommended)
 
-Deploy Pulse on Ubuntu 24 VPS with a 3 commands:
+Deploy Pulse on Ubuntu 24 VPS with a single command:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/lnflash/pulse/admin-panel/scripts/quick-install.sh | sudo bash
+```
+
+Or if you prefer to review the script first:
 
 ```bash
 # 1. Download the setup script
