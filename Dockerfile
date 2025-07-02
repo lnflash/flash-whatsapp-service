@@ -55,13 +55,16 @@ RUN npm ci --only=production && \
 # Copy built application from builder stage
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 
-# Copy other necessary files
-COPY --chown=nodejs:nodejs .env.production.example ./
-COPY --chown=nodejs:nodejs CLAUDE.md ./
+# Copy public directory for static files (admin panel, etc)
+COPY --from=builder --chown=nodejs:nodejs /app/public ./public
 
 # Create necessary directories
-RUN mkdir -p whatsapp-sessions && \
-    chown -R nodejs:nodejs whatsapp-sessions
+RUN mkdir -p whatsapp-sessions logs && \
+    chown -R nodejs:nodejs whatsapp-sessions logs public
+
+# Create a basic health check endpoint file if dist doesn't have one
+RUN echo '{"status":"ok"}' > /app/health.json && \
+    chown nodejs:nodejs /app/health.json
 
 # Switch to non-root user
 USER nodejs
