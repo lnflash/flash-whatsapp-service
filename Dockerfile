@@ -67,9 +67,12 @@ COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 # Copy public directory for static files (admin panel, etc)
 COPY --from=builder --chown=nodejs:nodejs /app/public ./public
 
-# Create necessary directories
-RUN mkdir -p whatsapp-sessions logs && \
-    chown -R nodejs:nodejs whatsapp-sessions logs public
+# Create necessary directories with proper permissions
+RUN mkdir -p whatsapp-sessions/session-pulse-bot \
+    whatsapp-sessions-new/session \
+    logs \
+    && chown -R nodejs:nodejs whatsapp-sessions whatsapp-sessions-new logs public \
+    && chmod -R 755 whatsapp-sessions whatsapp-sessions-new logs public
 
 # Create a basic health check endpoint file if dist doesn't have one
 RUN echo '{"status":"ok"}' > /app/health.json && \
