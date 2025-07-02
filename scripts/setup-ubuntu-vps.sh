@@ -175,6 +175,8 @@ fi
 # Create necessary directories with proper permissions
 print_info "Creating application directories..."
 mkdir -p whatsapp-sessions
+mkdir -p whatsapp-sessions/session-pulse-bot
+mkdir -p whatsapp-sessions-new/session
 mkdir -p logs
 mkdir -p backups
 mkdir -p credentials
@@ -183,8 +185,8 @@ mkdir -p scripts
 
 # Set proper permissions for Docker volumes
 # The nodejs user in the container has UID/GID 1000
-chown -R 1000:1000 whatsapp-sessions logs public
-chmod -R 755 whatsapp-sessions logs public
+chown -R 1000:1000 whatsapp-sessions whatsapp-sessions-new logs public
+chmod -R 755 whatsapp-sessions whatsapp-sessions-new logs public
 chmod 700 credentials  # Secure the credentials directory
 
 # Generate secure passwords
@@ -749,8 +751,10 @@ docker compose -f docker-compose.production.yml build --no-cache
 
 # Ensure directories have proper permissions before starting containers
 print_info "Setting up directory permissions..."
-chown -R 1000:1000 whatsapp-sessions logs public
-chmod -R 755 whatsapp-sessions logs public
+mkdir -p whatsapp-sessions/session-pulse-bot
+mkdir -p whatsapp-sessions-new/session
+chown -R 1000:1000 whatsapp-sessions whatsapp-sessions-new logs public
+chmod -R 755 whatsapp-sessions whatsapp-sessions-new logs public
 
 # Start the containers
 docker compose -f docker-compose.production.yml up -d
