@@ -11,7 +11,12 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci
+# Use npm install if package-lock.json doesn't exist, otherwise use npm ci
+RUN if [ -f "package-lock.json" ]; then \
+        npm ci; \
+    else \
+        npm install; \
+    fi
 
 # Copy source code
 COPY . .
@@ -49,8 +54,12 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install production dependencies only
-RUN npm ci --only=production && \
-    npm cache clean --force
+# Use npm install if package-lock.json doesn't exist, otherwise use npm ci
+RUN if [ -f "package-lock.json" ]; then \
+        npm ci --omit=dev && npm cache clean --force; \
+    else \
+        npm install --omit=dev && npm cache clean --force; \
+    fi
 
 # Copy built application from builder stage
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
