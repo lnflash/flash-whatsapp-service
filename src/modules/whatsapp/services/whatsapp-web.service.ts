@@ -100,7 +100,6 @@ export class WhatsAppWebService
 
         // Try a simple DNS resolution test
         try {
-          const dns = require('dns').promises;
           const addresses = await dns.resolve4('web.whatsapp.com');
           this.logger.log(`DNS resolution successful: ${addresses.join(', ')}`);
         } catch (dnsError) {
