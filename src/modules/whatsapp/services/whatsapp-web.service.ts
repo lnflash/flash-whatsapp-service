@@ -146,14 +146,17 @@ export class WhatsAppWebService
   private setupEventHandlers() {
     // QR Code generation for authentication
     this.client.on('qr', (qr) => {
+      this.logger.log('📱 QR Code generated - waiting for scan...');
       qrcode.generate(qr, { small: true });
 
       // Also log the QR string for alternative display methods
+      this.logger.debug('QR code data available for alternative display');
     });
 
     // Authentication success
     this.client.on('authenticated', () => {
-      // Placeholder for authentication success handling
+      this.logger.log('✅ WhatsApp Web authenticated successfully');
+      this.logger.log('Waiting for client to be ready...');
     });
 
     // Authentication failure
@@ -164,9 +167,12 @@ export class WhatsAppWebService
     // Client ready
     this.client.on('ready', async () => {
       this.isReady = true;
-
-      // Log the connected phone number
-      const _info = this.client.info;
+      const info = this.client.info;
+      
+      this.logger.log('🚀 WhatsApp Web client is READY!');
+      this.logger.log(`📞 Connected phone: ${info?.wid?.user || 'Unknown'}`);
+      this.logger.log(`👤 Bot name: ${info?.pushname || 'Unknown'}`);
+      this.logger.log('✅ Now accepting messages');
     });
 
     // Disconnection
@@ -441,21 +447,29 @@ export class WhatsAppWebService
           return;
         }
 
+        // Log incoming message
+        const contact = await msg.getContact();
+        const phoneNumber = msg.from.replace('@c.us', '');
+        this.logger.log(`📨 Incoming message from ${phoneNumber} (${contact.pushname || 'No name'}): "${msg.body}"`);
+
         // Process regular text messages
         const response = await this.whatsappService.processCloudMessage({
-          from: msg.from.replace('@c.us', ''),
+          from: phoneNumber,
           text: msg.body,
           messageId: msg.id._serialized,
           timestamp: msg.timestamp.toString(),
-          name: (await msg.getContact()).pushname,
+          name: contact.pushname,
         });
 
         // Send response if we have one
         if (response) {
+          this.logger.log(`💬 Sending response to ${phoneNumber}...`);
+          
           // Check if response is an object with text property
           if (typeof response === 'object' && 'text' in response) {
             // Send voice note if voice buffer is present
             if (response.voice) {
+              this.logger.log(`🎤 Sending voice note to ${phoneNumber}`);
               await this.sendVoiceNote(msg.from, response.voice);
               // Also send text for reference (unless it's empty for voice-only mode)
               if (response.text && response.text.trim() !== '') {
@@ -464,13 +478,16 @@ export class WhatsAppWebService
             }
             // Send image with caption if media is present
             else if (response.media) {
+              this.logger.log(`🖼️ Sending image with caption to ${phoneNumber}`);
               await this.sendImage(msg.from, response.media, response.text);
             } else {
               // Just send text if no media
+              this.logger.log(`📤 Sending text message to ${phoneNumber}: "${response.text.substring(0, 50)}${response.text.length > 50 ? '...' : ''}"`);
               await this.sendMessage(msg.from, response.text);
             }
           } else if (typeof response === 'string') {
             // Simple text response
+            this.logger.log(`📤 Sending text message to ${phoneNumber}: "${response.substring(0, 50)}${response.length > 50 ? '...' : ''}"`);
             await this.sendMessage(msg.from, response);
           } else {
             this.logger.warn(`Unexpected response format: ${JSON.stringify(response)}`);
@@ -478,8 +495,9 @@ export class WhatsAppWebService
 
           // Mark message as read
           await msg.getChat().then((chat) => chat.sendSeen());
+          this.logger.log(`✅ Response sent successfully to ${phoneNumber}`);
         } else {
-          this.logger.warn('No response generated for message');
+          this.logger.warn(`⚠️ No response generated for message from ${phoneNumber}`);
         }
       } catch (error) {
         this.logger.error('Error processing message:', error);
@@ -526,13 +544,13 @@ export class WhatsAppWebService
     });
 
     // Loading screen
-    this.client.on('loading_screen', (_percent, _message) => {
-      // Placeholder for loading screen handling
+    this.client.on('loading_screen', (percent, message) => {
+      this.logger.log(`⏳ Loading: ${percent}% - ${message}`);
     });
 
     // State changes
-    this.client.on('change_state', (_state) => {
-      // Placeholder for state change handling
+    this.client.on('change_state', (state) => {
+      this.logger.log(`🔄 WhatsApp state changed: ${state}`);
     });
   }
 
@@ -849,8 +867,6 @@ export class WhatsAppWebService
    * Send a text message
    */
   async sendMessage(to: string, message: string): Promise<void> {
-    this.logger.log(`sendMessage called with to: ${to}, message length: ${message.length}`);
-
     if (!this.isReady) {
       this.logger.error('WhatsApp Web client is not ready');
       throw new Error('WhatsApp Web client is not ready');
@@ -859,7 +875,7 @@ export class WhatsAppWebService
     try {
       // Ensure the number has @c.us suffix
       const chatId = to.includes('@') ? to : `${to}@c.us`;
-      this.logger.log(`Sending message to chatId: ${chatId}`);
+      const phoneNumber = to.replace('@c.us', '');
 
       // Check if client is properly initialized
       if (!this.client) {
@@ -868,7 +884,7 @@ export class WhatsAppWebService
       }
 
       await this.client.sendMessage(chatId, message);
-      this.logger.log(`Message sent successfully to ${chatId}`);
+      this.logger.debug(`✉️ Message delivered to ${phoneNumber}`);
     } catch (error) {
       this.logger.error(`Failed to send message to ${to}:`, error);
       // Log more details about the error
