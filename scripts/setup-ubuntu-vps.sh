@@ -151,12 +151,12 @@ cd /opt/pulse
 if [ -d ".git" ]; then
     print_info "Repository already exists, updating..."
     git fetch origin
-    git checkout admin-panel  # Or your preferred branch
-    git pull origin admin-panel
+    git checkout main
+    git pull origin main
 else
     print_info "Cloning Pulse repository..."
     git clone https://github.com/lnflash/pulse.git .
-    git checkout admin-panel  # Or your preferred branch
+    git checkout main
 fi
 
 # Create necessary directories

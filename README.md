@@ -341,7 +341,7 @@ For Production (High Traffic):
 Deploy Pulse on Ubuntu 24 VPS with a single command:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/lnflash/pulse/admin-panel/scripts/quick-install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/lnflash/pulse/main/scripts/quick-install.sh | sudo bash
 ```
 
 Or if you prefer to review the script first:
