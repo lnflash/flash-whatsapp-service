@@ -278,7 +278,6 @@ EOF
 # Create docker-compose.production.yml
 print_info "Creating production Docker Compose configuration..."
 cat > docker-compose.production.yml << 'EOF'
-version: '3.8'
 
 services:
   app:
