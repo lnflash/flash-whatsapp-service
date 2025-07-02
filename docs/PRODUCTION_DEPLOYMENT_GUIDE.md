@@ -1,95 +1,137 @@
 # Production Deployment Guide
 
-This guide walks you through deploying Pulse on a fresh Ubuntu 24 VPS using our automated setup script.
+This is the official guide for deploying Pulse WhatsApp Bot on a production server.
+
+## 🚀 Quick Deploy - One Command Installation
+
+Deploy Pulse with a single command on Ubuntu 24 VPS:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/lnflash/pulse/admin-panel/scripts/quick-install.sh | sudo bash
+```
+
+This command will:
+1. Download and run our automated setup script
+2. Prompt you for your domain name and email
+3. Install and configure everything automatically
+4. Provide you with next steps when complete
+
+**That's it!** The script handles the entire deployment process.
 
 ## Prerequisites
 
 1. **VPS Requirements**:
-   - Ubuntu 24.04 LTS
+   - Ubuntu 24.04 LTS (fresh installation)
    - Minimum 2GB RAM (4GB recommended)
-   - 20GB storage
-   - Root access
+   - 20GB storage minimum
+   - Root access via SSH
 
 2. **Domain Setup**:
-   - A domain name pointing to your VPS IP
-   - DNS A record configured
+   - A domain name (e.g., `pulse.yourdomain.com`)
+   - DNS A record pointing to your VPS IP address
 
-3. **API Keys** (can be added after setup):
-   - Flash API credentials
-   - Google Gemini API key (optional)
+3. **API Credentials** (can be added after installation):
+   - Flash API key (required for payment features)
+   - Google Gemini API key (optional, for AI responses)
+   - Nostr private key (optional, for content sharing)
 
-## Quick Start
+## Standard Installation
 
-1. **Connect to your VPS**:
-   ```bash
-   ssh root@your-vps-ip
-   ```
+### 1. Connect to Your VPS
 
-2. **Download and run the setup script**:
-   ```bash
-   wget https://raw.githubusercontent.com/lnflash/pulse/admin-panel/scripts/setup-ubuntu-vps.sh
-   chmod +x setup-ubuntu-vps.sh
-   ./setup-ubuntu-vps.sh
-   ```
+```bash
+ssh root@your-vps-ip
+```
 
-3. **Follow the prompts**:
-   - Enter your domain name (e.g., `pulse.yourdomain.com`)
-   - Enter your email for SSL certificates
-   - Choose whether to enable the admin panel
+### 2. Run the Setup Script
 
-4. **The script will automatically**:
-   - Update system packages
-   - Install Docker and dependencies
-   - Configure firewall (UFW)
-   - Set up Nginx with SSL (Let's Encrypt)
-   - Create secure passwords
-   - Deploy Pulse with Redis and RabbitMQ
-   - Set up automated backups
-   - Configure monitoring
-   - Enable fail2ban for security
+```bash
+# Download and execute the setup script
+wget https://raw.githubusercontent.com/lnflash/pulse/admin-panel/scripts/setup-ubuntu-vps.sh
+chmod +x setup-ubuntu-vps.sh
+./setup-ubuntu-vps.sh
+```
 
-## Post-Installation Steps
+### 3. Follow the Interactive Prompts
 
-### 1. Configure Environment Variables
+The script will ask for:
+- **Domain name**: Enter your domain (e.g., `pulse.yourdomain.com`)
+- **Email address**: For SSL certificate notifications
+- **Admin panel**: Choose whether to enable the web admin dashboard
 
-Edit the `.env` file with your API credentials:
+### 4. What the Script Does
+
+The automated script handles everything:
+- ✅ System updates and security hardening
+- ✅ Docker and Docker Compose installation
+- ✅ Nginx reverse proxy with SSL/TLS (Let's Encrypt)
+- ✅ Redis with persistence and authentication
+- ✅ RabbitMQ message broker setup
+- ✅ Firewall configuration (UFW)
+- ✅ Fail2ban intrusion prevention
+- ✅ Automated daily backups
+- ✅ Health monitoring and auto-recovery
+- ✅ Systemd service for auto-start
+- ✅ Secure password generation
+
+## Post-Installation Configuration
+
+### 1. Configure API Credentials
+
+After installation completes, edit the environment file:
+
 ```bash
 cd /opt/pulse
 nano .env
 ```
 
-Update these values:
-- `FLASH_API_KEY`: Your Flash API key
-- `GEMINI_API_KEY`: Google Gemini API key (optional)
-- `ADMIN_PHONE_NUMBERS`: Comma-separated admin phone numbers
-- `SUPPORT_PHONE_NUMBER`: Support agent phone number
+Update these required values:
+- `FLASH_API_KEY`: Your Flash API key (get from Flash team)
+- `ADMIN_PHONE_NUMBERS`: Comma-separated list of admin phone numbers
+- `SUPPORT_PHONE_NUMBER`: Phone number for human support routing
+
+Optional configurations:
+- `GEMINI_API_KEY`: For AI-powered responses (get from [Google AI Studio](https://makersuite.google.com/app/apikey))
+- `NOSTR_PRIVATE_KEY`: Your Nostr nsec for content sharing features
+- `NOSTR_PULSE_NPUB`: Your Pulse bot's Nostr public key
 
 ### 2. Restart Services
 
-After updating the configuration:
+Apply your configuration changes:
+
 ```bash
+cd /opt/pulse
 docker compose -f docker-compose.production.yml restart
 ```
 
 ### 3. Connect WhatsApp
 
-View the QR code to connect WhatsApp:
+Get the QR code for WhatsApp connection:
+
 ```bash
 docker logs pulse-app
 ```
 
-Scan the QR code with WhatsApp on your phone.
+1. Open WhatsApp on your phone
+2. Go to Settings → Linked Devices
+3. Tap "Link a Device"
+4. Scan the QR code displayed in the terminal
+
+⚠️ **Important**: Use a dedicated WhatsApp number for the bot. Do not use your personal number.
 
 ### 4. Verify Installation
 
-Check service status:
-```bash
-/opt/pulse/scripts/monitor.sh
-```
+Check that everything is running correctly:
 
-Test the health endpoint:
 ```bash
+# Check service status
+/opt/pulse/scripts/monitor.sh
+
+# Test the health endpoint
 curl https://your-domain.com/health
+
+# View application logs
+docker logs pulse-app -f
 ```
 
 ## Service Management

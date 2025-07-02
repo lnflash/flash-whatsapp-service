@@ -311,22 +311,32 @@ Flash API → WebSocket/RabbitMQ → PaymentNotificationService → WhatsApp Mes
 
 ## Production Deployment
 
-For production deployment, please refer to:
-- [Production Deployment Guide](PRODUCTION_DEPLOYMENT.md) - Step-by-step deployment instructions
-- [Security Checklist](SECURITY_CHECKLIST.md) - Pre-deployment security verification
-- [Environment Template](.env.production.example) - Production configuration template
+### 🚀 One-Command Deploy (Recommended)
 
-### Quick Production Setup:
+Deploy Pulse on Ubuntu 24 VPS with a single command:
+
 ```bash
-# Build for production
-npm run build:prod
-
-# Docker deployment
-docker-compose -f docker-compose.prod.yml up -d
-
-# PM2 deployment
-pm2 start ecosystem.prod.config.js
+curl -sSL https://raw.githubusercontent.com/lnflash/pulse/admin-panel/scripts/quick-install.sh | sudo bash
 ```
+
+This automated script handles the complete production setup including SSL, Docker, security, and monitoring.
+
+### Documentation
+
+- [Production Deployment Guide](docs/PRODUCTION_DEPLOYMENT_GUIDE.md) - Complete deployment instructions
+- [Admin Panel Guide](docs/ADMIN_PANEL.md) - Admin dashboard documentation
+- [Security Checklist](SECURITY_CHECKLIST.md) - Pre-deployment security verification
+- [Environment Template](.env.example) - Configuration template
+
+### Post-Deployment Configuration
+
+After running the setup script, configure your API credentials in `/opt/pulse/.env`:
+- `FLASH_API_KEY` - Your Flash API key
+- `ADMIN_PHONE_NUMBERS` - Admin phone numbers
+- `SUPPORT_PHONE_NUMBER` - Support routing number
+- `GEMINI_API_KEY` - Google AI key (optional)
+- `NOSTR_PRIVATE_KEY` - Nostr nsec (optional)
+- `NOSTR_PULSE_NPUB` - Bot's Nostr npub (optional)
 
 ## Security Features
 

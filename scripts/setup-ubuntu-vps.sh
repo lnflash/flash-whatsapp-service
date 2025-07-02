@@ -229,6 +229,11 @@ ADMIN_PHONE_NUMBERS=
 # Support Configuration
 SUPPORT_PHONE_NUMBER=
 
+# Nostr Configuration (Optional - for content sharing and zap forwarding)
+NOSTR_PRIVATE_KEY=
+NOSTR_RELAYS=wss://relay.damus.io,wss://nos.lol,wss://relay.nostr.band,wss://relay.flashapp.me,wss://relay.primal.net
+NOSTR_PULSE_NPUB=
+
 # Admin Panel
 ENABLE_ADMIN_PANEL=$ENABLE_ADMIN_PANEL
 EOF
@@ -632,8 +637,10 @@ echo -e "${YELLOW}Important next steps:${NC}"
 echo "1. Update the .env file with your configuration:"
 echo "   - FLASH_API_KEY: Your Flash API key"
 echo "   - GEMINI_API_KEY: Your Google Gemini API key (optional)"
-echo "   - ADMIN_PHONE_NUMBERS: Admin phone numbers"
+echo "   - ADMIN_PHONE_NUMBERS: Admin phone numbers (comma-separated)"
 echo "   - SUPPORT_PHONE_NUMBER: Support phone number"
+echo "   - NOSTR_PRIVATE_KEY: Nostr private key for content sharing (optional)"
+echo "   - NOSTR_PULSE_NPUB: Your Pulse bot's Nostr public key (optional)"
 echo ""
 echo "2. Restart the service after updating .env:"
 echo "   cd /opt/pulse && docker compose -f docker-compose.production.yml restart"
