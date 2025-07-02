@@ -353,8 +353,56 @@ EOF
 sed -i "s/\${REDIS_PASSWORD}/$REDIS_PASSWORD/g" docker-compose.production.yml
 sed -i "s/\${RABBITMQ_PASSWORD}/$RABBITMQ_PASSWORD/g" docker-compose.production.yml
 
-# Create Nginx configuration
-print_info "Creating Nginx configuration..."
+# Create initial HTTP-only Nginx configuration for SSL certificate generation
+print_info "Creating initial Nginx configuration..."
+cat > /etc/nginx/sites-available/pulse << EOF
+# Rate limiting
+limit_req_zone \$binary_remote_addr zone=pulse_limit:10m rate=10r/s;
+
+# Upstream configuration
+upstream pulse_backend {
+    server 127.0.0.1:3000 fail_timeout=0;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name $DOMAIN_NAME;
+
+    # Location for Let's Encrypt verification
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    # Temporary configuration - will be updated after SSL cert
+    location / {
+        proxy_pass http://pulse_backend;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+EOF
+
+
+# Enable the site
+ln -sf /etc/nginx/sites-available/pulse /etc/nginx/sites-enabled/
+rm -f /etc/nginx/sites-enabled/default
+
+# Test Nginx configuration
+nginx -t
+
+# Restart Nginx
+systemctl restart nginx
+
+# Obtain SSL certificate
+# Note: This only gets a certificate for the exact domain specified, not for www subdomain
+print_info "Obtaining SSL certificate for $DOMAIN_NAME (without www)..."
+certbot certonly --webroot -w /var/www/html -d $DOMAIN_NAME --non-interactive --agree-tos -m $SSL_EMAIL
+
+# Now update Nginx configuration with HTTPS
+print_info "Updating Nginx configuration with SSL..."
 cat > /etc/nginx/sites-available/pulse << EOF
 # Rate limiting
 limit_req_zone \$binary_remote_addr zone=pulse_limit:10m rate=10r/s;
@@ -378,7 +426,12 @@ server {
     listen [::]:443 ssl http2;
     server_name $DOMAIN_NAME;
 
-    # SSL configuration will be added by Certbot
+    # SSL configuration
+    ssl_certificate /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384';
+    ssl_prefer_server_ciphers off;
     
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
@@ -462,19 +515,8 @@ cat >> /etc/nginx/sites-available/pulse << EOF
 }
 EOF
 
-# Enable the site
-ln -sf /etc/nginx/sites-available/pulse /etc/nginx/sites-enabled/
-rm -f /etc/nginx/sites-enabled/default
-
-# Test Nginx configuration
-nginx -t
-
-# Restart Nginx
-systemctl restart nginx
-
-# Obtain SSL certificate
-print_info "Obtaining SSL certificate..."
-certbot --nginx -d $DOMAIN_NAME --non-interactive --agree-tos -m $SSL_EMAIL
+# Reload Nginx with new configuration
+nginx -t && systemctl reload nginx
 
 # Create backup script
 print_info "Creating backup script..."
