@@ -121,6 +121,19 @@ apt install -y nginx
 print_info "Installing Certbot..."
 apt install -y certbot python3-certbot-nginx
 
+# Configure system for Redis
+print_info "Configuring system for Redis..."
+# Enable memory overcommit to prevent Redis warnings
+if ! grep -q "vm.overcommit_memory = 1" /etc/sysctl.conf; then
+    echo "vm.overcommit_memory = 1" >> /etc/sysctl.conf
+    sysctl -w vm.overcommit_memory=1
+fi
+# Increase max connections
+if ! grep -q "net.core.somaxconn = 65535" /etc/sysctl.conf; then
+    echo "net.core.somaxconn = 65535" >> /etc/sysctl.conf
+    sysctl -w net.core.somaxconn=65535
+fi
+
 # Configure firewall
 print_info "Configuring firewall..."
 # Set defaults if not already set
@@ -330,8 +343,10 @@ services:
       --requirepass ${REDIS_PASSWORD}
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
+    sysctls:
+      - net.core.somaxconn=65535
     healthcheck:
-      test: ["CMD", "redis-cli", "--auth", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a ${REDIS_PASSWORD} ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 3
