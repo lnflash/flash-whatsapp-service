@@ -28,6 +28,22 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     let error = 'Internal Server Error';
     let details: any = undefined;
 
+    // Check if this is a common browser request that should be ignored
+    const ignoredPaths = [
+      '/favicon.ico',
+      '/.well-known/chrome',
+      '/chrome-variations-config.json',
+      '/manifest.json',
+      '/robots.txt',
+      '/sitemap.xml',
+    ];
+
+    const isIgnoredPath = ignoredPaths.some(
+      (path) => request.url === path || request.url.startsWith(path),
+    );
+    const is404Error =
+      exception instanceof HttpException && exception.getStatus() === HttpStatus.NOT_FOUND;
+
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const errorResponse = exception.getResponse();
@@ -81,8 +97,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       ...(details && { details }),
     };
 
-    // Log errors in production (except 4xx errors)
-    if (status >= 500 || (status >= 400 && status < 500 && !this.isDevelopment)) {
+    // Log errors in production (except 4xx errors and ignored paths)
+    const shouldLog =
+      status >= 500 ||
+      (status >= 400 && status < 500 && !this.isDevelopment && !(is404Error && isIgnoredPath));
+
+    if (shouldLog) {
       this.logger.error(
         `HTTP ${status} Error`,
         JSON.stringify({

@@ -13,6 +13,7 @@ import { QrCodeService } from './qr-code.service';
 import { RedisService } from '../../redis/redis.service';
 import { SupportModeService } from './support-mode.service';
 import { SpeechService } from '../../speech/speech.service';
+import { ChromeCleanupUtil } from '../../../common/utils/chrome-cleanup.util';
 import * as fsPromises from 'fs/promises';
 import * as path from 'path';
 
@@ -51,8 +52,6 @@ export class WhatsAppWebService
           '--disable-dev-shm-usage',
           '--disable-accelerated-2d-canvas',
           '--no-first-run',
-          '--no-zygote',
-          '--single-process',
           '--disable-gpu',
         ],
         // Increase browser launch timeout
@@ -78,6 +77,10 @@ export class WhatsAppWebService
         this.isInGracePeriod = false;
       }, this.startupGracePeriod);
 
+      // Clean up any stuck Chrome processes before initialization
+      this.logger.log('Cleaning up any stuck Chrome processes...');
+      await ChromeCleanupUtil.cleanup();
+
       // Check if session exists
       // Session check happens during client initialization
 
@@ -87,7 +90,23 @@ export class WhatsAppWebService
     } catch (error) {
       this.logger.error('Failed to initialize WhatsApp Web client:', error);
       this.logger.error('Stack trace:', error.stack);
-      
+
+      // Check for specific network errors
+      if (error.message && error.message.includes('ERR_ADDRESS_UNREACHABLE')) {
+        this.logger.error(
+          'Network connectivity issue detected. Please check your internet connection.',
+        );
+        this.logger.log('Attempting to resolve DNS for web.whatsapp.com...');
+
+        // Try a simple DNS resolution test
+        try {
+          const addresses = await dns.resolve4('web.whatsapp.com');
+          this.logger.log(`DNS resolution successful: ${addresses.join(', ')}`);
+        } catch (dnsError) {
+          this.logger.error('DNS resolution failed:', dnsError);
+        }
+      }
+
       // Retry initialization after a delay
       setTimeout(async () => {
         this.logger.log('Retrying WhatsApp Web client initialization...');
@@ -591,6 +610,9 @@ export class WhatsAppWebService
       // Destroy and recreate the client
       await this.cleanup();
 
+      // Clean up any Chrome processes before creating new client
+      await ChromeCleanupUtil.cleanup();
+
       // Mark client as not ready since we cleared the session
       this.isReady = false;
 
@@ -826,20 +848,26 @@ export class WhatsAppWebService
    * Send a text message
    */
   async sendMessage(to: string, message: string): Promise<void> {
+    this.logger.log(`sendMessage called with to: ${to}, message length: ${message.length}`);
+
     if (!this.isReady) {
+      this.logger.error('WhatsApp Web client is not ready');
       throw new Error('WhatsApp Web client is not ready');
     }
 
     try {
       // Ensure the number has @c.us suffix
       const chatId = to.includes('@') ? to : `${to}@c.us`;
+      this.logger.log(`Sending message to chatId: ${chatId}`);
 
       // Check if client is properly initialized
       if (!this.client) {
+        this.logger.error('WhatsApp client is not initialized');
         throw new Error('WhatsApp client is not initialized');
       }
 
       await this.client.sendMessage(chatId, message);
+      this.logger.log(`Message sent successfully to ${chatId}`);
     } catch (error) {
       this.logger.error(`Failed to send message to ${to}:`, error);
       // Log more details about the error
@@ -981,10 +1009,14 @@ export class WhatsAppWebService
       try {
         await this.client.logout();
         this.isReady = false;
+        // Clean up Chrome processes after logout
+        await ChromeCleanupUtil.cleanup();
       } catch (error) {
         this.logger.error('Error during logout:', error);
         // Force cleanup if logout fails
         await this.cleanup();
+        // Clean up Chrome processes
+        await ChromeCleanupUtil.cleanup();
       }
     }
   }

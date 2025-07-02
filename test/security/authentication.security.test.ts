@@ -23,7 +23,7 @@ describe('Authentication & Session Security Tests', () => {
 
   beforeAll(async () => {
     const { app: testApp, moduleRef } = await createTestApplication();
-    
+
     app = testApp;
     sessionService = moduleRef.get<SessionService>(SessionService);
     otpService = moduleRef.get<OtpService>(OtpService);

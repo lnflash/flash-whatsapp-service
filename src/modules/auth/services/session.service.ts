@@ -286,4 +286,64 @@ export class SessionService {
       return [];
     }
   }
+
+  /**
+   * Get all sessions (including unlinked ones) for admin purposes
+   */
+  async getAllSessions(): Promise<UserSession[]> {
+    try {
+      const sessions: UserSession[] = [];
+      const pattern = 'session:*';
+      const keys = await this.redisService.keys(pattern);
+
+      for (const key of keys) {
+        try {
+          const sessionData = (await this.redisService.getEncrypted(key)) as UserSession | null;
+          if (sessionData) {
+            sessions.push(sessionData);
+          }
+        } catch {
+          // Skip sessions that can't be decrypted (old encryption keys)
+        }
+      }
+
+      return sessions;
+    } catch (error) {
+      this.logger.error('Error getting all sessions:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Generic key-value operations for admin dashboard
+   */
+  async set(key: string, value: any, ttl?: number): Promise<void> {
+    await this.redisService.setEncrypted(key, value, ttl);
+  }
+
+  async get(key: string): Promise<any> {
+    return this.redisService.getEncrypted(key);
+  }
+
+  async delete(key: string): Promise<void> {
+    await this.redisService.del(key);
+  }
+
+  async getByPattern(pattern: string): Promise<Map<string, any>> {
+    const results = new Map<string, any>();
+    const keys = await this.redisService.keys(pattern);
+
+    for (const key of keys) {
+      try {
+        const value = await this.redisService.getEncrypted(key);
+        if (value) {
+          results.set(key, value);
+        }
+      } catch {
+        // Skip values that can't be decrypted
+      }
+    }
+
+    return results;
+  }
 }

@@ -18,7 +18,7 @@ describe('Rate Limiter Security Tests', () => {
 
   beforeAll(async () => {
     const { app: testApp, moduleRef } = await createTestApplication();
-    
+
     app = testApp;
     redisService = moduleRef.get<RedisService>(RedisService);
     configService = moduleRef.get<ConfigService>(ConfigService);

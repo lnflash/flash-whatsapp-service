@@ -408,7 +408,9 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
 
       // Check if WhatsApp client is ready before sending
       if (!this.whatsappWebService.isClientReady()) {
-        this.logger.warn(`WhatsApp client not ready, skipping notification for ${notification.whatsappId}`);
+        this.logger.warn(
+          `WhatsApp client not ready, skipping notification for ${notification.whatsappId}`,
+        );
         return;
       }
 
@@ -417,7 +419,9 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
     } catch (error) {
       // Don't throw if WhatsApp is not ready - just log and continue
       if (error.message && error.message.includes('WhatsApp Web client is not ready')) {
-        this.logger.debug(`WhatsApp not ready, payment notification queued for ${notification.whatsappId}`);
+        this.logger.debug(
+          `WhatsApp not ready, payment notification queued for ${notification.whatsappId}`,
+        );
         return;
       }
       this.logger.error('Error sending payment notification:', error);
@@ -486,7 +490,10 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
    */
   private startPollingForIntraledgerPayments(whatsappId: string, authToken: string): void {
     // Check if intraledger polling is enabled
-    const pollingEnabled = this.configService.get<boolean>('notifications.enableIntraledgerPolling', true);
+    const pollingEnabled = this.configService.get<boolean>(
+      'notifications.enableIntraledgerPolling',
+      true,
+    );
     if (!pollingEnabled) {
       this.logger.debug(`Intraledger polling is disabled for ${whatsappId}`);
       return;
@@ -630,12 +637,14 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
       if (error.message && error.message.includes('WhatsApp Web client is not ready')) {
         return;
       }
-      
+
       // Only log connection errors once, not the full stack trace
       if (error.message?.includes('fetch failed') || error.message?.includes('Connect Timeout')) {
         // Suppress repetitive connection errors
         if (!this.connectionErrorLogged.has(whatsappId)) {
-          this.logger.warn(`Flash API connection issue for ${whatsappId}. Payment polling temporarily unavailable.`);
+          this.logger.warn(
+            `Flash API connection issue for ${whatsappId}. Payment polling temporarily unavailable.`,
+          );
           this.connectionErrorLogged.add(whatsappId);
           // Clear the flag after 5 minutes
           setTimeout(() => this.connectionErrorLogged.delete(whatsappId), 300000);

@@ -8,12 +8,22 @@ import { EventsService } from '../src/modules/events/events.service';
 import { SubscriptionService } from '../src/modules/flash-api/services/subscription.service';
 import { SpeechService } from '../src/modules/speech/speech.service';
 import { GeminiAiService } from '../src/modules/gemini-ai/gemini-ai.service';
-import { MockRedisService, MockWhatsAppWebService, MockEventsService, MockSubscriptionService, MockSpeechService, MockGeminiAiService } from './setup-e2e';
+import {
+  MockRedisService,
+  MockWhatsAppWebService,
+  MockEventsService,
+  MockSubscriptionService,
+  MockSpeechService,
+  MockGeminiAiService,
+} from './setup-e2e';
 
 /**
  * Creates a test application with all external services mocked
  */
-export async function createTestApplication(): Promise<{ app: INestApplication; moduleRef: TestingModule }> {
+export async function createTestApplication(): Promise<{
+  app: INestApplication;
+  moduleRef: TestingModule;
+}> {
   const moduleFixture: TestingModule = await Test.createTestingModule({
     imports: [AppModule],
   })
@@ -48,6 +58,6 @@ export async function createTestApplication(): Promise<{ app: INestApplication; 
   app.useGlobalFilters(new HttpExceptionFilter());
 
   await app.init();
-  
+
   return { app, moduleRef: moduleFixture };
 }

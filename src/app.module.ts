@@ -10,6 +10,7 @@ import { GeminiAiModule } from './modules/gemini-ai/gemini-ai.module';
 import { EventsModule } from './modules/events/events.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { AdminDashboardModule } from './modules/admin-dashboard/admin-dashboard.module';
 import { MetricsMiddleware } from './common/middleware/metrics.middleware';
 import { CryptoModule } from './common/crypto/crypto.module';
 import { HealthController } from './health.controller';
@@ -36,6 +37,7 @@ import { HealthController } from './health.controller';
     EventsModule,
     AuthModule,
     NotificationsModule,
+    AdminDashboardModule,
   ],
   controllers: [HealthController],
   providers: [],
