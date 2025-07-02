@@ -311,6 +311,30 @@ Flash API → WebSocket/RabbitMQ → PaymentNotificationService → WhatsApp Mes
 
 ## Production Deployment
 
+### Minimum Recommended Specs with DigitalOcean pricing as of July 2025:
+
+For Development/Testing:
+
+- CPU: 1 vCPU
+- RAM: 2GB
+- Storage: 25GB SSD
+- Droplet: Basic Regular Intel ($12/month)
+
+For Production (Small-Medium Scale):
+
+- CPU: 2 vCPUs
+- RAM: 4GB
+- Storage: 80GB SSD
+- Droplet: Basic Regular Intel ($24/month)
+
+For Production (High Traffic):
+
+- CPU: 4 vCPUs
+- RAM: 8GB
+- Storage: 160GB SSD
+- Droplet: General Purpose ($48/month)
+
+  
 ### 🚀 One-Command Deploy (Recommended)
 
 Deploy Pulse on Ubuntu 24 VPS with a 3 commands:
