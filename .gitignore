@@ -10,7 +10,8 @@ yarn.lock
 !.env.example
 
 # Logs
-logs
+logs/*
+!logs/.gitkeep
 *.log
 npm-debug.log*
 pnpm-debug.log*
@@ -59,6 +60,8 @@ private/
 secrets/
 
 # Backup files
+backups/*
+!backups/.gitkeep
 *.backup
 *.bak
 *.tmp
@@ -80,7 +83,8 @@ gen-lang*.json
 test-reports/
 
 # Google Cloud credentials
-credentials/
+credentials/*
+!credentials/.gitkeep
 *-service-account.json
 
 # WhatsApp sessions (additional patterns)
