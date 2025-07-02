@@ -6,6 +6,8 @@ import { RedisService } from '../../redis/redis.service';
 import { EventsService } from '../../events/events.service';
 import { ConfigService } from '@nestjs/config';
 import { CommandParserService } from '../../whatsapp/services/command-parser.service';
+import { AdminFacadeService } from './admin-facade.service';
+import { WithCircuitBreaker } from '../decorators/circuit-breaker.decorator';
 
 export interface DashboardStats {
   system: {
@@ -131,6 +133,7 @@ export class AdminDashboardService {
   /**
    * Send announcement to all users
    */
+  @WithCircuitBreaker({ failureThreshold: 3, resetTimeout: 300000 }) // 5 minutes
   async sendAnnouncement(
     message: string,
     options?: {

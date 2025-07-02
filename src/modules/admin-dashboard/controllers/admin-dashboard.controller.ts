@@ -14,10 +14,12 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AdminDashboardService } from '../services/admin-dashboard.service';
 import { AdminGuard } from '../guards/admin.guard';
+import { AdminRateLimitGuard } from '../guards/admin-rate-limit.guard';
+import { RateLimit } from '../guards/admin-rate-limit.guard';
 
 @ApiTags('Admin Dashboard')
 @Controller('api/admin/dashboard')
-@UseGuards(AdminGuard)
+@UseGuards(AdminGuard, AdminRateLimitGuard)
 @ApiBearerAuth()
 export class AdminDashboardController {
   constructor(private readonly dashboardService: AdminDashboardService) {}
@@ -45,12 +47,14 @@ export class AdminDashboardController {
   }
 
   @Delete('sessions')
+  @RateLimit(1, 3600000) // 1 clear all per hour
   @ApiOperation({ summary: 'Clear all user sessions' })
   async clearAllSessions() {
     return this.dashboardService.clearAllSessions();
   }
 
   @Post('announcement')
+  @RateLimit(5, 300000) // 5 announcements per 5 minutes
   @ApiOperation({ summary: 'Send announcement to all users' })
   async sendAnnouncement(
     @Body() body: { message: string; includeUnlinked?: boolean; testMode?: boolean },
