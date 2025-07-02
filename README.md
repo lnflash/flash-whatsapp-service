@@ -348,7 +348,7 @@ Or if you prefer to review the script first:
 
 ```bash
 # 1. Download the setup script
-wget https://raw.githubusercontent.com/lnflash/pulse/admin-panel/scripts/setup-ubuntu-vps.sh
+wget https://raw.githubusercontent.com/lnflash/pulse/main/scripts/setup-ubuntu-vps.sh
 
 # 2. Review script & add permissions
 chmod +x setup-ubuntu-vps.sh
