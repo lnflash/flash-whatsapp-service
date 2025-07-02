@@ -128,7 +128,7 @@ export class HealthController {
       
       return {
         status: isReady ? 'up' : 'down',
-        message: status.state || 'Unknown',
+        message: status.connected ? `Connected: ${status.number || 'Unknown number'}` : 'Disconnected',
         latency: Date.now() - start,
       };
     } catch (error) {

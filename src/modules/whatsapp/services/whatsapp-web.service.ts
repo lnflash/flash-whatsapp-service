@@ -16,6 +16,7 @@ import { SpeechService } from '../../speech/speech.service';
 import { ChromeCleanupUtil } from '../../../common/utils/chrome-cleanup.util';
 import * as fsPromises from 'fs/promises';
 import * as path from 'path';
+import * as dns from 'dns/promises';
 
 @Injectable()
 export class WhatsAppWebService
