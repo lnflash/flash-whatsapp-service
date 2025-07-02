@@ -1,9 +1,10 @@
 # Pulse
 
-## A WhatsApp integration service for Flash that enables users to check their Bitcoin wallet balance and interact with Flash services through WhatsApp. Now branded as "Pulse" to capture the pulse of the Lightning Network.
+## Keep your finger on it.
 
 ![logo](https://github.com/user-attachments/assets/f54a0c3e-0614-404f-a98f-087a0d61a056)
 
+### A WhatsApp integration service for Flash that enables users to check their Bitcoin wallet balance and interact with Flash services through WhatsApp. Now branded as "Pulse" to capture the pulse of the Lightning Network.
 
 > **Version**: 1.9.9 - "Pulse Party like its 199"  
 > **Status**: Production Ready
