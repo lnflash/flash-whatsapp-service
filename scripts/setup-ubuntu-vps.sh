@@ -390,10 +390,8 @@ EOF
 ln -sf /etc/nginx/sites-available/pulse /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 
-# Test Nginx configuration
-nginx -t
-
-# Restart Nginx
+# Restart Nginx with the HTTP-only configuration
+print_info "Starting Nginx with HTTP configuration..."
 systemctl restart nginx
 
 # Obtain SSL certificate
