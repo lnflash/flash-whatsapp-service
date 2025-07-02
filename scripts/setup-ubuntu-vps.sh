@@ -137,6 +137,8 @@ git checkout admin-panel  # Or your preferred branch
 mkdir -p whatsapp-sessions
 mkdir -p logs
 mkdir -p backups
+mkdir -p credentials
+chmod 700 credentials  # Secure the credentials directory
 
 # Generate secure passwords
 print_info "Generating secure passwords..."
@@ -234,6 +236,11 @@ NOSTR_PRIVATE_KEY=
 NOSTR_RELAYS=wss://relay.damus.io,wss://nos.lol,wss://relay.nostr.band,wss://relay.flashapp.me,wss://relay.primal.net
 NOSTR_PULSE_NPUB=
 
+# Google Cloud Services (Optional - for TTS and Speech-to-Text)
+# Upload your service account JSON file to /opt/pulse/credentials/
+# Then update this path to point to the file
+GOOGLE_CLOUD_KEYFILE=
+
 # Admin Panel
 ENABLE_ADMIN_PANEL=$ENABLE_ADMIN_PANEL
 EOF
@@ -265,6 +272,7 @@ services:
       - ./whatsapp-sessions:/app/whatsapp-sessions
       - ./logs:/app/logs
       - ./public:/app/public:ro
+      - ./credentials:/app/credentials:ro
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
       interval: 30s
@@ -641,6 +649,10 @@ echo "   - ADMIN_PHONE_NUMBERS: Admin phone numbers (comma-separated)"
 echo "   - SUPPORT_PHONE_NUMBER: Support phone number"
 echo "   - NOSTR_PRIVATE_KEY: Nostr private key for content sharing (optional)"
 echo "   - NOSTR_PULSE_NPUB: Your Pulse bot's Nostr public key (optional)"
+echo ""
+echo "   For Google Cloud TTS/Speech-to-Text (optional):"
+echo "   a) Upload your service account JSON to /opt/pulse/credentials/"
+echo "   b) Update GOOGLE_CLOUD_KEYFILE=/app/credentials/your-service-account.json"
 echo ""
 echo "2. Restart the service after updating .env:"
 echo "   cd /opt/pulse && docker compose -f docker-compose.production.yml restart"

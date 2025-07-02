@@ -94,6 +94,27 @@ Optional configurations:
 - `GEMINI_API_KEY`: For AI-powered responses (get from [Google AI Studio](https://makersuite.google.com/app/apikey))
 - `NOSTR_PRIVATE_KEY`: Your Nostr nsec for content sharing features
 - `NOSTR_PULSE_NPUB`: Your Pulse bot's Nostr public key
+- `GOOGLE_CLOUD_KEYFILE`: Path to Google Cloud service account JSON (see below)
+
+#### Setting up Google Cloud Services (Optional)
+
+If you want to enable Text-to-Speech and Speech-to-Text features:
+
+1. **Upload your service account JSON file**:
+   ```bash
+   # From your local machine
+   scp your-service-account.json root@your-server:/opt/pulse/credentials/
+   
+   # On the server, secure the file
+   chmod 600 /opt/pulse/credentials/your-service-account.json
+   ```
+
+2. **Update the .env file**:
+   ```bash
+   GOOGLE_CLOUD_KEYFILE=/app/credentials/your-service-account.json
+   ```
+
+   Note: The path uses `/app/credentials/` because that's the path inside the Docker container.
 
 ### 2. Restart Services
 
