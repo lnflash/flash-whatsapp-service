@@ -1,6 +1,6 @@
-# Production Deployment Guide
+# Complete Production Deployment Guide
 
-This is the official guide for deploying Pulse WhatsApp Bot on a production server.
+This is the official guide for deploying Pulse WhatsApp Bot on a production server, including all documentation and tools for a successful deployment.
 
 ## 🚀 Quick Deploy - One Command Installation
 
@@ -348,6 +348,46 @@ services:
           cpus: '1'
           memory: 1G
 ```
+
+## 📚 Essential Production Documentation
+
+We've created comprehensive documentation for production deployment:
+
+### 1. **[Production Readiness Checklist](./PRODUCTION_READINESS.md)**
+Complete checklist covering infrastructure, security, testing, and monitoring requirements.
+
+### 2. **[Health Check Endpoints](../src/health.controller.ts)**
+- `/health` - Basic health check
+- `/health/detailed` - Comprehensive service status
+- `/health/ready` - Kubernetes readiness probe
+- `/health/live` - Kubernetes liveness probe
+
+### 3. **[Backup and Restore Procedures](./BACKUP_AND_RESTORE.md)**
+Detailed backup strategies, automated scripts, and disaster recovery procedures.
+
+### 4. **[WhatsApp Compliance Guide](./WHATSAPP_COMPLIANCE.md)**
+Critical guidelines to prevent WhatsApp bans and maintain service reliability.
+
+### 5. **[Rollback Procedures](./ROLLBACK_PROCEDURES.md)**
+Step-by-step rollback procedures with automated scripts for quick recovery.
+
+### 6. **[Error Tracking Setup](./ERROR_TRACKING.md)**
+Comprehensive error monitoring with Sentry integration and custom logging.
+
+## 🎯 Production Launch Checklist
+
+Before going live, ensure:
+
+- [ ] All services are healthy (`/health/detailed` returns OK)
+- [ ] Backups are configured and tested
+- [ ] Monitoring and alerts are active
+- [ ] Error tracking is enabled
+- [ ] SSL certificates are valid
+- [ ] Admin dashboard is accessible
+- [ ] WhatsApp is connected and stable
+- [ ] Test transactions are working
+- [ ] Team has reviewed all documentation
+- [ ] Emergency contacts are documented
 
 ## Support
 

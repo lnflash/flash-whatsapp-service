@@ -368,4 +368,4 @@ For production deployment, generate secure keys:
 
 ## License
 
-Proprietary - Flash Technologies Ltd.
+MIT License - Island Bitcoin LLC 

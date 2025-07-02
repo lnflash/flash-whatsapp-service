@@ -26,6 +26,13 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * Check if connected to RabbitMQ
+   */
+  async isConnected(): Promise<boolean> {
+    return this.connection !== null && this.channel !== null;
+  }
+
   async onModuleInit() {
     // Skip initialization in test environment
     if (process.env.NODE_ENV === 'test') {
