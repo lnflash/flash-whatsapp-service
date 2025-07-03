@@ -134,6 +134,9 @@ if [ -d "/opt/pulse" ] && [ -f "/opt/pulse/.env" ]; then
     cp -r /opt/pulse $BACKUP_DIR
 fi
 
+# Set the Pulse directory
+PULSE_DIR="/opt/pulse"
+
 # Get configuration
 print_step "Configuration"
 echo ""
@@ -199,7 +202,7 @@ HAS_GOOGLE_CLOUD=${HAS_GOOGLE_CLOUD:-n}
 if [[ "$HAS_GOOGLE_CLOUD" =~ ^[Yy]$ ]]; then
     read -p "Enter the full path to your Google Cloud keyfile JSON: " GOOGLE_CLOUD_KEYFILE_PATH
     if [ -f "$GOOGLE_CLOUD_KEYFILE_PATH" ]; then
-        GOOGLE_CLOUD_KEYFILE="/opt/pulse/credentials/google-cloud-key.json"
+        GOOGLE_CLOUD_KEYFILE="$PULSE_DIR/credentials/google-cloud-key.json"
     else
         print_warning "File not found: $GOOGLE_CLOUD_KEYFILE_PATH"
         GOOGLE_CLOUD_KEYFILE=""
@@ -420,11 +423,10 @@ fi
 
 # Clone repository
 print_step "Setting up application"
-cd /opt
 
-if [ -d "pulse" ]; then
+if [ -d "$PULSE_DIR" ]; then
     print_info "Pulse directory exists, updating..."
-    cd pulse
+    cd "$PULSE_DIR"
     # Check if it's a git repository
     if [ -d ".git" ]; then
         sudo -u pulse git fetch origin
@@ -432,17 +434,19 @@ if [ -d "pulse" ]; then
         sudo -u pulse git pull origin main
     else
         print_warning "Existing directory is not a git repository, removing and cloning fresh"
-        cd ..
+        cd /opt
         rm -rf pulse
-        git clone https://github.com/lnflash/pulse.git
-        cd pulse
-        chown -R pulse:pulse /opt/pulse
+        git clone https://github.com/lnflash/pulse.git pulse
+        chown -R pulse:pulse "$PULSE_DIR"
     fi
 else
-    git clone https://github.com/lnflash/pulse.git
-    cd pulse
-    chown -R pulse:pulse /opt/pulse
+    cd /opt
+    git clone https://github.com/lnflash/pulse.git pulse
+    chown -R pulse:pulse "$PULSE_DIR"
 fi
+
+# Ensure we're in the correct directory
+cd "$PULSE_DIR"
 
 # Create directories
 sudo -u pulse mkdir -p whatsapp-sessions logs backups credentials public scripts
@@ -450,9 +454,9 @@ chmod 777 whatsapp-sessions  # Chrome needs write access
 
 # Copy Google Cloud keyfile if provided
 if [ -n "$GOOGLE_CLOUD_KEYFILE_PATH" ] && [ -f "$GOOGLE_CLOUD_KEYFILE_PATH" ]; then
-    cp "$GOOGLE_CLOUD_KEYFILE_PATH" /opt/pulse/credentials/google-cloud-key.json
-    chown pulse:pulse /opt/pulse/credentials/google-cloud-key.json
-    chmod 600 /opt/pulse/credentials/google-cloud-key.json
+    cp "$GOOGLE_CLOUD_KEYFILE_PATH" "$PULSE_DIR/credentials/google-cloud-key.json"
+    chown pulse:pulse "$PULSE_DIR/credentials/google-cloud-key.json"
+    chmod 600 "$PULSE_DIR/credentials/google-cloud-key.json"
     print_success "Google Cloud keyfile copied to credentials directory"
 fi
 
@@ -683,13 +687,14 @@ ufw --force enable
 
 # Create management script
 print_step "Creating management scripts"
-cat > /usr/local/bin/pulse << 'EOF'
+cat > /usr/local/bin/pulse << EOF
 #!/bin/bash
 # Pulse management script
+PULSE_DIR="$PULSE_DIR"
 
-case "$1" in
+case "\$1" in
     start)
-        sudo -u pulse pm2 start /opt/pulse/ecosystem.config.js
+        sudo -u pulse pm2 start \$PULSE_DIR/ecosystem.config.js
         ;;
     stop)
         sudo -u pulse pm2 stop pulse
@@ -704,20 +709,20 @@ case "$1" in
         sudo -u pulse pm2 status
         ;;
     logs)
-        sudo -u pulse pm2 logs pulse ${@:2}
+        sudo -u pulse pm2 logs pulse \${@:2}
         ;;
     monitor)
         sudo -u pulse pm2 monit
         ;;
     update)
-        cd /opt/pulse
+        cd \$PULSE_DIR
         sudo -u pulse git pull origin main
         sudo -u pulse npm install
         sudo -u pulse npm run build
         sudo -u pulse pm2 restart pulse
         ;;
     backup)
-        /opt/pulse/scripts/backup.sh
+        \$PULSE_DIR/scripts/backup.sh
         ;;
     *)
         echo "Usage: pulse {start|stop|restart|reload|status|logs|monitor|update|backup}"
@@ -728,40 +733,41 @@ EOF
 chmod +x /usr/local/bin/pulse
 
 # Create backup script
-cat > /opt/pulse/scripts/backup.sh << 'EOF'
+cat > "$PULSE_DIR/scripts/backup.sh" << EOF
 #!/bin/bash
 # Pulse backup script
+PULSE_DIR="$PULSE_DIR"
 
-BACKUP_DIR="/opt/pulse/backups"
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_NAME="pulse_backup_$TIMESTAMP"
+BACKUP_DIR="\$PULSE_DIR/backups"
+TIMESTAMP=\$(date +%Y%m%d_%H%M%S)
+BACKUP_NAME="pulse_backup_\$TIMESTAMP"
 
-mkdir -p $BACKUP_DIR/$BACKUP_NAME
+mkdir -p \$BACKUP_DIR/\$BACKUP_NAME
 
 # Backup application data
-cp -r /opt/pulse/whatsapp-sessions $BACKUP_DIR/$BACKUP_NAME/
-cp /opt/pulse/.env $BACKUP_DIR/$BACKUP_NAME/
+cp -r \$PULSE_DIR/whatsapp-sessions \$BACKUP_DIR/\$BACKUP_NAME/
+cp \$PULSE_DIR/.env \$BACKUP_DIR/\$BACKUP_NAME/
 
 # Backup Redis
-redis-cli --no-auth-warning -a $(grep REDIS_PASSWORD /opt/pulse/.env | cut -d'=' -f2) BGSAVE
+redis-cli --no-auth-warning -a \$(grep REDIS_PASSWORD \$PULSE_DIR/.env | cut -d'=' -f2) BGSAVE
 sleep 5
-cp /var/lib/redis/dump.rdb $BACKUP_DIR/$BACKUP_NAME/
+cp /var/lib/redis/dump.rdb \$BACKUP_DIR/\$BACKUP_NAME/
 
 # Create archive
-cd $BACKUP_DIR
-tar -czf $BACKUP_NAME.tar.gz $BACKUP_NAME
-rm -rf $BACKUP_NAME
+cd \$BACKUP_DIR
+tar -czf \$BACKUP_NAME.tar.gz \$BACKUP_NAME
+rm -rf \$BACKUP_NAME
 
 # Keep only last 7 backups
-ls -t $BACKUP_DIR/*.tar.gz | tail -n +8 | xargs -r rm
+ls -t \$BACKUP_DIR/*.tar.gz | tail -n +8 | xargs -r rm
 
-echo "Backup completed: $BACKUP_DIR/$BACKUP_NAME.tar.gz"
+echo "Backup completed: \$BACKUP_DIR/\$BACKUP_NAME.tar.gz"
 EOF
-chmod +x /opt/pulse/scripts/backup.sh
-chown pulse:pulse /opt/pulse/scripts/backup.sh
+chmod +x "$PULSE_DIR/scripts/backup.sh"
+chown pulse:pulse "$PULSE_DIR/scripts/backup.sh"
 
 # Create monitoring script
-cat > /opt/pulse/scripts/monitor.sh << 'EOF'
+cat > "$PULSE_DIR/scripts/monitor.sh" << 'EOF'
 #!/bin/bash
 # Pulse monitoring script
 
@@ -807,7 +813,7 @@ fi
 echo -e "\n=== Recent Errors ==="
 pm2 logs pulse --err --lines 10 --nostream 2>/dev/null || echo "No recent errors"
 EOF
-chmod +x /opt/pulse/scripts/monitor.sh
+chmod +x "$PULSE_DIR/scripts/monitor.sh"
 
 # Setup cron jobs
 print_step "Setting up automated tasks"
@@ -815,15 +821,16 @@ cat > /etc/cron.d/pulse << EOF
 # Pulse automated tasks
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+PULSE_DIR=$PULSE_DIR
 
 # Daily backup at 3 AM
-0 3 * * * pulse /opt/pulse/scripts/backup.sh >> /opt/pulse/logs/backup.log 2>&1
+0 3 * * * pulse \$PULSE_DIR/scripts/backup.sh >> \$PULSE_DIR/logs/backup.log 2>&1
 
 # Monitor every 5 minutes
-*/5 * * * * root /opt/pulse/scripts/monitor.sh >> /opt/pulse/logs/monitor.log 2>&1
+*/5 * * * * root \$PULSE_DIR/scripts/monitor.sh >> \$PULSE_DIR/logs/monitor.log 2>&1
 
 # Log rotation weekly
-0 0 * * 0 pulse find /opt/pulse/logs -name "*.log" -mtime +7 -delete
+0 0 * * 0 pulse find \$PULSE_DIR/logs -name "*.log" -mtime +7 -delete
 
 # SSL renewal check
 0 2 * * * root certbot renew --quiet --post-hook "systemctl reload nginx"
@@ -884,12 +891,12 @@ if [[ "$ENABLE_ADMIN_PANEL" == "true" ]]; then
 fi
 echo "  • RabbitMQ Management: http://$DOMAIN_NAME:15672"
 echo "    Username: pulse"
-echo "    Password: Check RABBITMQ_PASSWORD in /opt/pulse/.env"
+echo "    Password: Check RABBITMQ_PASSWORD in $PULSE_DIR/.env"
 echo ""
 echo -e "${YELLOW}Important Next Steps:${NC}"
 if [ -z "$FLASH_API_KEY" ]; then
     echo "1. Add your Flash API key:"
-    echo "   nano /opt/pulse/.env"
+    echo "   nano $PULSE_DIR/.env"
     echo "   Update: FLASH_API_KEY=your_actual_key"
     echo "   Then restart: pulse restart"
     echo ""
