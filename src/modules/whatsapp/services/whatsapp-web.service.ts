@@ -174,27 +174,45 @@ export class WhatsAppWebService
       this.logger.log('✅ WhatsApp Web authenticated successfully');
       this.logger.log('Waiting for client to be ready...');
       
-      // Workaround: Set ready after 30 seconds if ready event doesn't fire
-      setTimeout(async () => {
-        if (!this.isReady) {
-          this.logger.warn('⚠️ Ready event not fired after 30 seconds, forcing ready state...');
-          this.isReady = true;
+      // Check client state periodically after authentication
+      let checkCount = 0;
+      const checkInterval = setInterval(async () => {
+        checkCount++;
+        
+        try {
+          const state = await this.client.getState();
+          this.logger.log(`🔍 Checking client state (attempt ${checkCount}): ${state}`);
           
-          try {
+          // If client is connected but ready event hasn't fired
+          if (state === 'CONNECTED' && !this.isReady) {
+            this.logger.warn('⚠️ Client is CONNECTED but ready event not fired, forcing ready state...');
+            this.isReady = true;
+            clearInterval(checkInterval);
+            
             const info = this.client.info;
-            this.logger.log('🚀 WhatsApp Web client is READY (forced)!');
+            this.logger.log('🚀 WhatsApp Web client is READY (forced from CONNECTED state)!');
             this.logger.log(`📞 Connected phone: ${info?.wid?.user || 'Unknown'}`);
             this.logger.log(`👤 Bot name: ${info?.pushname || 'Unknown'}`);
             this.logger.log('✅ Now accepting messages');
-            
-            // Also log the client state
-            const state = await this.client.getState();
-            this.logger.log(`📊 Client state: ${state}`);
-          } catch (error) {
-            this.logger.error('Error getting client info:', error);
           }
+          
+          // If we've checked 6 times (30 seconds) and still not ready
+          if (checkCount >= 6 && !this.isReady) {
+            this.logger.error('❌ Client failed to reach ready state after 30 seconds');
+            clearInterval(checkInterval);
+          }
+        } catch (error) {
+          this.logger.error('Error checking client state:', error);
         }
-      }, 30000); // Increased to 30 seconds for production environments
+      }, 5000); // Check every 5 seconds
+      
+      // Also keep the timeout as a fallback
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        if (!this.isReady) {
+          this.logger.error('❌ Ready event not fired after 30 seconds, client may not be functional');
+        }
+      }, 30000);
     });
 
     // Authentication failure
@@ -587,9 +605,38 @@ export class WhatsAppWebService
     // Loading screen
     let lastLoadingPercent = '';
     let loadingStuckCount = 0;
+    let loading100Count = 0;
     
     this.client.on('loading_screen', (percent, message) => {
       this.logger.log(`⏳ Loading: ${percent}% - ${message}`);
+      
+      // Check if loading reached 100%
+      if (percent === '100') {
+        loading100Count++;
+        
+        // If at 100% for multiple events but not ready
+        if (loading100Count >= 2 && !this.isReady) {
+          this.logger.warn('⚠️ WhatsApp at 100% loading but not ready, checking client state...');
+          
+          setTimeout(async () => {
+            try {
+              const state = await this.client.getState();
+              this.logger.log(`📊 Client state at 100% loading: ${state}`);
+              
+              if (state === 'CONNECTED' && !this.isReady) {
+                this.isReady = true;
+                const info = this.client.info;
+                this.logger.log('🚀 WhatsApp Web client is READY (forced from 100% loading)!');
+                this.logger.log(`📞 Connected phone: ${info?.wid?.user || 'Unknown'}`);
+                this.logger.log(`👤 Bot name: ${info?.pushname || 'Unknown'}`);
+                this.logger.log('✅ Now accepting messages');
+              }
+            } catch (error) {
+              this.logger.error('Error checking state at 100% loading:', error);
+            }
+          }, 3000); // Wait 3 seconds after 100%
+        }
+      }
       
       // Check if loading is stuck at 99%
       if (percent === '99' && percent === lastLoadingPercent) {
@@ -724,9 +771,9 @@ export class WhatsAppWebService
             '--disable-dev-shm-usage',
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
-            '--no-zygote',
-            '--single-process',
             '--disable-gpu',
+            '--disable-blink-features=AutomationControlled',
+            '--disable-features=IsolateOrigins,site-per-process',
           ],
         },
         authTimeoutMs: 60000,
@@ -948,6 +995,14 @@ export class WhatsAppWebService
     }
 
     try {
+      // Double-check the client state
+      const state = await this.client.getState();
+      if (state !== 'CONNECTED') {
+        this.logger.error(`Cannot send message, client state is: ${state}`);
+        this.isReady = false; // Reset ready state
+        throw new Error(`WhatsApp client is not connected (state: ${state})`);
+      }
+
       // Ensure the number has @c.us suffix
       const chatId = to.includes('@') ? to : `${to}@c.us`;
       const phoneNumber = to.replace('@c.us', '');
