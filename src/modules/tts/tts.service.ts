@@ -44,12 +44,14 @@ export class TtsService {
           keyFilename: googleCloudKeyFile,
         });
         this.provider = 'google-cloud';
+        this.logger.log('✅ Google Cloud TTS initialized successfully');
       } catch (error) {
         this.logger.warn('Failed to initialize Google Cloud TTS, falling back to free API:', error);
         this.provider = 'google-tts-api';
       }
     } else {
       this.provider = 'google-tts-api';
+      this.logger.log('ℹ️ Using free TTS API (200 char limit). For better voice quality, configure GOOGLE_CLOUD_KEYFILE');
     }
   }
 
@@ -188,10 +190,12 @@ export class TtsService {
           switch (userMode) {
             case UserVoiceMode.OFF:
               // User has disabled voice
+              this.logger.debug(`Voice disabled for user ${whatsappId} (user preference: OFF)`);
               return false;
 
             case UserVoiceMode.ONLY:
               // User wants voice only (always)
+              this.logger.debug(`Voice enabled for user ${whatsappId} (user preference: ONLY)`);
               return true;
 
             case UserVoiceMode.ON:
@@ -199,7 +203,9 @@ export class TtsService {
               if (isAiResponse) {
                 const voiceKeywords = ['voice', 'audio', 'speak', 'say it', 'tell me'];
                 const lowerText = text.toLowerCase();
-                return voiceKeywords.some((keyword) => lowerText.includes(keyword));
+                const hasKeyword = voiceKeywords.some((keyword) => lowerText.includes(keyword));
+                this.logger.debug(`Voice check for user ${whatsappId}: AI response=${isAiResponse}, has keyword=${hasKeyword}`);
+                return hasKeyword;
               }
               return false;
           }
@@ -208,6 +214,7 @@ export class TtsService {
 
       // Fall back to admin settings if no user preference
       const voiceMode = await this.adminSettingsService.getVoiceMode();
+      this.logger.debug(`Using admin voice mode: ${voiceMode}, isAiResponse: ${isAiResponse}`);
 
       switch (voiceMode) {
         case 'off':
