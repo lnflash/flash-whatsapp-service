@@ -177,25 +177,50 @@ print_success "PM2 installed"
 # Install Chromium
 print_step "Installing Chromium Browser"
 # Install dependencies first
-apt install -y \
-    fonts-liberation \
-    libasound2 \
-    libatk-bridge2.0-0 \
-    libatk1.0-0 \
-    libatspi2.0-0 \
-    libcups2 \
-    libdbus-1-3 \
-    libdrm2 \
-    libgbm1 \
-    libgtk-3-0 \
-    libnss3 \
-    libx11-6 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxext6 \
-    libxfixes3 \
-    libxrandr2 \
-    xdg-utils
+# Handle package name differences in Ubuntu 24.10+
+if [[ "$UBUNTU_VERSION" == "24.10" ]] || [[ "$UBUNTU_VERSION" > "24.10" ]]; then
+    # Ubuntu 24.10+ uses t64 transition packages
+    apt install -y \
+        fonts-liberation \
+        libasound2t64 \
+        libatk-bridge2.0-0t64 \
+        libatk1.0-0t64 \
+        libatspi2.0-0t64 \
+        libcups2t64 \
+        libdbus-1-3 \
+        libdrm2 \
+        libgbm1 \
+        libgtk-3-0t64 \
+        libnss3 \
+        libx11-6 \
+        libxcomposite1 \
+        libxdamage1 \
+        libxext6 \
+        libxfixes3 \
+        libxrandr2 \
+        xdg-utils
+else
+    # Ubuntu 22.04 and 24.04 use standard packages
+    apt install -y \
+        fonts-liberation \
+        libasound2 \
+        libatk-bridge2.0-0 \
+        libatk1.0-0 \
+        libatspi2.0-0 \
+        libcups2 \
+        libdbus-1-3 \
+        libdrm2 \
+        libgbm1 \
+        libgtk-3-0 \
+        libnss3 \
+        libx11-6 \
+        libxcomposite1 \
+        libxdamage1 \
+        libxext6 \
+        libxfixes3 \
+        libxrandr2 \
+        xdg-utils
+fi
 
 # Install Chromium based on Ubuntu version
 if [[ "$UBUNTU_VERSION" == "24."* ]]; then
