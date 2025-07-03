@@ -181,10 +181,14 @@ if [[ "$HAS_FLASH_KEY" =~ ^[Yy]$ ]]; then
 fi
 
 # Admin phone numbers
-read -p "Enter admin phone numbers (comma-separated, e.g., +1234567890,+0987654321): " ADMIN_PHONES
+read -p "Enter admin phone numbers (comma-separated, e.g., 1234567890,0987654321): " ADMIN_PHONES_INPUT
+# Remove + prefix from admin phone numbers
+ADMIN_PHONES=$(echo "$ADMIN_PHONES_INPUT" | sed 's/+//g')
 
 # Support phone number
-read -p "Enter support phone number (optional, press Enter to skip): " SUPPORT_PHONE
+read -p "Enter support phone number (optional, e.g., 1234567890, press Enter to skip): " SUPPORT_PHONE_INPUT
+# Remove + prefix from support phone number
+SUPPORT_PHONE=$(echo "$SUPPORT_PHONE_INPUT" | sed 's/+//g')
 
 # Optional AI and Nostr configuration
 print_info "The following are optional. Press Enter to skip any you don't have."
@@ -910,8 +914,9 @@ echo "   pulse logs"
 echo "   Scan the QR code with WhatsApp"
 echo ""
 echo "3. Configure admin numbers if not done:"
-echo "   nano /opt/pulse/.env"
-echo "   Update: ADMIN_PHONE_NUMBERS=+1234567890,+0987654321"
+echo "   nano $PULSE_DIR/.env"
+echo "   Update: ADMIN_PHONE_NUMBERS=1234567890,0987654321"
+echo "   Note: Phone numbers should NOT include the + prefix"
 echo ""
 echo -e "${CYAN}Management Commands:${NC}"
 echo "  pulse start     - Start the bot"
