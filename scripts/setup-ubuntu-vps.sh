@@ -272,17 +272,30 @@ print_success "Redis configured and running"
 
 # Install RabbitMQ
 print_step "Installing RabbitMQ"
-# Install Erlang dependencies
-apt install -y erlang-base erlang-asn1 erlang-crypto erlang-eldap erlang-ftp \
-    erlang-inets erlang-mnesia erlang-os-mon erlang-parsetools \
-    erlang-public-key erlang-runtime-tools erlang-snmp erlang-ssl \
-    erlang-syntax-tools erlang-tftp erlang-tools erlang-xmerl
 
-# Add RabbitMQ repository
-curl -1sLf 'https://packagecloud.io/rabbitmq/rabbitmq-server/gpgkey' | gpg --dearmor | tee /usr/share/keyrings/rabbitmq.gpg > /dev/null
-echo "deb [signed-by=/usr/share/keyrings/rabbitmq.gpg] https://packagecloud.io/rabbitmq/rabbitmq-server/ubuntu/ $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/rabbitmq.list
-apt update
-apt install -y rabbitmq-server
+# Check if we can use the official RabbitMQ repo or need to use Ubuntu's packages
+if [[ "$UBUNTU_VERSION" == "24.10" ]] || [[ "$UBUNTU_VERSION" > "24.10" ]]; then
+    print_info "Using Ubuntu's RabbitMQ packages for Ubuntu $UBUNTU_VERSION"
+    # Remove any existing RabbitMQ repo that might have been added
+    rm -f /etc/apt/sources.list.d/rabbitmq.list
+    apt update
+    # For Ubuntu 24.10+, use the distribution's RabbitMQ
+    apt install -y rabbitmq-server
+else
+    # For Ubuntu 22.04 and 24.04, use official RabbitMQ repo
+    print_info "Using official RabbitMQ repository"
+    # Install Erlang dependencies
+    apt install -y erlang-base erlang-asn1 erlang-crypto erlang-eldap erlang-ftp \
+        erlang-inets erlang-mnesia erlang-os-mon erlang-parsetools \
+        erlang-public-key erlang-runtime-tools erlang-snmp erlang-ssl \
+        erlang-syntax-tools erlang-tftp erlang-tools erlang-xmerl
+
+    # Add RabbitMQ repository
+    curl -1sLf 'https://packagecloud.io/rabbitmq/rabbitmq-server/gpgkey' | gpg --dearmor | tee /usr/share/keyrings/rabbitmq.gpg > /dev/null
+    echo "deb [signed-by=/usr/share/keyrings/rabbitmq.gpg] https://packagecloud.io/rabbitmq/rabbitmq-server/ubuntu/ $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/rabbitmq.list
+    apt update
+    apt install -y rabbitmq-server
+fi
 
 # Fix hostname resolution for RabbitMQ
 echo "127.0.1.1 $(hostname)" >> /etc/hosts
