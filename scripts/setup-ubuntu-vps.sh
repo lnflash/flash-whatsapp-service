@@ -72,7 +72,7 @@ echo -e "${NC}"
 echo "This script will install:"
 echo "  • Node.js 20 LTS"
 echo "  • PM2 Process Manager"
-echo "  • Chromium Browser"
+echo "  • Chrome/Chromium Browser"
 echo "  • Redis Server"
 echo "  • RabbitMQ Server"
 echo "  • Nginx with SSL"
@@ -262,8 +262,8 @@ print_step "Installing PM2 Process Manager"
 npm install -g pm2
 print_success "PM2 installed"
 
-# Install Chromium
-print_step "Installing Chromium Browser"
+# Install Chrome/Chromium
+print_step "Installing Chrome/Chromium Browser"
 # Install dependencies first
 # Handle package name differences - Ubuntu 24.04+ uses t64 transition packages
 if [[ "$UBUNTU_VERSION" == "24.04" ]] || [[ "$UBUNTU_VERSION" == "24.10" ]] || [[ "$UBUNTU_VERSION" > "24.10" ]]; then
@@ -310,27 +310,31 @@ else
         xdg-utils
 fi
 
-# Install Chromium based on Ubuntu version
+# Install Chrome/Chromium based on Ubuntu version
 if [[ "$UBUNTU_VERSION" == "24."* ]]; then
-    # Ubuntu 24 defaults to snap, but we need the apt version for systemd compatibility
-    print_info "Installing Chromium from apt (snap version has systemd issues)"
-    # Add universe repository if not already enabled
-    add-apt-repository universe -y
+    # Ubuntu 24 moved Chromium to snap-only, the apt package is just a wrapper
+    # Install Google Chrome instead for compatibility
+    print_info "Installing Google Chrome (Ubuntu 24.x requires Chrome instead of Chromium)"
+    
+    # Add Google Chrome repository
+    wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add -
+    echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list
     DEBIAN_FRONTEND=noninteractive apt-get update -qq
-    # Install chromium-browser instead of snap
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq chromium-browser
-    CHROME_PATH="/usr/bin/chromium-browser"
+    
+    # Install Google Chrome
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq google-chrome-stable
+    CHROME_PATH="/usr/bin/google-chrome-stable"
 else
-    # Ubuntu 22 and older
+    # Ubuntu 22 and older - chromium-browser works fine
     DEBIAN_FRONTEND=noninteractive apt-get install -y -qq chromium-browser
     CHROME_PATH="/usr/bin/chromium-browser"
 fi
 
-# Verify Chromium installation
+# Verify Chrome/Chromium installation
 if [ -x "$CHROME_PATH" ]; then
-    print_success "Chromium installed at $CHROME_PATH"
+    print_success "Chrome/Chromium installed at $CHROME_PATH"
 else
-    print_error "Chromium installation failed"
+    print_error "Chrome/Chromium installation failed"
     exit 1
 fi
 
