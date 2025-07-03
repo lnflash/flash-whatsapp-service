@@ -574,14 +574,14 @@ export class WhatsAppWebService
     });
 
     // Loading screen
-    let lastLoadingPercent = 0;
+    let lastLoadingPercent = '';
     let loadingStuckCount = 0;
     
     this.client.on('loading_screen', (percent, message) => {
       this.logger.log(`⏳ Loading: ${percent}% - ${message}`);
       
       // Check if loading is stuck at 99%
-      if (percent === 99 && percent === lastLoadingPercent) {
+      if (percent === '99' && percent === lastLoadingPercent) {
         loadingStuckCount++;
         
         // If stuck at 99% for 3 consecutive events, force ready state
