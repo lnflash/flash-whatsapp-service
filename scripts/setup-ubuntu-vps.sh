@@ -180,11 +180,41 @@ fi
 # Admin phone numbers
 read -p "Enter admin phone numbers (comma-separated, e.g., +1234567890,+0987654321): " ADMIN_PHONES
 
+# Support phone number
+read -p "Enter support phone number (optional, press Enter to skip): " SUPPORT_PHONE
+
+# Optional AI and Nostr configuration
+print_info "The following are optional. Press Enter to skip any you don't have."
+
+# Gemini API
+read -p "Enter Google Gemini API key (optional): " GEMINI_API_KEY
+
+# Nostr configuration
+read -p "Enter Nostr private key (nsec format, optional): " NOSTR_PRIVATE_KEY
+read -p "Enter Pulse bot's Nostr public key (npub format, optional): " NOSTR_PULSE_NPUB
+
+# Google Cloud
+read -p "Do you have a Google Cloud keyfile for Text-to-Speech? (y/n) [n]: " HAS_GOOGLE_CLOUD
+HAS_GOOGLE_CLOUD=${HAS_GOOGLE_CLOUD:-n}
+if [[ "$HAS_GOOGLE_CLOUD" =~ ^[Yy]$ ]]; then
+    read -p "Enter the full path to your Google Cloud keyfile JSON: " GOOGLE_CLOUD_KEYFILE_PATH
+    if [ -f "$GOOGLE_CLOUD_KEYFILE_PATH" ]; then
+        GOOGLE_CLOUD_KEYFILE="/opt/pulse/credentials/google-cloud-key.json"
+    else
+        print_warning "File not found: $GOOGLE_CLOUD_KEYFILE_PATH"
+        GOOGLE_CLOUD_KEYFILE=""
+    fi
+fi
+
 print_info "Configuration summary:"
 echo "  Domain: $DOMAIN_NAME"
 echo "  SSL Email: $SSL_EMAIL"
 echo "  Admin Panel: $ENABLE_ADMIN_PANEL"
 echo "  Flash API: $([ -n "$FLASH_API_KEY" ] && echo "Configured" || echo "To be configured later")"
+echo "  Support Phone: $([ -n "$SUPPORT_PHONE" ] && echo "$SUPPORT_PHONE" || echo "Not configured")"
+echo "  Gemini AI: $([ -n "$GEMINI_API_KEY" ] && echo "Configured" || echo "Not configured")"
+echo "  Nostr: $([ -n "$NOSTR_PRIVATE_KEY" ] && echo "Configured" || echo "Not configured")"
+echo "  Google Cloud TTS: $([ -n "$GOOGLE_CLOUD_KEYFILE" ] && echo "Configured" || echo "Not configured")"
 echo ""
 read -p "Continue with installation? (y/n): " -n 1 -r
 echo
@@ -407,6 +437,14 @@ fi
 sudo -u pulse mkdir -p whatsapp-sessions logs backups credentials public scripts
 chmod 777 whatsapp-sessions  # Chrome needs write access
 
+# Copy Google Cloud keyfile if provided
+if [ -n "$GOOGLE_CLOUD_KEYFILE_PATH" ] && [ -f "$GOOGLE_CLOUD_KEYFILE_PATH" ]; then
+    cp "$GOOGLE_CLOUD_KEYFILE_PATH" /opt/pulse/credentials/google-cloud-key.json
+    chown pulse:pulse /opt/pulse/credentials/google-cloud-key.json
+    chmod 600 /opt/pulse/credentials/google-cloud-key.json
+    print_success "Google Cloud keyfile copied to credentials directory"
+fi
+
 # Generate secure keys
 JWT_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
@@ -448,7 +486,7 @@ FLASH_API_KEY=${FLASH_API_KEY:-YOUR_FLASH_API_KEY_HERE}
 
 # Admin Configuration
 ADMIN_PHONE_NUMBERS=${ADMIN_PHONES:-YOUR_ADMIN_PHONES_HERE}
-SUPPORT_PHONE_NUMBER=
+SUPPORT_PHONE_NUMBER=${SUPPORT_PHONE:-}
 
 # Security
 JWT_SECRET=$JWT_SECRET
@@ -470,11 +508,11 @@ WEBHOOK_SECRET=$WEBHOOK_SECRET
 WEBHOOK_TOLERANCE=300
 
 # Optional Services
-GEMINI_API_KEY=
-NOSTR_PRIVATE_KEY=
+GEMINI_API_KEY=${GEMINI_API_KEY:-}
+NOSTR_PRIVATE_KEY=${NOSTR_PRIVATE_KEY:-}
 NOSTR_RELAYS=wss://relay.damus.io,wss://nos.lol,wss://relay.nostr.band,wss://relay.flashapp.me
-NOSTR_PULSE_NPUB=
-GOOGLE_CLOUD_KEYFILE=
+NOSTR_PULSE_NPUB=${NOSTR_PULSE_NPUB:-}
+GOOGLE_CLOUD_KEYFILE=${GOOGLE_CLOUD_KEYFILE:-}
 
 # Features
 ENABLE_ADMIN_PANEL=$ENABLE_ADMIN_PANEL
