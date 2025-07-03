@@ -157,6 +157,24 @@ export class WhatsAppWebService
     this.client.on('authenticated', () => {
       this.logger.log('✅ WhatsApp Web authenticated successfully');
       this.logger.log('Waiting for client to be ready...');
+      
+      // Workaround: Set ready after 5 seconds if ready event doesn't fire
+      setTimeout(async () => {
+        if (!this.isReady) {
+          this.logger.warn('⚠️ Ready event not fired, forcing ready state...');
+          this.isReady = true;
+          
+          try {
+            const info = this.client.info;
+            this.logger.log('🚀 WhatsApp Web client is READY (forced)!');
+            this.logger.log(`📞 Connected phone: ${info?.wid?.user || 'Unknown'}`);
+            this.logger.log(`👤 Bot name: ${info?.pushname || 'Unknown'}`);
+            this.logger.log('✅ Now accepting messages');
+          } catch (error) {
+            this.logger.error('Error getting client info:', error);
+          }
+        }
+      }, 5000);
     });
 
     // Authentication failure
@@ -190,9 +208,12 @@ export class WhatsAppWebService
 
     // Message handling
     this.client.on('message', async (msg: Message) => {
+      this.logger.debug(`📥 Raw message received from ${msg.from}: "${msg.body}"`);
+      
       try {
         // Ignore messages during startup grace period
         if (this.isInGracePeriod) {
+          this.logger.debug('⏳ Ignoring message - still in grace period');
           return;
         }
 
