@@ -102,7 +102,8 @@ apt install -y \
     certbot \
     python3-certbot-nginx \
     # Dependencies for Puppeteer/Chrome
-    chromium-browser \
+    chromium \
+    chromium-driver \
     libx11-xcb1 \
     libxcomposite1 \
     libxcursor1 \
@@ -289,7 +290,7 @@ RABBITMQ_PASSWORD=$RABBITMQ_PASSWORD
 RABBITMQ_URL=amqp://pulse:$RABBITMQ_PASSWORD@localhost:5672
 
 # Puppeteer Configuration
-PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Flash API Configuration (Update these with your API credentials)
 FLASH_API_URL=https://api.flashapp.me/graphql

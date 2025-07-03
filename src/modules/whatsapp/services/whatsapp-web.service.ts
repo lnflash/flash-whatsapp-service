@@ -58,9 +58,10 @@ export class WhatsAppWebService
     };
 
     // Use system Chrome if available
-    const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser';
-    if (executablePath) {
+    const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium';
+    if (executablePath && require('fs').existsSync(executablePath)) {
       puppeteerConfig.executablePath = executablePath;
+      this.logger.log(`Using system Chrome at: ${executablePath}`);
     }
 
     this.client = new Client({
