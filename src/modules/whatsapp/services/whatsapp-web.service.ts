@@ -180,16 +180,36 @@ export class WhatsAppWebService
         checkCount++;
         
         try {
+          // Try multiple ways to check if client is ready
           const state = await this.client.getState();
-          this.logger.log(`🔍 Checking client state (attempt ${checkCount}): ${state}`);
+          const info = this.client.info;
+          
+          this.logger.log(`🔍 Checking client state (attempt ${checkCount}):`);
+          this.logger.log(`  - State: ${state}`);
+          this.logger.log(`  - Info exists: ${info ? 'yes' : 'no'}`);
+          this.logger.log(`  - Client exists: ${this.client ? 'yes' : 'no'}`);
+          
+          // If we have client info, we might be ready even without state
+          if (info && info.wid && !this.isReady) {
+            this.logger.warn('⚠️ Client info available but ready event not fired, forcing ready state...');
+            this.isReady = true;
+            clearInterval(checkInterval);
+            
+            this.logger.log('🚀 WhatsApp Web client is READY (forced from client info)!');
+            this.logger.log(`📞 Connected phone: ${info.wid.user || 'Unknown'}`);
+            this.logger.log(`👤 Bot name: ${info.pushname || 'Unknown'}`);
+            this.logger.log('✅ Now accepting messages');
+            
+            // Try to emit ready event manually
+            this.client.emit('ready');
+          }
           
           // If client is connected but ready event hasn't fired
-          if (state === 'CONNECTED' && !this.isReady) {
+          else if (state === 'CONNECTED' && !this.isReady) {
             this.logger.warn('⚠️ Client is CONNECTED but ready event not fired, forcing ready state...');
             this.isReady = true;
             clearInterval(checkInterval);
             
-            const info = this.client.info;
             this.logger.log('🚀 WhatsApp Web client is READY (forced from CONNECTED state)!');
             this.logger.log(`📞 Connected phone: ${info?.wid?.user || 'Unknown'}`);
             this.logger.log(`👤 Bot name: ${info?.pushname || 'Unknown'}`);
@@ -199,10 +219,12 @@ export class WhatsAppWebService
           // If we've checked 6 times (30 seconds) and still not ready
           if (checkCount >= 6 && !this.isReady) {
             this.logger.error('❌ Client failed to reach ready state after 30 seconds');
+            this.logger.log('Attempting to force ready state anyway...');
+            this.isReady = true;
             clearInterval(checkInterval);
           }
         } catch (error) {
-          this.logger.error('Error checking client state:', error);
+          this.logger.error('Error checking client state:', error.message);
         }
       }, 5000); // Check every 5 seconds
       
@@ -229,6 +251,19 @@ export class WhatsAppWebService
       this.logger.log(`📞 Connected phone: ${info?.wid?.user || 'Unknown'}`);
       this.logger.log(`👤 Bot name: ${info?.pushname || 'Unknown'}`);
       this.logger.log('✅ Now accepting messages');
+      
+      // Log the actual state when ready fires
+      try {
+        const state = await this.client.getState();
+        this.logger.log(`📊 Client state on ready: ${state}`);
+      } catch (e) {
+        this.logger.error('Could not get state on ready:', e.message);
+      }
+    });
+    
+    // Remote session saved (might indicate successful connection)
+    this.client.on('remote_session_saved', () => {
+      this.logger.log('💾 Remote session saved successfully');
     });
 
     // Disconnection
@@ -996,8 +1031,14 @@ export class WhatsAppWebService
 
     try {
       // Double-check the client state
-      const state = await this.client.getState();
-      if (state !== 'CONNECTED') {
+      let state;
+      try {
+        state = await this.client.getState();
+      } catch (stateError) {
+        this.logger.warn('Could not get client state, attempting to send anyway...');
+      }
+      
+      if (state && state !== 'CONNECTED') {
         this.logger.error(`Cannot send message, client state is: ${state}`);
         this.isReady = false; // Reset ready state
         throw new Error(`WhatsApp client is not connected (state: ${state})`);
