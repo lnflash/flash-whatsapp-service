@@ -289,15 +289,15 @@ print_success "Redis configured and running"
 print_step "Installing RabbitMQ"
 
 # Check if we can use the official RabbitMQ repo or need to use Ubuntu's packages
-if [[ "$UBUNTU_VERSION" == "24.10" ]] || [[ "$UBUNTU_VERSION" > "24.10" ]]; then
+if [[ "$UBUNTU_VERSION" == "24.04" ]] || [[ "$UBUNTU_VERSION" == "24.10" ]] || [[ "$UBUNTU_VERSION" > "24.10" ]]; then
     print_info "Using Ubuntu's RabbitMQ packages for Ubuntu $UBUNTU_VERSION"
     # Remove any existing RabbitMQ repo that might have been added
     rm -f /etc/apt/sources.list.d/rabbitmq.list
     apt update
-    # For Ubuntu 24.10+, use the distribution's RabbitMQ
+    # For Ubuntu 24.04+, use the distribution's RabbitMQ
     apt install -y rabbitmq-server
 else
-    # For Ubuntu 22.04 and 24.04, use official RabbitMQ repo
+    # For Ubuntu 22.04, use official RabbitMQ repo
     print_info "Using official RabbitMQ repository"
     # Install Erlang dependencies
     apt install -y erlang-base erlang-asn1 erlang-crypto erlang-eldap erlang-ftp \
