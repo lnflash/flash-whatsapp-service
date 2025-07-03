@@ -40,27 +40,35 @@ export class WhatsAppWebService
     private readonly speechService: SpeechService,
   ) {
     // Initialize WhatsApp Web client with persistent session
+    const puppeteerConfig: any = {
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--disable-gpu',
+        '--disable-blink-features=AutomationControlled',
+      ],
+      // Increase browser launch timeout
+      timeout: 60000,
+      // Don't use the default viewport
+      defaultViewport: null,
+    };
+
+    // Use system Chrome if available
+    const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser';
+    if (executablePath) {
+      puppeteerConfig.executablePath = executablePath;
+    }
+
     this.client = new Client({
       authStrategy: new LocalAuth({
         clientId: 'pulse-bot',
         dataPath: './whatsapp-sessions',
       }),
-      puppeteer: {
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--disable-gpu',
-          '--disable-blink-features=AutomationControlled',
-        ],
-        // Increase browser launch timeout
-        timeout: 60000,
-        // Don't use the default viewport
-        defaultViewport: null,
-      },
+      puppeteer: puppeteerConfig,
       // Increase timeout for slower systems
       authTimeoutMs: 60000,
     });
@@ -177,11 +185,11 @@ export class WhatsAppWebService
     this.client.on('authenticated', async () => {
       this.logger.log('✅ WhatsApp Web authenticated successfully');
       
-      // In Docker/headless environments, the ready event often doesn't fire
-      // Force ready state after a short delay to ensure page is loaded
+      // In headless environments, sometimes the ready event doesn't fire immediately
+      // Set a fallback timer, but give the normal ready event a chance first
       setTimeout(() => {
         if (!this.isReady) {
-          this.logger.log('🚀 Forcing ready state in Docker environment...');
+          this.logger.warn('⚠️ Ready event not fired after authentication, forcing ready state...');
           this.isReady = true;
           
           // Try to get client info
@@ -195,10 +203,10 @@ export class WhatsAppWebService
             this.logger.debug('Client info not available yet');
           }
           
-          this.logger.log('✅ WhatsApp Web client is READY!');
+          this.logger.log('✅ WhatsApp Web client is READY (forced)!');
           this.logger.log('🎉 Bot is now accepting messages');
         }
-      }, 5000); // Wait 5 seconds after auth to ensure page is loaded
+      }, 10000); // Wait 10 seconds for normal ready event
     });
 
     // Authentication failure
@@ -613,23 +621,23 @@ export class WhatsAppWebService
       if (percent === '100' && !this.isReady) {
         loading100Count++;
         
-        // Force ready immediately on first 100% in Docker environment
-        this.logger.warn('⚠️ WhatsApp at 100% loading, forcing ready state for Docker environment...');
-        
-        // Don't wait for CONNECTED state in Docker - force ready immediately
-        this.isReady = true;
-        
-        try {
-          const info = this.client.info;
-          this.logger.log('🚀 WhatsApp Web client is READY (forced from 100% loading)!');
-          this.logger.log(`📞 Connected phone: ${info?.wid?.user || 'Unknown'}`);
-          this.logger.log(`👤 Bot name: ${info?.pushname || 'Unknown'}`);
-        } catch (e) {
-          this.logger.debug('Client info not available:', e.message);
+        // If at 100% for multiple events but not ready
+        if (loading100Count >= 3) {
+          this.logger.warn('⚠️ WhatsApp at 100% loading but ready event not fired, forcing ready state...');
+          
+          this.isReady = true;
+          
+          try {
+            const info = this.client.info;
+            this.logger.log('🚀 WhatsApp Web client is READY (forced from 100% loading)!');
+            this.logger.log(`📞 Connected phone: ${info?.wid?.user || 'Unknown'}`);
+            this.logger.log(`👤 Bot name: ${info?.pushname || 'Unknown'}`);
+          } catch (e) {
+            this.logger.debug('Client info not available:', e.message);
+          }
+          
+          this.logger.log('✅ Now accepting messages');
         }
-        
-        this.logger.log('✅ Now accepting messages');
-        this.logger.log('🎉 Bot initialized successfully in Docker environment');
       }
       
       // Check if loading is stuck at 99%
