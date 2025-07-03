@@ -605,7 +605,7 @@ apt install -y certbot python3-certbot-nginx
 if [ -d "/etc/letsencrypt/live/$DOMAIN_NAME" ]; then
     print_warning "SSL certificate already exists for $DOMAIN_NAME"
     print_info "Reconfiguring Nginx to use existing certificate..."
-    certbot --nginx -d $DOMAIN_NAME --reinstall --redirect --non-interactive
+    certbot --nginx -d $DOMAIN_NAME --reinstall --redirect --non-interactive --agree-tos -m $SSL_EMAIL
 else
     print_info "Requesting new SSL certificate..."
     certbot --nginx -d $DOMAIN_NAME --non-interactive --agree-tos -m $SSL_EMAIL --redirect
