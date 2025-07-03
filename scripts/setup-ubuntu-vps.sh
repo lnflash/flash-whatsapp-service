@@ -184,7 +184,7 @@ mkdir -p public
 mkdir -p scripts
 
 # Set proper permissions for Docker volumes
-# The nodejs user in the container has UID/GID 1000
+# The node user in the container has UID/GID 1000
 chown -R 1000:1000 whatsapp-sessions whatsapp-sessions-new logs public
 # Use 777 for whatsapp directories to ensure Chrome can write lock files
 chmod -R 777 whatsapp-sessions whatsapp-sessions-new

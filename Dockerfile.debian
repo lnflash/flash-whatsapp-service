@@ -64,31 +64,29 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
     NODE_ENV=production
 
-# Create app user with UID 1000 (matching the nodejs user in our setup)
-# Check if group/user already exists before creating
-RUN (getent group nodejs || groupadd -g 1000 nodejs) && \
-    (id -u nodejs &>/dev/null || useradd -r -g nodejs -u 1000 nodejs)
+# The node:20-slim image already has a 'node' user with UID 1000
+# We'll use that existing user instead of creating a new one
 
 # Set working directory
 WORKDIR /app
 
 # Copy built application from builder stage
-COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
-COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nodejs:nodejs /app/package*.json ./
+COPY --from=builder --chown=node:node /app/dist ./dist
+COPY --from=builder --chown=node:node /app/node_modules ./node_modules
+COPY --from=builder --chown=node:node /app/package*.json ./
 
 # Copy necessary files (if they exist)
 # Note: .env files should be mounted or provided at runtime, not baked into the image
 
 # Create necessary directories with proper permissions
 RUN mkdir -p logs whatsapp-sessions whatsapp-sessions-new credentials public && \
-    chown -R nodejs:nodejs logs whatsapp-sessions whatsapp-sessions-new credentials public && \
+    chown -R node:node logs whatsapp-sessions whatsapp-sessions-new credentials public && \
     chmod -R 755 logs public && \
     chmod -R 777 whatsapp-sessions whatsapp-sessions-new && \
     chmod -R 700 credentials
 
 # Switch to non-root user
-USER nodejs
+USER node
 
 # Expose port
 EXPOSE 3000
