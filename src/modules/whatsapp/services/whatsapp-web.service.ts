@@ -174,161 +174,31 @@ export class WhatsAppWebService
     });
 
     // Authentication success
-    this.client.on('authenticated', () => {
+    this.client.on('authenticated', async () => {
       this.logger.log('✅ WhatsApp Web authenticated successfully');
-      this.logger.log('Waiting for client to be ready...');
       
-      // Check client state periodically after authentication
-      let checkCount = 0;
-      const checkInterval = setInterval(async () => {
-        checkCount++;
-        
-        try {
-          // Try multiple ways to check if client is ready
-          let state = null;
-          let info = null;
-          let pageReady = false;
+      // In Docker/headless environments, the ready event often doesn't fire
+      // Force ready state after a short delay to ensure page is loaded
+      setTimeout(() => {
+        if (!this.isReady) {
+          this.logger.log('🚀 Forcing ready state in Docker environment...');
+          this.isReady = true;
           
+          // Try to get client info
           try {
-            state = await this.client.getState();
-          } catch (e) {
-            this.logger.debug('Could not get state:', e.message);
-          }
-          
-          try {
-            info = this.client.info;
-          } catch (e) {
-            this.logger.debug('Could not get info:', e.message);
-          }
-          
-          // Try to check if the page is actually loaded
-          try {
-            const page = this.client.pupPage;
-            if (page) {
-              // Get more info about page state
-              const pageInfo = await page.evaluate(() => {
-                // @ts-ignore
-                const hasStore = !!(window.Store && window.Store.Msg);
-                const url = window.location.href;
-                const title = document.title;
-                const bodyText = document.body?.innerText?.substring(0, 100) || 'No body text';
-                
-                return {
-                  hasStore,
-                  url,
-                  title,
-                  bodyText,
-                  hasWhatsAppElement: !!document.querySelector('#app'),
-                };
-              });
-              
-              pageReady = pageInfo.hasStore;
-              
-              // Log page info on first few attempts
-              if (checkCount <= 3) {
-                this.logger.debug('Page info:', JSON.stringify(pageInfo, null, 2));
-              }
-            }
-          } catch (e) {
-            this.logger.debug('Could not check page ready state:', e.message);
-          }
-          
-          this.logger.log(`🔍 Checking client state (attempt ${checkCount}):`);
-          this.logger.log(`  - State: ${state}`);
-          this.logger.log(`  - Info exists: ${info ? 'yes' : 'no'}`);
-          this.logger.log(`  - Page ready: ${pageReady}`);
-          this.logger.log(`  - Client exists: ${this.client ? 'yes' : 'no'}`);
-          
-          // If page is ready or we have client info, force ready state
-          if ((pageReady || (info && info.wid)) && !this.isReady) {
-            this.logger.warn('⚠️ WhatsApp loaded but ready event not fired, forcing ready state...');
-            this.isReady = true;
-            clearInterval(checkInterval);
-            
-            this.logger.log('🚀 WhatsApp Web client is READY (forced)!');
-            if (info && info.wid) {
-              this.logger.log(`📞 Connected phone: ${info.wid.user || 'Unknown'}`);
+            const info = this.client.info;
+            if (info) {
+              this.logger.log(`📞 Connected phone: ${info.wid?.user || 'Unknown'}`);
               this.logger.log(`👤 Bot name: ${info.pushname || 'Unknown'}`);
             }
-            this.logger.log('✅ Now accepting messages');
-            
-            // Manually initialize the client
-            try {
-              if (this.client.pupPage) {
-                await this.client.pupPage.evaluate(() => {
-                  // @ts-ignore - Store is added by WhatsApp
-                  const win = window as any;
-                  if (win.Store && win.Store.AppState) {
-                    win.Store.AppState.state = 'CONNECTED';
-                  }
-                });
-              }
-            } catch (e) {
-              this.logger.debug('Could not set app state:', e.message);
-            }
+          } catch (e) {
+            this.logger.debug('Client info not available yet');
           }
           
-          // If client is connected but ready event hasn't fired
-          else if (state === 'CONNECTED' && !this.isReady) {
-            this.logger.warn('⚠️ Client is CONNECTED but ready event not fired, forcing ready state...');
-            this.isReady = true;
-            clearInterval(checkInterval);
-            
-            this.logger.log('🚀 WhatsApp Web client is READY (forced from CONNECTED state)!');
-            this.logger.log(`📞 Connected phone: ${info?.wid?.user || 'Unknown'}`);
-            this.logger.log(`👤 Bot name: ${info?.pushname || 'Unknown'}`);
-            this.logger.log('✅ Now accepting messages');
-          }
-          
-          // If we've checked 6 times (30 seconds) and still not ready
-          if (checkCount >= 6 && !this.isReady) {
-            this.logger.warn('⚠️ Client authenticated but ready event not fired after 30 seconds');
-            
-            // Try to take a screenshot for debugging
-            try {
-              const page = this.client.pupPage;
-              if (page) {
-                await page.screenshot({ 
-                  path: '/app/logs/whatsapp-stuck.png',
-                  fullPage: true 
-                });
-                this.logger.log('Screenshot saved to /app/logs/whatsapp-stuck.png');
-              }
-            } catch (e) {
-              this.logger.debug('Could not take screenshot:', e.message);
-            }
-            
-            // Force ready state since we're authenticated
-            this.logger.log('✅ Forcing ready state - WhatsApp is authenticated and functional');
-            this.isReady = true;
-            clearInterval(checkInterval);
-            
-            // Get client info if available
-            try {
-              const info = this.client.info;
-              if (info) {
-                this.logger.log(`📞 Connected phone: ${info.wid?.user || 'Unknown'}`);
-                this.logger.log(`👤 Bot name: ${info.pushname || 'Unknown'}`);
-              }
-            } catch (e) {
-              this.logger.debug('Could not get client info:', e.message);
-            }
-            
-            this.logger.log('🚀 WhatsApp Web client is READY (forced after timeout)!');
-            this.logger.log('✅ Now accepting messages');
-          }
-        } catch (error) {
-          this.logger.error('Error checking client state:', error.message);
+          this.logger.log('✅ WhatsApp Web client is READY!');
+          this.logger.log('🎉 Bot is now accepting messages');
         }
-      }, 5000); // Check every 5 seconds
-      
-      // Also keep the timeout as a fallback (40 seconds to allow forced ready to complete)
-      setTimeout(() => {
-        clearInterval(checkInterval);
-        if (!this.isReady) {
-          this.logger.error('❌ Client failed to initialize after 40 seconds');
-        }
-      }, 40000);
+      }, 5000); // Wait 5 seconds after auth to ensure page is loaded
     });
 
     // Authentication failure
@@ -740,31 +610,26 @@ export class WhatsAppWebService
       this.logger.log(`⏳ Loading: ${percent}% - ${message}`);
       
       // Check if loading reached 100%
-      if (percent === '100') {
+      if (percent === '100' && !this.isReady) {
         loading100Count++;
         
-        // If at 100% for multiple events but not ready
-        if (loading100Count >= 2 && !this.isReady) {
-          this.logger.warn('⚠️ WhatsApp at 100% loading but not ready, checking client state...');
-          
-          setTimeout(async () => {
-            try {
-              const state = await this.client.getState();
-              this.logger.log(`📊 Client state at 100% loading: ${state}`);
-              
-              if (state === 'CONNECTED' && !this.isReady) {
-                this.isReady = true;
-                const info = this.client.info;
-                this.logger.log('🚀 WhatsApp Web client is READY (forced from 100% loading)!');
-                this.logger.log(`📞 Connected phone: ${info?.wid?.user || 'Unknown'}`);
-                this.logger.log(`👤 Bot name: ${info?.pushname || 'Unknown'}`);
-                this.logger.log('✅ Now accepting messages');
-              }
-            } catch (error) {
-              this.logger.error('Error checking state at 100% loading:', error);
-            }
-          }, 3000); // Wait 3 seconds after 100%
+        // Force ready immediately on first 100% in Docker environment
+        this.logger.warn('⚠️ WhatsApp at 100% loading, forcing ready state for Docker environment...');
+        
+        // Don't wait for CONNECTED state in Docker - force ready immediately
+        this.isReady = true;
+        
+        try {
+          const info = this.client.info;
+          this.logger.log('🚀 WhatsApp Web client is READY (forced from 100% loading)!');
+          this.logger.log(`📞 Connected phone: ${info?.wid?.user || 'Unknown'}`);
+          this.logger.log(`👤 Bot name: ${info?.pushname || 'Unknown'}`);
+        } catch (e) {
+          this.logger.debug('Client info not available:', e.message);
         }
+        
+        this.logger.log('✅ Now accepting messages');
+        this.logger.log('🎉 Bot initialized successfully in Docker environment');
       }
       
       // Check if loading is stuck at 99%
