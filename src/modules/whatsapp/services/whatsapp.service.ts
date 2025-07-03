@@ -3170,9 +3170,11 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
     try {
       // Check if user is admin (you can customize this check)
       const adminNumbers = this.configService.get<string>('ADMIN_PHONE_NUMBERS')?.split(',') || [];
+      // Remove + prefix for comparison since admin numbers in env don't have +
+      const cleanPhoneNumber = phoneNumber.replace(/^\+/, '');
       const isAdmin =
-        adminNumbers.includes(phoneNumber) ||
-        phoneNumber === '13059244435' || // Your current number
+        adminNumbers.includes(cleanPhoneNumber) ||
+        cleanPhoneNumber === '13059244435' || // Your current number
         process.env.NODE_ENV === 'development'; // Allow in dev mode
 
       if (!isAdmin) {
