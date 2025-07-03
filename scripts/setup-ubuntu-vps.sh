@@ -279,12 +279,17 @@ fi
 
 # Install Chromium based on Ubuntu version
 if [[ "$UBUNTU_VERSION" == "24."* ]]; then
-    # Ubuntu 24 uses snap by default
-    snap install chromium
-    CHROME_PATH="/snap/bin/chromium"
+    # Ubuntu 24 defaults to snap, but we need the apt version for systemd compatibility
+    print_info "Installing Chromium from apt (snap version has systemd issues)"
+    # Add universe repository if not already enabled
+    add-apt-repository universe -y
+    DEBIAN_FRONTEND=noninteractive apt-get update -qq
+    # Install chromium-browser instead of snap
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq chromium-browser
+    CHROME_PATH="/usr/bin/chromium-browser"
 else
     # Ubuntu 22 and older
-    apt install -y chromium-browser
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq chromium-browser
     CHROME_PATH="/usr/bin/chromium-browser"
 fi
 
@@ -364,9 +369,12 @@ RABBITMQ_PASSWORD=$(openssl rand -hex 32)
 
 # Configure RabbitMQ
 rabbitmq-plugins enable rabbitmq_management
-rabbitmqctl add_user pulse "$RABBITMQ_PASSWORD" 2>/dev/null || true
+# Delete existing pulse user if it exists and recreate with new password
+rabbitmqctl delete_user pulse 2>/dev/null || true
+rabbitmqctl add_user pulse "$RABBITMQ_PASSWORD"
 rabbitmqctl set_user_tags pulse administrator
 rabbitmqctl set_permissions -p / pulse ".*" ".*" ".*"
+# Delete default guest user for security
 rabbitmqctl delete_user guest 2>/dev/null || true
 print_success "RabbitMQ configured and running"
 
@@ -432,6 +440,7 @@ RABBITMQ_HOST=localhost
 RABBITMQ_PORT=5672
 RABBITMQ_USERNAME=pulse
 RABBITMQ_PASSWORD=$RABBITMQ_PASSWORD
+RABBITMQ_URL=amqp://pulse:$RABBITMQ_PASSWORD@localhost:5672
 
 # Flash API (Required for payments)
 FLASH_API_URL=https://api.flashapp.me/graphql
