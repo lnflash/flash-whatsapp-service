@@ -24,9 +24,12 @@ This service uses WhatsApp Web.js to provide a seamless integration between Flas
 - **NestJS** - Backend framework
 - **WhatsApp Web.js** - WhatsApp automation
 - **Redis** - Session management and caching
+- **RabbitMQ** - Event-driven messaging (optional)
+- **PM2** - Production process management
 - **GraphQL** - Flash API integration
 - **Google Gemini AI** - Intelligent responses
 - **TypeScript** - Type safety
+- **Chromium** - Browser automation for WhatsApp
 
 ## Features
 
@@ -53,10 +56,17 @@ This service uses WhatsApp Web.js to provide a seamless integration between Flas
 
 ## Prerequisites
 
-- Node.js 18+
+### Local Development
+- Node.js 20+
 - Redis server
-- Flash API access (auth token)
-- Google Gemini API key
+- Chrome/Chromium browser
+- Flash API access token
+- Google Gemini API key (optional)
+
+### Production
+- Ubuntu 22.04 or 24.04 VPS
+- Domain name with DNS configured
+- 2GB+ RAM recommended
 
 ## Quick Start
 
@@ -71,13 +81,10 @@ This service uses WhatsApp Web.js to provide a seamless integration between Flas
    ./scripts/setup-local.sh
    ```
 
-2. **Configure API keys:**
-   ```bash
-   # Edit .env and add your keys:
-   # - FLASH_API_KEY
-   # - GEMINI_API_KEY (optional)
-   # - ADMIN_PHONE_NUMBERS
-   ```
+2. **Configure API keys in `.env`:**
+   - `FLASH_API_KEY` - Your Flash API key (required)
+   - `GEMINI_API_KEY` - Google Gemini API key (optional)
+   - `ADMIN_PHONE_NUMBERS` - Admin phone numbers
 
 3. **Start development server:**
    ```bash
@@ -90,12 +97,26 @@ This service uses WhatsApp Web.js to provide a seamless integration between Flas
 
 ### Production Deployment
 
-For Ubuntu VPS deployment:
+Deploy to Ubuntu VPS with one command:
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/lnflash/pulse/main/scripts/setup-ubuntu-vps.sh)
+wget -O - https://raw.githubusercontent.com/lnflash/pulse/main/scripts/setup-ubuntu-vps.sh | sudo bash
 ```
 
-See [deployment docs](docs/DEPLOYMENT.md) for detailed instructions.
+This will:
+- Install Node.js, PM2, Chromium, Redis, and RabbitMQ
+- Configure Nginx with SSL (Let's Encrypt)
+- Set up automatic backups and monitoring
+- Create systemd service for auto-start
+- Configure firewall and fail2ban
+
+After installation:
+```bash
+# View logs and QR code
+pulse logs
+
+# Management commands
+pulse start|stop|restart|status|update|backup
+```
 
 ## Available Commands
 

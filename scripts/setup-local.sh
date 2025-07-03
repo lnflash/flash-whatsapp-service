@@ -9,6 +9,7 @@ set -e  # Exit on error
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Helper functions
@@ -21,14 +22,14 @@ print_success() {
 }
 
 print_info() {
-    echo -e "${YELLOW}[INFO] $1${NC}"
+    echo -e "${BLUE}[INFO] $1${NC}"
 }
 
 print_warning() {
     echo -e "${YELLOW}[WARNING] $1${NC}"
 }
 
-# Check if running on macOS or Linux
+# Check operating system
 OS="$(uname -s)"
 case "${OS}" in
     Linux*)     OS_TYPE=Linux;;
@@ -55,19 +56,22 @@ check_requirements() {
         missing_tools+=("npm")
     fi
     
-    # Check for Docker
-    if ! command -v docker &> /dev/null; then
-        missing_tools+=("docker")
+    # Check for Redis
+    if ! command -v redis-server &> /dev/null; then
+        missing_tools+=("redis")
     else
-        print_info "Docker installed"
+        print_info "Redis installed"
     fi
     
-    # Check if Docker is running
-    if command -v docker &> /dev/null; then
-        if ! docker info &> /dev/null; then
-            print_error "Docker is not running. Please start Docker Desktop."
-            exit 1
-        fi
+    # Check for Chrome/Chromium
+    if command -v google-chrome &> /dev/null; then
+        print_info "Google Chrome installed"
+    elif command -v chromium &> /dev/null; then
+        print_info "Chromium installed"
+    elif command -v chromium-browser &> /dev/null; then
+        print_info "Chromium Browser installed"
+    else
+        missing_tools+=("chrome")
     fi
     
     if [ ${#missing_tools[@]} -ne 0 ]; then
@@ -81,11 +85,19 @@ check_requirements() {
                     node|npm)
                         print_info "  brew install node"
                         ;;
-                    docker)
-                        print_info "  Download Docker Desktop from https://www.docker.com/products/docker-desktop"
+                    redis)
+                        print_info "  brew install redis"
+                        print_info "  brew services start redis"
+                        ;;
+                    chrome)
+                        print_info "  Download Google Chrome from https://www.google.com/chrome/"
                         ;;
                 esac
             done
+        elif [[ "$OS_TYPE" == "Linux" ]]; then
+            print_info "On Linux, you can use your package manager:"
+            print_info "  sudo apt update"
+            print_info "  sudo apt install nodejs npm redis-server chromium-browser"
         fi
         exit 1
     fi
@@ -95,11 +107,10 @@ check_requirements() {
 setup_env_file() {
     if [ -f .env ]; then
         print_warning ".env file already exists."
-        print_info "Your current settings will be preserved, only Docker-related hosts will be updated."
-        read -p "Continue? (y/n): " -n 1 -r
+        read -p "Do you want to update it for local development? (y/n): " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            print_info "Skipping .env configuration"
+            print_info "Keeping existing .env file"
             return
         fi
         print_info "Backing up to .env.backup-$(date +%Y%m%d-%H%M%S)"
@@ -117,39 +128,23 @@ setup_env_file() {
     # Update .env for local development
     print_info "Configuring .env for local development..."
     
-    # Set Redis and RabbitMQ hosts for local development (npm run start:dev)
-    if grep -q "REDIS_HOST=" .env; then
-        sed -i.bak 's/REDIS_HOST=.*/REDIS_HOST=localhost/' .env
+    # Set Redis configuration for local development
+    if [[ "$OS_TYPE" == "Mac" ]]; then
+        # macOS usually doesn't require Redis password for local dev
+        sed -i '' 's/REDIS_HOST=.*/REDIS_HOST=localhost/' .env
+        sed -i '' 's/REDIS_PASSWORD=.*/REDIS_PASSWORD=/' .env
     else
-        echo "REDIS_HOST=localhost" >> .env
+        # Linux
+        sed -i 's/REDIS_HOST=.*/REDIS_HOST=localhost/' .env
+        sed -i 's/REDIS_PASSWORD=.*/REDIS_PASSWORD=/' .env
     fi
     
-    if grep -q "RABBITMQ_HOST=" .env; then
-        sed -i.bak 's/RABBITMQ_HOST=.*/RABBITMQ_HOST=localhost/' .env
+    # Set RabbitMQ to optional for local dev
+    if [[ "$OS_TYPE" == "Mac" ]]; then
+        sed -i '' 's/RABBITMQ_HOST=.*/RABBITMQ_HOST=localhost/' .env
     else
-        echo "RABBITMQ_HOST=localhost" >> .env
+        sed -i 's/RABBITMQ_HOST=.*/RABBITMQ_HOST=localhost/' .env
     fi
-    
-    # Set RabbitMQ username/password for local dev
-    if grep -q "RABBITMQ_USERNAME=" .env; then
-        sed -i.bak 's/RABBITMQ_USERNAME=.*/RABBITMQ_USERNAME=guest/' .env
-    else
-        echo "RABBITMQ_USERNAME=guest" >> .env
-    fi
-    
-    if grep -q "RABBITMQ_PASSWORD=" .env; then
-        sed -i.bak 's/RABBITMQ_PASSWORD=.*/RABBITMQ_PASSWORD=guest/' .env
-    else
-        echo "RABBITMQ_PASSWORD=guest" >> .env
-    fi
-    
-    # Set Redis password to empty for local dev
-    if grep -q "REDIS_PASSWORD=" .env; then
-        sed -i.bak 's/REDIS_PASSWORD=.*/REDIS_PASSWORD=/' .env
-    fi
-    
-    # Remove backup files
-    rm -f .env.bak
     
     print_success ".env file configured for local development"
     print_warning "Remember to add your API keys:"
@@ -179,24 +174,19 @@ create_directories() {
     print_success "Directories created"
 }
 
-# Start services
-start_services() {
-    print_info "Starting Docker services (Redis and RabbitMQ)..."
-    
-    # Stop any existing containers
-    docker compose down 2>/dev/null || true
-    
-    # Start only Redis and RabbitMQ
-    docker compose up -d redis rabbitmq
-    
-    print_info "Waiting for services to be ready..."
-    sleep 10
-    
-    # Check if services are healthy
-    if docker compose ps | grep -q "healthy"; then
-        print_success "Docker services are running"
-    else
-        print_warning "Services may still be starting up..."
+# Start Redis if on Mac
+start_redis_mac() {
+    if [[ "$OS_TYPE" == "Mac" ]]; then
+        if ! pgrep -x "redis-server" > /dev/null; then
+            print_info "Starting Redis..."
+            if command -v brew &> /dev/null; then
+                brew services start redis
+            else
+                redis-server --daemonize yes
+            fi
+        else
+            print_info "Redis is already running"
+        fi
     fi
 }
 
@@ -214,26 +204,24 @@ main() {
     setup_env_file
     create_directories
     install_dependencies
-    start_services
+    start_redis_mac
     
     print_success "Local setup complete!"
     print_info ""
     print_info "To start the development server:"
     print_info "  npm run start:dev"
     print_info ""
-    print_info "To run everything in Docker:"
-    print_info "  docker compose up"
-    print_info ""
-    print_info "To view logs:"
-    print_info "  docker compose logs -f"
-    print_info ""
-    print_info "To stop services:"
-    print_info "  docker compose down"
+    print_info "The bot will start and show a QR code for WhatsApp connection."
     print_info ""
     print_info "Access points:"
     print_info "  - API: http://localhost:3000"
     print_info "  - Health: http://localhost:3000/health"
-    print_info "  - RabbitMQ Management: http://localhost:15672 (guest/guest)"
+    print_info "  - Admin API: http://localhost:3000/api/admin"
+    print_info ""
+    if [[ "$OS_TYPE" == "Mac" ]]; then
+        print_info "To stop Redis when done:"
+        print_info "  brew services stop redis"
+    fi
 }
 
 # Run main function

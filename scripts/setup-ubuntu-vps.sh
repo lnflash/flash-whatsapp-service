@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# Pulse Production Setup Script for Ubuntu 24 VPS
-# This script sets up a complete production environment for Pulse
+# Pulse Production Setup Script for Ubuntu VPS
+# Tested on Ubuntu 22.04 and 24.04
+# This script sets up Pulse with PM2, native Chromium, Redis, and RabbitMQ
 
 set -e  # Exit on error
 
@@ -10,15 +11,17 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# Function to print colored output
+# Helper functions
 print_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
 }
 
 print_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
+    echo -e "${GREEN}[✓]${NC} $1"
 }
 
 print_warning() {
@@ -29,59 +32,118 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+print_step() {
+    echo -e "\n${MAGENTA}==>${NC} $1"
+}
+
 # Check if running as root
 if [[ $EUID -ne 0 ]]; then
    print_error "This script must be run as root"
    exit 1
 fi
 
-# Banner
-echo -e "${YELLOW}"
-echo "=================================================="
-echo "     Pulse WhatsApp Bot - Production Setup"
-echo "=================================================="
-echo -e "${NC}"
+# Check Ubuntu version
+UBUNTU_VERSION=$(lsb_release -rs)
+print_info "Detected Ubuntu $UBUNTU_VERSION"
 
-# Check if Pulse is already installed
-if [ -f /opt/pulse/.env ] && [ -f /etc/systemd/system/pulse.service ]; then
+# Banner
+clear
+echo -e "${CYAN}"
+echo "╔═══════════════════════════════════════════════════════════╗"
+echo "║         Pulse WhatsApp Bot - Production Setup             ║"
+echo "║                  Native Installation                      ║"
+echo "╚═══════════════════════════════════════════════════════════╝"
+echo -e "${NC}"
+echo "This script will install:"
+echo "  • Node.js 20 LTS"
+echo "  • PM2 Process Manager"
+echo "  • Chromium Browser"
+echo "  • Redis Server"
+echo "  • RabbitMQ Server"
+echo "  • Nginx with SSL"
+echo "  • Automatic backups and monitoring"
+echo ""
+
+# Check if already installed
+if [ -d "/opt/pulse" ] && [ -f "/opt/pulse/.env" ]; then
     print_warning "Pulse appears to be already installed!"
-    read -p "Do you want to continue and reconfigure? (y/n): " CONTINUE_INSTALL
-    if [[ ! "$CONTINUE_INSTALL" =~ ^[Yy]$ ]]; then
-        print_info "Exiting. To update Pulse, use: cd /opt/pulse && git pull"
+    read -p "Do you want to reinstall? This will backup your current installation (y/n): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        print_info "Installation cancelled"
         exit 0
     fi
+    
+    # Backup existing installation
+    BACKUP_DIR="/opt/pulse-backup-$(date +%Y%m%d-%H%M%S)"
+    print_info "Backing up current installation to $BACKUP_DIR"
+    cp -r /opt/pulse $BACKUP_DIR
 fi
 
-# Get domain name
+# Get configuration
+print_step "Configuration"
 echo ""
-read -p "Enter your domain name (e.g., pulse.yourdomain.com): " DOMAIN_NAME
-if [[ -z "$DOMAIN_NAME" ]]; then
-    print_error "Domain name is required"
-    exit 1
-fi
 
-# Get email for SSL certificate
-read -p "Enter your email address for SSL certificate notifications: " SSL_EMAIL
-if [[ -z "$SSL_EMAIL" ]]; then
-    print_error "Email address is required for SSL certificates"
-    exit 1
-fi
+# Domain name
+while true; do
+    read -p "Enter your domain name (e.g., pulse.example.com): " DOMAIN_NAME
+    if [[ -z "$DOMAIN_NAME" ]]; then
+        print_error "Domain name is required"
+    elif [[ ! "$DOMAIN_NAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$ ]]; then
+        print_error "Invalid domain name format"
+    else
+        break
+    fi
+done
 
-# Ask if user wants to set up admin panel
-read -p "Do you want to enable the admin panel? (y/n): " ENABLE_ADMIN
+# SSL Email
+while true; do
+    read -p "Enter email for SSL certificates: " SSL_EMAIL
+    if [[ -z "$SSL_EMAIL" ]]; then
+        print_error "Email is required"
+    elif [[ ! "$SSL_EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+        print_error "Invalid email format"
+    else
+        break
+    fi
+done
+
+# Admin panel
+read -p "Enable admin panel? (y/n) [y]: " ENABLE_ADMIN
+ENABLE_ADMIN=${ENABLE_ADMIN:-y}
 ENABLE_ADMIN_PANEL=false
 if [[ "$ENABLE_ADMIN" =~ ^[Yy]$ ]]; then
     ENABLE_ADMIN_PANEL=true
 fi
 
-print_info "Setting up Pulse on domain: $DOMAIN_NAME"
+# Flash API
+print_info "Flash API is required for payment processing"
+read -p "Do you have your Flash API key ready? (y/n): " HAS_FLASH_KEY
+if [[ "$HAS_FLASH_KEY" =~ ^[Yy]$ ]]; then
+    read -p "Enter your Flash API key: " FLASH_API_KEY
+fi
 
-# Update system
-print_info "Updating system packages..."
+# Admin phone numbers
+read -p "Enter admin phone numbers (comma-separated, e.g., +1234567890,+0987654321): " ADMIN_PHONES
+
+print_info "Configuration summary:"
+echo "  Domain: $DOMAIN_NAME"
+echo "  SSL Email: $SSL_EMAIL"
+echo "  Admin Panel: $ENABLE_ADMIN_PANEL"
+echo "  Flash API: $([ -n "$FLASH_API_KEY" ] && echo "Configured" || echo "To be configured later")"
+echo ""
+read -p "Continue with installation? (y/n): " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    exit 0
+fi
+
+# System update
+print_step "Updating system packages"
 apt update && apt upgrade -y
 
-# Install required packages
-print_info "Installing required packages..."
+# Install base packages
+print_step "Installing base packages"
 apt install -y \
     curl \
     wget \
@@ -95,106 +157,156 @@ apt install -y \
     fail2ban \
     htop \
     vim \
-    nano
+    nano \
+    net-tools \
+    lsof
 
-# Install Docker
-print_info "Installing Docker..."
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-apt update
-apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+# Install Node.js
+print_step "Installing Node.js 20 LTS"
+if ! command -v node &> /dev/null; then
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    apt install -y nodejs
+fi
+print_success "Node.js $(node --version) installed"
 
-# Start and enable Docker
-systemctl start docker
-systemctl enable docker
+# Install PM2
+print_step "Installing PM2 Process Manager"
+npm install -g pm2
+print_success "PM2 installed"
 
-# Install Node.js (for running scripts)
-print_info "Installing Node.js..."
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-apt install -y nodejs
+# Install Chromium
+print_step "Installing Chromium Browser"
+# Install dependencies first
+apt install -y \
+    fonts-liberation \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libatspi2.0-0 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libgbm1 \
+    libgtk-3-0 \
+    libnss3 \
+    libx11-6 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxrandr2 \
+    xdg-utils
 
-# Install Nginx
-print_info "Installing Nginx..."
-apt install -y nginx
+# Install Chromium based on Ubuntu version
+if [[ "$UBUNTU_VERSION" == "24."* ]]; then
+    # Ubuntu 24 uses snap by default
+    snap install chromium
+    CHROME_PATH="/snap/bin/chromium"
+else
+    # Ubuntu 22 and older
+    apt install -y chromium-browser
+    CHROME_PATH="/usr/bin/chromium-browser"
+fi
 
-# Install Certbot for SSL
-print_info "Installing Certbot..."
-apt install -y certbot python3-certbot-nginx
+# Verify Chromium installation
+if [ -x "$CHROME_PATH" ]; then
+    print_success "Chromium installed at $CHROME_PATH"
+else
+    print_error "Chromium installation failed"
+    exit 1
+fi
+
+# Install Redis
+print_step "Installing and configuring Redis"
+apt install -y redis-server
+
+# Generate Redis password
+REDIS_PASSWORD=$(openssl rand -hex 32)
+
+# Configure Redis
+cat > /etc/redis/redis.conf << EOF
+bind 127.0.0.1
+protected-mode yes
+port 6379
+requirepass $REDIS_PASSWORD
+maxmemory 256mb
+maxmemory-policy allkeys-lru
+appendonly yes
+dir /var/lib/redis
+EOF
 
 # Configure system for Redis
-print_info "Configuring system for Redis..."
-# Enable memory overcommit to prevent Redis warnings
 if ! grep -q "vm.overcommit_memory = 1" /etc/sysctl.conf; then
     echo "vm.overcommit_memory = 1" >> /etc/sysctl.conf
     sysctl -w vm.overcommit_memory=1
 fi
-# Increase max connections
-if ! grep -q "net.core.somaxconn = 65535" /etc/sysctl.conf; then
-    echo "net.core.somaxconn = 65535" >> /etc/sysctl.conf
-    sysctl -w net.core.somaxconn=65535
-fi
 
-# Configure firewall
-print_info "Configuring firewall..."
-# Set defaults if not already set
-ufw --force default deny incoming
-ufw --force default allow outgoing
+systemctl restart redis-server
+systemctl enable redis-server
+print_success "Redis configured and running"
 
-# Add rules (these are idempotent - won't duplicate)
-ufw allow ssh
-ufw allow http
-ufw allow https
-ufw allow 3000/tcp  # Pulse API
-ufw allow 5672/tcp  # RabbitMQ
-ufw allow 15672/tcp # RabbitMQ Management
+# Install RabbitMQ
+print_step "Installing RabbitMQ"
+# Install Erlang dependencies
+apt install -y erlang-base erlang-asn1 erlang-crypto erlang-eldap erlang-ftp \
+    erlang-inets erlang-mnesia erlang-os-mon erlang-parsetools \
+    erlang-public-key erlang-runtime-tools erlang-snmp erlang-ssl \
+    erlang-syntax-tools erlang-tftp erlang-tools erlang-xmerl
 
-# Enable firewall if not already enabled
-if ! ufw status | grep -q "Status: active"; then
-    ufw --force enable
-else
-    print_info "Firewall already active"
-fi
+# Add RabbitMQ repository
+curl -1sLf 'https://packagecloud.io/rabbitmq/rabbitmq-server/gpgkey' | gpg --dearmor | tee /usr/share/keyrings/rabbitmq.gpg > /dev/null
+echo "deb [signed-by=/usr/share/keyrings/rabbitmq.gpg] https://packagecloud.io/rabbitmq/rabbitmq-server/ubuntu/ $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/rabbitmq.list
+apt update
+apt install -y rabbitmq-server
 
-# Create application directory
-print_info "Creating application directory..."
-mkdir -p /opt/pulse
-cd /opt/pulse
+# Fix hostname resolution for RabbitMQ
+echo "127.0.1.1 $(hostname)" >> /etc/hosts
 
-# Clone or update the repository
-if [ -d ".git" ]; then
-    print_info "Repository already exists, updating..."
-    git fetch origin
-    git checkout main
-    git pull origin main
-else
-    print_info "Cloning Pulse repository..."
-    git clone https://github.com/lnflash/pulse.git .
-    git checkout main
-fi
+# Start RabbitMQ
+systemctl start rabbitmq-server
+systemctl enable rabbitmq-server
 
-# Create necessary directories with proper permissions
-print_info "Creating application directories..."
-mkdir -p whatsapp-sessions
-mkdir -p whatsapp-sessions/session-pulse-bot
-mkdir -p whatsapp-sessions-new/session
-mkdir -p logs
-mkdir -p backups
-mkdir -p credentials
-mkdir -p public
-mkdir -p scripts
-
-# Set proper permissions for Docker volumes
-# The node user in the container has UID/GID 1000
-chown -R 1000:1000 whatsapp-sessions whatsapp-sessions-new logs public
-# Use 777 for whatsapp directories to ensure Chrome can write lock files
-chmod -R 777 whatsapp-sessions whatsapp-sessions-new
-chmod -R 755 logs public
-chmod 700 credentials  # Secure the credentials directory
-
-# Generate secure passwords
-print_info "Generating secure passwords..."
-REDIS_PASSWORD=$(openssl rand -hex 32)
+# Generate RabbitMQ password
 RABBITMQ_PASSWORD=$(openssl rand -hex 32)
+
+# Configure RabbitMQ
+rabbitmq-plugins enable rabbitmq_management
+rabbitmqctl add_user pulse "$RABBITMQ_PASSWORD" 2>/dev/null || true
+rabbitmqctl set_user_tags pulse administrator
+rabbitmqctl set_permissions -p / pulse ".*" ".*" ".*"
+rabbitmqctl delete_user guest 2>/dev/null || true
+print_success "RabbitMQ configured and running"
+
+# Install Nginx
+print_step "Installing Nginx"
+apt install -y nginx
+
+# Create application user
+print_step "Creating application user"
+if ! id -u pulse &>/dev/null; then
+    useradd -m -s /bin/bash pulse
+fi
+
+# Clone repository
+print_step "Setting up application"
+cd /opt
+
+if [ -d "pulse" ]; then
+    cd pulse
+    sudo -u pulse git fetch origin
+    sudo -u pulse git checkout main
+    sudo -u pulse git pull origin main
+else
+    git clone https://github.com/lnflash/pulse.git
+    cd pulse
+    chown -R pulse:pulse /opt/pulse
+fi
+
+# Create directories
+sudo -u pulse mkdir -p whatsapp-sessions logs backups credentials public scripts
+chmod 777 whatsapp-sessions  # Chrome needs write access
+
+# Generate secure keys
 JWT_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
 ENCRYPTION_SALT=$(openssl rand -hex 16)
@@ -202,76 +314,75 @@ HASH_SALT=$(openssl rand -hex 16)
 SESSION_SECRET=$(openssl rand -hex 32)
 WEBHOOK_SECRET=$(openssl rand -hex 32)
 
-# Create .env file (backup existing if present)
-print_info "Creating environment configuration..."
-if [ -f .env ]; then
-    print_warning "Existing .env file found, backing up to .env.backup-$(date +%Y%m%d-%H%M%S)"
-    cp .env .env.backup-$(date +%Y%m%d-%H%M%S)
-fi
-cat > .env << EOF
+# Create .env file
+print_step "Creating environment configuration"
+sudo -u pulse cat > .env << EOF
 # Pulse Production Configuration
 # Generated on $(date)
 
-# Application Configuration
+# Application
 NODE_ENV=production
 PORT=3000
-
-# Domain Configuration
 DOMAIN_NAME=$DOMAIN_NAME
 
-# Redis Configuration
-REDIS_HOST=redis
+# Chrome/Puppeteer
+PUPPETEER_EXECUTABLE_PATH=$CHROME_PATH
+
+# Redis
+REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=$REDIS_PASSWORD
 REDIS_DB=0
 
-# RabbitMQ Configuration
-RABBITMQ_HOST=rabbitmq
+# RabbitMQ
+RABBITMQ_HOST=localhost
 RABBITMQ_PORT=5672
 RABBITMQ_USERNAME=pulse
 RABBITMQ_PASSWORD=$RABBITMQ_PASSWORD
-RABBITMQ_URL=amqp://pulse:$RABBITMQ_PASSWORD@rabbitmq:5672
 
-# Flash API Configuration (Update these with your API credentials)
+# Flash API (Required for payments)
 FLASH_API_URL=https://api.flashapp.me/graphql
-FLASH_API_KEY=
+FLASH_API_KEY=${FLASH_API_KEY:-YOUR_FLASH_API_KEY_HERE}
 
-# Google Gemini AI Configuration (Optional)
-GEMINI_API_KEY=
+# Admin Configuration
+ADMIN_PHONE_NUMBERS=${ADMIN_PHONES:-YOUR_ADMIN_PHONES_HERE}
+SUPPORT_PHONE_NUMBER=
 
-# Security Configuration
+# Security
 JWT_SECRET=$JWT_SECRET
 JWT_EXPIRES_IN=24h
 JWT_REFRESH_EXPIRES_IN=7d
 
-# Encryption Keys
+# Encryption
 ENCRYPTION_KEY=$ENCRYPTION_KEY
 ENCRYPTION_SALT=$ENCRYPTION_SALT
 HASH_SALT=$HASH_SALT
 
-# Session Configuration
+# Session
 SESSION_SECRET=$SESSION_SECRET
 SESSION_EXPIRES_IN=86400
 SESSION_ROTATION_INTERVAL=3600
 
-# Webhook Security
+# Webhook
 WEBHOOK_SECRET=$WEBHOOK_SECRET
 WEBHOOK_TOLERANCE=300
 
-# MFA/OTP Configuration
-OTP_LENGTH=6
-OTP_EXPIRES_IN=300
-OTP_MAX_ATTEMPTS=3
-MFA_TIMEOUT_SECONDS=300
+# Optional Services
+GEMINI_API_KEY=
+NOSTR_PRIVATE_KEY=
+NOSTR_RELAYS=wss://relay.damus.io,wss://nos.lol,wss://relay.nostr.band,wss://relay.flashapp.me
+NOSTR_PULSE_NPUB=
+GOOGLE_CLOUD_KEYFILE=
 
-# CORS Configuration
-CORS_ALLOWED_ORIGINS=https://$DOMAIN_NAME
+# Features
+ENABLE_ADMIN_PANEL=$ENABLE_ADMIN_PANEL
+ENABLE_INTRALEDGER_POLLING=true
+ENABLE_WEBSOCKET_NOTIFICATIONS=true
+PAYMENT_POLLING_INTERVAL=10000
 
-# Rate Limiting
+# Limits
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX_REQUESTS=100
-
-# Request Size Limits
 MAX_REQUEST_SIZE=10mb
 MAX_JSON_SIZE=1mb
 MAX_URL_ENCODED_SIZE=1mb
@@ -279,147 +390,49 @@ MAX_URL_ENCODED_SIZE=1mb
 # Logging
 LOG_LEVEL=info
 
-# Payment Notifications
-ENABLE_INTRALEDGER_POLLING=true
-ENABLE_WEBSOCKET_NOTIFICATIONS=true
-PAYMENT_POLLING_INTERVAL=10000
-
-# Admin Configuration (Update with your admin phone numbers)
-ADMIN_PHONE_NUMBERS=
-
-# Support Configuration
-SUPPORT_PHONE_NUMBER=
-
-# Nostr Configuration (Optional - for content sharing and zap forwarding)
-NOSTR_PRIVATE_KEY=
-NOSTR_RELAYS=wss://relay.damus.io,wss://nos.lol,wss://relay.nostr.band,wss://relay.flashapp.me,wss://relay.primal.net
-NOSTR_PULSE_NPUB=
-
-# Google Cloud Services (Optional - for TTS and Speech-to-Text)
-# Upload your service account JSON file to /opt/pulse/credentials/
-# Then update this path to point to the file
-GOOGLE_CLOUD_KEYFILE=
-
-# Admin Panel
-ENABLE_ADMIN_PANEL=$ENABLE_ADMIN_PANEL
+# CORS
+CORS_ALLOWED_ORIGINS=https://$DOMAIN_NAME
 EOF
 
-# Create docker-compose.production.yml
-print_info "Creating production Docker Compose configuration..."
-cat > docker-compose.production.yml << 'EOF'
+# Install dependencies and build
+print_step "Installing dependencies and building application"
+sudo -u pulse npm install
+sudo -u pulse npm run build
 
-services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: pulse-app
-    restart: always
-    ports:
-      - "127.0.0.1:3000:3000"
-    env_file:
-      - .env
-    depends_on:
-      redis:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    networks:
-      - pulse-network
-    volumes:
-      - ./whatsapp-sessions:/app/whatsapp-sessions
-      - ./logs:/app/logs
-      - ./public:/app/public:ro
-      - ./credentials:/app/credentials:ro
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  redis:
-    image: redis:7-alpine
-    container_name: pulse-redis
-    restart: always
-    ports:
-      - "127.0.0.1:6379:6379"
-    volumes:
-      - redis-data:/data
-    networks:
-      - pulse-network
-    command: >
-      redis-server
-      --appendonly yes
-      --requirepass ${REDIS_PASSWORD}
-      --maxmemory 256mb
-      --maxmemory-policy allkeys-lru
-    sysctls:
-      - net.core.somaxconn=65535
-    healthcheck:
-      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a ${REDIS_PASSWORD} ping | grep -q PONG"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    container_name: pulse-rabbitmq
-    restart: always
-    ports:
-      - "127.0.0.1:5672:5672"
-      - "127.0.0.1:15672:15672"
-    volumes:
-      - rabbitmq-data:/var/lib/rabbitmq
-    networks:
-      - pulse-network
-    environment:
-      RABBITMQ_DEFAULT_USER: pulse
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-networks:
-  pulse-network:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
-
-volumes:
-  redis-data:
-  rabbitmq-data:
+# Create PM2 ecosystem file
+print_step "Configuring PM2"
+sudo -u pulse cat > ecosystem.config.js << 'EOF'
+module.exports = {
+  apps: [{
+    name: 'pulse',
+    script: 'dist/main.js',
+    instances: 1,
+    autorestart: true,
+    watch: false,
+    max_memory_restart: '1G',
+    env: {
+      NODE_ENV: 'production'
+    },
+    error_file: 'logs/pm2-error.log',
+    out_file: 'logs/pm2-out.log',
+    log_file: 'logs/pm2-combined.log',
+    time: true,
+    restart_delay: 4000,
+    max_restarts: 10,
+    min_uptime: 10000
+  }]
+};
 EOF
 
-# Update RabbitMQ password in docker-compose
-sed -i "s/\${REDIS_PASSWORD}/$REDIS_PASSWORD/g" docker-compose.production.yml
-sed -i "s/\${RABBITMQ_PASSWORD}/$RABBITMQ_PASSWORD/g" docker-compose.production.yml
+# Setup PM2 startup
+pm2 startup systemd -u pulse --hp /home/pulse
 
-# Create initial HTTP-only Nginx configuration for SSL certificate generation
-print_info "Creating initial Nginx configuration..."
+# Configure Nginx
+print_step "Configuring Nginx"
 cat > /etc/nginx/sites-available/pulse << EOF
 # Rate limiting
 limit_req_zone \$binary_remote_addr zone=pulse_limit:10m rate=10r/s;
 
-# Upstream configuration
 upstream pulse_backend {
     server 127.0.0.1:3000 fail_timeout=0;
 }
@@ -429,72 +442,13 @@ server {
     listen [::]:80;
     server_name $DOMAIN_NAME;
 
-    # Location for Let's Encrypt verification
     location /.well-known/acme-challenge/ {
         root /var/www/html;
     }
 
-    # Temporary configuration - will be updated after SSL cert
     location / {
-        proxy_pass http://pulse_backend;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        return 301 https://\$server_name\$request_uri;
     }
-}
-EOF
-
-
-# Enable the site
-ln -sf /etc/nginx/sites-available/pulse /etc/nginx/sites-enabled/pulse
-# Only remove default if it exists
-[ -L /etc/nginx/sites-enabled/default ] && rm -f /etc/nginx/sites-enabled/default
-
-# Restart Nginx with the HTTP-only configuration
-print_info "Starting Nginx with HTTP configuration..."
-systemctl restart nginx
-
-# Obtain SSL certificate
-# Note: This only gets a certificate for the exact domain specified, not for www subdomain
-print_info "Obtaining SSL certificate for $DOMAIN_NAME (without www)..."
-
-# Check if certificate already exists
-if [ -d "/etc/letsencrypt/live/$DOMAIN_NAME" ]; then
-    print_warning "SSL certificate already exists for $DOMAIN_NAME"
-    print_info "To renew: certbot renew"
-else
-    # Create webroot directory if it doesn't exist
-    mkdir -p /var/www/html
-    
-    # Obtain certificate
-    certbot certonly --webroot -w /var/www/html -d $DOMAIN_NAME --non-interactive --agree-tos -m $SSL_EMAIL
-    
-    if [ $? -ne 0 ]; then
-        print_error "Failed to obtain SSL certificate"
-        print_info "You can try manually: certbot certonly --webroot -w /var/www/html -d $DOMAIN_NAME"
-        exit 1
-    fi
-fi
-
-# Now update Nginx configuration with HTTPS
-print_info "Updating Nginx configuration with SSL..."
-cat > /etc/nginx/sites-available/pulse << EOF
-# Rate limiting
-limit_req_zone \$binary_remote_addr zone=pulse_limit:10m rate=10r/s;
-
-# Upstream configuration
-upstream pulse_backend {
-    server 127.0.0.1:3000 fail_timeout=0;
-}
-
-server {
-    listen 80;
-    listen [::]:80;
-    server_name $DOMAIN_NAME;
-
-    # Redirect to HTTPS
-    return 301 https://\$server_name\$request_uri;
 }
 
 server {
@@ -502,19 +456,13 @@ server {
     listen [::]:443 ssl http2;
     server_name $DOMAIN_NAME;
 
-    # SSL configuration
-    ssl_certificate /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384';
-    ssl_prefer_server_ciphers off;
+    # SSL configuration (will be added by certbot)
     
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "no-referrer-when-downgrade" always;
-    add_header Content-Security-Policy "default-src 'self' https: wss:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' https://cdn.jsdelivr.net;" always;
     
     # Logging
     access_log /var/log/nginx/pulse_access.log;
@@ -523,19 +471,20 @@ server {
     # Rate limiting
     limit_req zone=pulse_limit burst=20 nodelay;
 
-    # Client body size limit
+    # Client body size
     client_max_body_size 10M;
 
-    # API endpoints
-    location /api {
+    # Proxy settings
+    location / {
         proxy_pass http://pulse_backend;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
+        proxy_set_header Connection 'upgrade';
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
         proxy_read_timeout 300s;
         proxy_connect_timeout 75s;
     }
@@ -551,74 +500,115 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
-
-    # Health check endpoint
+    
+    # Health check
     location /health {
         proxy_pass http://pulse_backend;
-        proxy_set_header Host \$host;
         access_log off;
-    }
-
-EOF
-
-# Add admin panel configuration if enabled
-if [[ "$ENABLE_ADMIN_PANEL" == "true" ]]; then
-    cat >> /etc/nginx/sites-available/pulse << EOF
-    # Admin panel (static files)
-    location /admin {
-        alias /opt/pulse/public/admin;
-        try_files \$uri \$uri/ /admin/index.html;
-        
-        # Security for admin area
-        add_header X-Frame-Options "DENY" always;
-        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' https://cdn.jsdelivr.net;" always;
-    }
-
-EOF
-fi
-
-# Complete Nginx configuration
-cat >> /etc/nginx/sites-available/pulse << EOF
-    # Default location
-    location / {
-        return 404;
-    }
-
-    # Deny access to hidden files
-    location ~ /\. {
-        deny all;
     }
 }
 EOF
 
-# Reload Nginx with new configuration
-nginx -t && systemctl reload nginx
+# Enable site
+ln -sf /etc/nginx/sites-available/pulse /etc/nginx/sites-enabled/
+rm -f /etc/nginx/sites-enabled/default
+
+# Test nginx config
+nginx -t
+
+# Install Certbot
+print_step "Installing SSL Certificate"
+apt install -y certbot python3-certbot-nginx
+
+# Get SSL certificate
+if [ -d "/etc/letsencrypt/live/$DOMAIN_NAME" ]; then
+    print_warning "SSL certificate already exists for $DOMAIN_NAME"
+    print_info "Reconfiguring Nginx to use existing certificate..."
+    certbot --nginx -d $DOMAIN_NAME --reinstall --redirect --non-interactive
+else
+    print_info "Requesting new SSL certificate..."
+    certbot --nginx -d $DOMAIN_NAME --non-interactive --agree-tos -m $SSL_EMAIL --redirect
+fi
+
+# Reload Nginx
+systemctl reload nginx
+
+# Configure firewall
+print_step "Configuring firewall"
+ufw --force default deny incoming
+ufw --force default allow outgoing
+ufw allow ssh
+ufw allow http
+ufw allow https
+ufw --force enable
+
+# Create management script
+print_step "Creating management scripts"
+cat > /usr/local/bin/pulse << 'EOF'
+#!/bin/bash
+# Pulse management script
+
+case "$1" in
+    start)
+        sudo -u pulse pm2 start /opt/pulse/ecosystem.config.js
+        ;;
+    stop)
+        sudo -u pulse pm2 stop pulse
+        ;;
+    restart)
+        sudo -u pulse pm2 restart pulse
+        ;;
+    reload)
+        sudo -u pulse pm2 reload pulse
+        ;;
+    status)
+        sudo -u pulse pm2 status
+        ;;
+    logs)
+        sudo -u pulse pm2 logs pulse ${@:2}
+        ;;
+    monitor)
+        sudo -u pulse pm2 monit
+        ;;
+    update)
+        cd /opt/pulse
+        sudo -u pulse git pull origin main
+        sudo -u pulse npm install
+        sudo -u pulse npm run build
+        sudo -u pulse pm2 restart pulse
+        ;;
+    backup)
+        /opt/pulse/scripts/backup.sh
+        ;;
+    *)
+        echo "Usage: pulse {start|stop|restart|reload|status|logs|monitor|update|backup}"
+        exit 1
+        ;;
+esac
+EOF
+chmod +x /usr/local/bin/pulse
 
 # Create backup script
-print_info "Creating backup script..."
 cat > /opt/pulse/scripts/backup.sh << 'EOF'
 #!/bin/bash
-# Pulse Backup Script
+# Pulse backup script
 
 BACKUP_DIR="/opt/pulse/backups"
-DATE=$(date +%Y%m%d_%H%M%S)
-BACKUP_NAME="pulse_backup_$DATE"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+BACKUP_NAME="pulse_backup_$TIMESTAMP"
 
-# Create backup directory
 mkdir -p $BACKUP_DIR/$BACKUP_NAME
 
-# Backup WhatsApp sessions
+# Backup application data
 cp -r /opt/pulse/whatsapp-sessions $BACKUP_DIR/$BACKUP_NAME/
-
-# Backup environment file
 cp /opt/pulse/.env $BACKUP_DIR/$BACKUP_NAME/
 
-# Backup Redis data
-docker exec pulse-redis redis-cli --auth $REDIS_PASSWORD BGSAVE
+# Backup Redis
+redis-cli --no-auth-warning -a $(grep REDIS_PASSWORD /opt/pulse/.env | cut -d'=' -f2) BGSAVE
 sleep 5
-docker cp pulse-redis:/data/dump.rdb $BACKUP_DIR/$BACKUP_NAME/redis_dump.rdb
+cp /var/lib/redis/dump.rdb $BACKUP_DIR/$BACKUP_NAME/
 
-# Create tarball
+# Create archive
 cd $BACKUP_DIR
 tar -czf $BACKUP_NAME.tar.gz $BACKUP_NAME
 rm -rf $BACKUP_NAME
@@ -628,91 +618,80 @@ ls -t $BACKUP_DIR/*.tar.gz | tail -n +8 | xargs -r rm
 
 echo "Backup completed: $BACKUP_DIR/$BACKUP_NAME.tar.gz"
 EOF
-
 chmod +x /opt/pulse/scripts/backup.sh
+chown pulse:pulse /opt/pulse/scripts/backup.sh
 
 # Create monitoring script
-print_info "Creating monitoring script..."
 cat > /opt/pulse/scripts/monitor.sh << 'EOF'
 #!/bin/bash
-# Pulse Monitoring Script
-
-# Check if services are running
-check_service() {
-    if docker ps | grep -q $1; then
-        echo "✓ $1 is running"
-    else
-        echo "✗ $1 is not running"
-        # Restart the service
-        docker compose -f /opt/pulse/docker-compose.production.yml up -d $1
-    fi
-}
+# Pulse monitoring script
 
 echo "=== Pulse Service Status ==="
-check_service "pulse-app"
-check_service "pulse-redis"
-check_service "pulse-rabbitmq"
+pm2 status
 
-# Check disk space
-echo ""
-echo "=== Disk Usage ==="
-df -h | grep -E '^/dev/'
-
-# Check memory usage
-echo ""
-echo "=== Memory Usage ==="
+echo -e "\n=== System Resources ==="
+echo "Memory Usage:"
 free -h
 
-# Check Docker logs for errors
-echo ""
-echo "=== Recent Errors ==="
-docker logs pulse-app --tail 20 2>&1 | grep -i error || echo "No recent errors"
-EOF
+echo -e "\nDisk Usage:"
+df -h /
 
+echo -e "\n=== Service Health ==="
+# Check Redis
+if systemctl is-active --quiet redis-server; then
+    echo "✓ Redis is running"
+else
+    echo "✗ Redis is not running"
+fi
+
+# Check RabbitMQ
+if systemctl is-active --quiet rabbitmq-server; then
+    echo "✓ RabbitMQ is running"
+else
+    echo "✗ RabbitMQ is not running"
+fi
+
+# Check Nginx
+if systemctl is-active --quiet nginx; then
+    echo "✓ Nginx is running"
+else
+    echo "✗ Nginx is not running"
+fi
+
+# Check API endpoint
+if curl -s http://localhost:3000/health | grep -q "ok"; then
+    echo "✓ API is responding"
+else
+    echo "✗ API is not responding"
+fi
+
+echo -e "\n=== Recent Errors ==="
+pm2 logs pulse --err --lines 10 --nostream 2>/dev/null || echo "No recent errors"
+EOF
 chmod +x /opt/pulse/scripts/monitor.sh
 
-# Create systemd service for auto-start
-print_info "Creating systemd service..."
-cat > /etc/systemd/system/pulse.service << EOF
-[Unit]
-Description=Pulse WhatsApp Bot
-Requires=docker.service
-After=docker.service
-
-[Service]
-Type=simple
-Restart=always
-RestartSec=10
-WorkingDirectory=/opt/pulse
-ExecStart=/usr/bin/docker compose -f docker-compose.production.yml up
-ExecStop=/usr/bin/docker compose -f docker-compose.production.yml down
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# Enable and start the service
-systemctl daemon-reload
-systemctl enable pulse.service
-
-# Set up cron jobs
-print_info "Setting up cron jobs..."
+# Setup cron jobs
+print_step "Setting up automated tasks"
 cat > /etc/cron.d/pulse << EOF
-# Pulse Cron Jobs
-# Daily backup at 3 AM
-0 3 * * * root /opt/pulse/scripts/backup.sh >> /opt/pulse/logs/backup.log 2>&1
+# Pulse automated tasks
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
-# Monitor services every 5 minutes
+# Daily backup at 3 AM
+0 3 * * * pulse /opt/pulse/scripts/backup.sh >> /opt/pulse/logs/backup.log 2>&1
+
+# Monitor every 5 minutes
 */5 * * * * root /opt/pulse/scripts/monitor.sh >> /opt/pulse/logs/monitor.log 2>&1
 
-# Rotate logs weekly
-0 0 * * 0 root find /opt/pulse/logs -name "*.log" -mtime +7 -delete
+# Log rotation weekly
+0 0 * * 0 pulse find /opt/pulse/logs -name "*.log" -mtime +7 -delete
+
+# SSL renewal check
+0 2 * * * root certbot renew --quiet --post-hook "systemctl reload nginx"
 EOF
 
-# Set up fail2ban for additional security
-print_info "Configuring fail2ban..."
+# Setup fail2ban
+print_step "Configuring security"
 cat > /etc/fail2ban/jail.d/pulse.conf << EOF
 [pulse-auth]
 enabled = true
@@ -733,7 +712,6 @@ bantime = 600
 findtime = 60
 EOF
 
-# Create fail2ban filter
 cat > /etc/fail2ban/filter.d/pulse-auth.conf << EOF
 [Definition]
 failregex = ^<HOST> .* "(POST|GET) /api/admin/auth/login.*" 401
@@ -742,77 +720,65 @@ EOF
 
 systemctl restart fail2ban
 
-# Build and start the application
-print_info "Building and starting Pulse..."
+# Start application
+print_step "Starting Pulse"
 cd /opt/pulse
+sudo -u pulse pm2 start ecosystem.config.js
+sudo -u pulse pm2 save
 
-# Stop existing containers if running
-if docker compose -f docker-compose.production.yml ps --quiet 2>/dev/null | grep -q .; then
-    print_info "Stopping existing containers..."
-    docker compose -f docker-compose.production.yml down
-fi
-
-# Build and start fresh
-docker compose -f docker-compose.production.yml build --no-cache
-
-# Ensure directories have proper permissions before starting containers
-print_info "Setting up directory permissions..."
-mkdir -p whatsapp-sessions/session-pulse-bot
-mkdir -p whatsapp-sessions-new/session
-chown -R 1000:1000 whatsapp-sessions whatsapp-sessions-new logs public
-# Use 777 for whatsapp directories to ensure Chrome can write lock files
-chmod -R 777 whatsapp-sessions whatsapp-sessions-new
-chmod -R 755 logs public
-
-# Start the containers
-docker compose -f docker-compose.production.yml up -d
-
-# Wait for services to be ready
-print_info "Waiting for services to start..."
-sleep 30
-
-# Check service status
-docker compose -f docker-compose.production.yml ps
-
-# Final instructions
+# Final summary
+clear
+echo -e "${GREEN}"
+echo "╔═══════════════════════════════════════════════════════════╗"
+echo "║              Pulse Installation Complete!                 ║"
+echo "╚═══════════════════════════════════════════════════════════╝"
+echo -e "${NC}"
 echo ""
-print_success "Pulse installation completed!"
+print_success "Pulse has been successfully installed!"
 echo ""
-echo -e "${YELLOW}Important next steps:${NC}"
-echo "1. Update the .env file with your configuration:"
-echo "   - FLASH_API_KEY: Your Flash API key"
-echo "   - GEMINI_API_KEY: Your Google Gemini API key (optional)"
-echo "   - ADMIN_PHONE_NUMBERS: Admin phone numbers (comma-separated)"
-echo "   - SUPPORT_PHONE_NUMBER: Support phone number"
-echo "   - NOSTR_PRIVATE_KEY: Nostr private key for content sharing (optional)"
-echo "   - NOSTR_PULSE_NPUB: Your Pulse bot's Nostr public key (optional)"
-echo ""
-echo "   For Google Cloud TTS/Speech-to-Text (optional):"
-echo "   a) Upload your service account JSON to /opt/pulse/credentials/"
-echo "   b) Update GOOGLE_CLOUD_KEYFILE=/app/credentials/your-service-account.json"
-echo ""
-echo "2. Restart the service after updating .env:"
-echo "   cd /opt/pulse && docker compose -f docker-compose.production.yml restart"
-echo ""
-echo "3. Connect WhatsApp by checking the QR code:"
-echo "   docker logs pulse-app"
-echo ""
-echo "4. Monitor the services:"
-echo "   /opt/pulse/scripts/monitor.sh"
-echo ""
+echo -e "${CYAN}Access Points:${NC}"
+echo "  • WhatsApp Bot: Send messages to your connected number"
+echo "  • API Endpoint: https://$DOMAIN_NAME"
+echo "  • Health Check: https://$DOMAIN_NAME/health"
 if [[ "$ENABLE_ADMIN_PANEL" == "true" ]]; then
-    echo "5. Access the admin panel at:"
-    echo "   https://$DOMAIN_NAME/admin"
+    echo "  • Admin Panel: https://$DOMAIN_NAME/admin"
+fi
+echo "  • RabbitMQ Management: http://$DOMAIN_NAME:15672"
+echo "    Username: pulse"
+echo "    Password: Check RABBITMQ_PASSWORD in /opt/pulse/.env"
+echo ""
+echo -e "${YELLOW}Important Next Steps:${NC}"
+if [ -z "$FLASH_API_KEY" ]; then
+    echo "1. Add your Flash API key:"
+    echo "   nano /opt/pulse/.env"
+    echo "   Update: FLASH_API_KEY=your_actual_key"
+    echo "   Then restart: pulse restart"
     echo ""
 fi
-echo -e "${GREEN}SSL Certificate:${NC} Auto-renewing via Certbot"
-echo -e "${GREEN}Backups:${NC} Daily at 3 AM to /opt/pulse/backups"
-echo -e "${GREEN}Monitoring:${NC} Every 5 minutes via cron"
+echo "2. Connect WhatsApp:"
+echo "   pulse logs"
+echo "   Scan the QR code with WhatsApp"
 echo ""
-echo -e "${BLUE}Service Management Commands:${NC}"
-echo "Start:   systemctl start pulse"
-echo "Stop:    systemctl stop pulse"
-echo "Restart: systemctl restart pulse"
-echo "Logs:    journalctl -u pulse -f"
+echo "3. Configure admin numbers if not done:"
+echo "   nano /opt/pulse/.env"
+echo "   Update: ADMIN_PHONE_NUMBERS=+1234567890,+0987654321"
 echo ""
-print_success "Setup complete! Your Pulse bot is ready."
+echo -e "${CYAN}Management Commands:${NC}"
+echo "  pulse start     - Start the bot"
+echo "  pulse stop      - Stop the bot"
+echo "  pulse restart   - Restart the bot"
+echo "  pulse status    - Check status"
+echo "  pulse logs      - View logs"
+echo "  pulse monitor   - System monitoring"
+echo "  pulse update    - Update to latest version"
+echo "  pulse backup    - Create backup"
+echo ""
+echo -e "${CYAN}Automatic Features:${NC}"
+echo "  ✓ SSL certificate auto-renewal"
+echo "  ✓ Daily backups at 3 AM"
+echo "  ✓ Service monitoring every 5 minutes"
+echo "  ✓ Log rotation weekly"
+echo "  ✓ Fail2ban protection"
+echo ""
+print_info "Installation log: /var/log/pulse-install.log"
+print_success "Your Pulse bot is ready to use!"
