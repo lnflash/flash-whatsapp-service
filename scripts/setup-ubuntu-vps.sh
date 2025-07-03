@@ -89,7 +89,7 @@ while true; do
     read -p "Enter your domain name (e.g., pulse.example.com): " DOMAIN_NAME
     if [[ -z "$DOMAIN_NAME" ]]; then
         print_error "Domain name is required"
-    elif [[ ! "$DOMAIN_NAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$ ]]; then
+    elif [[ ! "$DOMAIN_NAME" =~ ^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$ ]]; then
         print_error "Invalid domain name format"
     else
         break
