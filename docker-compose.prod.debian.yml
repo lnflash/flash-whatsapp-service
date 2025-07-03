@@ -61,7 +61,7 @@ services:
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
     env_file:
-      - .env.production
+      - .env
     depends_on:
       redis:
         condition: service_healthy
