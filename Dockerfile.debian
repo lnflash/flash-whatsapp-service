@@ -76,9 +76,8 @@ COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nodejs:nodejs /app/package*.json ./
 
-# Copy necessary files
-COPY --chown=nodejs:nodejs src/training src/training
-COPY --chown=nodejs:nodejs .env.example .env.example
+# Copy necessary files (if they exist)
+# Note: .env files should be mounted or provided at runtime, not baked into the image
 
 # Create necessary directories with proper permissions
 RUN mkdir -p logs whatsapp-sessions whatsapp-sessions-new credentials public && \
