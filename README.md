@@ -97,9 +97,16 @@ This service uses WhatsApp Web.js to provide a seamless integration between Flas
 
 ### Production Deployment
 
-Deploy to Ubuntu VPS with one command:
+Deploy to Ubuntu VPS:
 ```bash
-wget -O - https://raw.githubusercontent.com/lnflash/pulse/main/scripts/setup-ubuntu-vps.sh | sudo bash
+# 1. Download the setup script
+wget https://raw.githubusercontent.com/lnflash/pulse/main/scripts/setup-ubuntu-vps.sh
+
+# 2. Review script & add permissions
+chmod +x setup-ubuntu-vps.sh
+
+# 3. Run it
+sudo ./setup-ubuntu-vps.sh
 ```
 
 This will:
@@ -207,13 +214,7 @@ yarn build
 
 ## Docker Support
 
-```bash
-# Build and run with Docker Compose
-docker-compose up -d
-
-# View logs
-docker-compose logs -f app
-```
+⚠️ **WARNING**: Docker deployment is NOT supported for Pulse. WhatsApp Web.js requires native Chrome/Chromium installation and does not work reliably in Docker containers. Please use the native PM2 deployment method described above.
 
 ## Currency Conversion
 
@@ -368,15 +369,11 @@ For Production (High Traffic):
 - Droplet: General Purpose ($48/month)
 
   
-### 🚀 One-Command Deploy (Recommended)
+### 🚀 Production Deployment Steps
 
-Deploy Pulse on Ubuntu 24 VPS with a single command:
+⚠️ **IMPORTANT**: Pulse requires native installation on Ubuntu 22.04 or 24.04. Docker is NOT supported due to WhatsApp Web.js browser requirements.
 
-```bash
-curl -sSL https://raw.githubusercontent.com/lnflash/pulse/main/scripts/quick-install.sh | sudo bash
-```
-
-Or if you prefer to review the script first:
+Deploy Pulse on your Ubuntu VPS:
 
 ```bash
 # 1. Download the setup script
@@ -389,7 +386,7 @@ chmod +x setup-ubuntu-vps.sh
 sudo ./setup-ubuntu-vps.sh
 ```
 
-This automated script handles the complete production setup including SSL, Docker, security, and monitoring.
+This automated script handles the complete production setup including SSL, PM2, native Chromium, Redis, RabbitMQ, security, and monitoring.
 
 ### Documentation
 
