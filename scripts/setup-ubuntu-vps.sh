@@ -480,7 +480,7 @@ EOF
 # Setup PM2 startup
 pm2 startup systemd -u pulse --hp /home/pulse
 
-# Configure Nginx
+# Configure Nginx (HTTP only initially)
 print_step "Configuring Nginx"
 cat > /etc/nginx/sites-available/pulse << EOF
 # Rate limiting
@@ -495,37 +495,25 @@ server {
     listen [::]:80;
     server_name $DOMAIN_NAME;
 
-    location /.well-known/acme-challenge/ {
-        root /var/www/html;
-    }
+    # Logging
+    access_log /var/log/nginx/pulse_access.log;
+    error_log /var/log/nginx/pulse_error.log;
 
-    location / {
-        return 301 https://\$server_name\$request_uri;
-    }
-}
-
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name $DOMAIN_NAME;
-
-    # SSL configuration (will be added by certbot)
-    
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "no-referrer-when-downgrade" always;
     
-    # Logging
-    access_log /var/log/nginx/pulse_access.log;
-    error_log /var/log/nginx/pulse_error.log;
-
     # Rate limiting
     limit_req zone=pulse_limit burst=20 nodelay;
 
     # Client body size
     client_max_body_size 10M;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
 
     # Proxy settings
     location / {
