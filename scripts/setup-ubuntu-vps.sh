@@ -192,9 +192,9 @@ print_success "PM2 installed"
 # Install Chromium
 print_step "Installing Chromium Browser"
 # Install dependencies first
-# Handle package name differences in Ubuntu 24.10+
-if [[ "$UBUNTU_VERSION" == "24.10" ]] || [[ "$UBUNTU_VERSION" > "24.10" ]]; then
-    # Ubuntu 24.10+ uses t64 transition packages
+# Handle package name differences - Ubuntu 24.04+ uses t64 transition packages
+if [[ "$UBUNTU_VERSION" == "24.04" ]] || [[ "$UBUNTU_VERSION" == "24.10" ]] || [[ "$UBUNTU_VERSION" > "24.10" ]]; then
+    # Ubuntu 24.04+ uses t64 transition packages
     apt install -y \
         fonts-liberation \
         libasound2t64 \
@@ -215,7 +215,7 @@ if [[ "$UBUNTU_VERSION" == "24.10" ]] || [[ "$UBUNTU_VERSION" > "24.10" ]]; then
         libxrandr2 \
         xdg-utils
 else
-    # Ubuntu 22.04 and 24.04 use standard packages
+    # Ubuntu 22.04 uses standard packages
     apt install -y \
         fonts-liberation \
         libasound2 \
