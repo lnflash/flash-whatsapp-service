@@ -205,6 +205,7 @@ export class WhatsAppWebService
             if (page) {
               // Check if WhatsApp Web is actually loaded
               pageReady = await page.evaluate(() => {
+                // @ts-ignore - Store is added by WhatsApp
                 return !!(window.Store && window.Store.Msg);
               });
             }
@@ -233,9 +234,15 @@ export class WhatsAppWebService
             
             // Manually initialize the client
             try {
-              await this.client.pupPage.evaluate(() => {
-                window.Store.AppState.state = 'CONNECTED';
-              });
+              if (this.client.pupPage) {
+                await this.client.pupPage.evaluate(() => {
+                  // @ts-ignore - Store is added by WhatsApp
+                  const win = window as any;
+                  if (win.Store && win.Store.AppState) {
+                    win.Store.AppState.state = 'CONNECTED';
+                  }
+                });
+              }
             } catch (e) {
               this.logger.debug('Could not set app state:', e.message);
             }
