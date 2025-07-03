@@ -423,10 +423,21 @@ print_step "Setting up application"
 cd /opt
 
 if [ -d "pulse" ]; then
+    print_info "Pulse directory exists, updating..."
     cd pulse
-    sudo -u pulse git fetch origin
-    sudo -u pulse git checkout main
-    sudo -u pulse git pull origin main
+    # Check if it's a git repository
+    if [ -d ".git" ]; then
+        sudo -u pulse git fetch origin
+        sudo -u pulse git checkout main
+        sudo -u pulse git pull origin main
+    else
+        print_warning "Existing directory is not a git repository, removing and cloning fresh"
+        cd ..
+        rm -rf pulse
+        git clone https://github.com/lnflash/pulse.git
+        cd pulse
+        chown -R pulse:pulse /opt/pulse
+    fi
 else
     git clone https://github.com/lnflash/pulse.git
     cd pulse
