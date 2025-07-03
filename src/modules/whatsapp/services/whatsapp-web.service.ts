@@ -92,6 +92,9 @@ export class WhatsAppWebService
       this.logger.log('Initializing WhatsApp Web client...');
       await this.client.initialize();
       this.logger.log('WhatsApp Web client initialized successfully');
+      
+      // Wait a bit for page to stabilize
+      await new Promise(resolve => setTimeout(resolve, 2000));
     } catch (error) {
       this.logger.error('Failed to initialize WhatsApp Web client:', error);
       this.logger.error('Stack trace:', error.stack);
@@ -203,11 +206,29 @@ export class WhatsAppWebService
           try {
             const page = this.client.pupPage;
             if (page) {
-              // Check if WhatsApp Web is actually loaded
-              pageReady = await page.evaluate(() => {
-                // @ts-ignore - Store is added by WhatsApp
-                return !!(window.Store && window.Store.Msg);
+              // Get more info about page state
+              const pageInfo = await page.evaluate(() => {
+                // @ts-ignore
+                const hasStore = !!(window.Store && window.Store.Msg);
+                const url = window.location.href;
+                const title = document.title;
+                const bodyText = document.body?.innerText?.substring(0, 100) || 'No body text';
+                
+                return {
+                  hasStore,
+                  url,
+                  title,
+                  bodyText,
+                  hasWhatsAppElement: !!document.querySelector('#app'),
+                };
               });
+              
+              pageReady = pageInfo.hasStore;
+              
+              // Log page info on first few attempts
+              if (checkCount <= 3) {
+                this.logger.debug('Page info:', JSON.stringify(pageInfo, null, 2));
+              }
             }
           } catch (e) {
             this.logger.debug('Could not check page ready state:', e.message);
@@ -263,6 +284,21 @@ export class WhatsAppWebService
           // If we've checked 6 times (30 seconds) and still not ready
           if (checkCount >= 6 && !this.isReady) {
             this.logger.error('❌ Client failed to reach ready state after 30 seconds');
+            
+            // Try to take a screenshot for debugging
+            try {
+              const page = this.client.pupPage;
+              if (page) {
+                await page.screenshot({ 
+                  path: '/app/logs/whatsapp-stuck.png',
+                  fullPage: true 
+                });
+                this.logger.log('Screenshot saved to /app/logs/whatsapp-stuck.png');
+              }
+            } catch (e) {
+              this.logger.debug('Could not take screenshot:', e.message);
+            }
+            
             this.logger.log('Attempting to force ready state anyway...');
             this.isReady = true;
             clearInterval(checkInterval);
