@@ -59,6 +59,8 @@ export class WhatsAppWebService
         ],
         // Increase browser launch timeout
         timeout: 60000,
+        // Don't use the default viewport
+        defaultViewport: null,
       },
       // Increase timeout for slower systems
       authTimeoutMs: 60000,
@@ -181,27 +183,62 @@ export class WhatsAppWebService
         
         try {
           // Try multiple ways to check if client is ready
-          const state = await this.client.getState();
-          const info = this.client.info;
+          let state = null;
+          let info = null;
+          let pageReady = false;
+          
+          try {
+            state = await this.client.getState();
+          } catch (e) {
+            this.logger.debug('Could not get state:', e.message);
+          }
+          
+          try {
+            info = this.client.info;
+          } catch (e) {
+            this.logger.debug('Could not get info:', e.message);
+          }
+          
+          // Try to check if the page is actually loaded
+          try {
+            const page = this.client.pupPage;
+            if (page) {
+              // Check if WhatsApp Web is actually loaded
+              pageReady = await page.evaluate(() => {
+                return !!(window.Store && window.Store.Msg);
+              });
+            }
+          } catch (e) {
+            this.logger.debug('Could not check page ready state:', e.message);
+          }
           
           this.logger.log(`🔍 Checking client state (attempt ${checkCount}):`);
           this.logger.log(`  - State: ${state}`);
           this.logger.log(`  - Info exists: ${info ? 'yes' : 'no'}`);
+          this.logger.log(`  - Page ready: ${pageReady}`);
           this.logger.log(`  - Client exists: ${this.client ? 'yes' : 'no'}`);
           
-          // If we have client info, we might be ready even without state
-          if (info && info.wid && !this.isReady) {
-            this.logger.warn('⚠️ Client info available but ready event not fired, forcing ready state...');
+          // If page is ready or we have client info, force ready state
+          if ((pageReady || (info && info.wid)) && !this.isReady) {
+            this.logger.warn('⚠️ WhatsApp loaded but ready event not fired, forcing ready state...');
             this.isReady = true;
             clearInterval(checkInterval);
             
-            this.logger.log('🚀 WhatsApp Web client is READY (forced from client info)!');
-            this.logger.log(`📞 Connected phone: ${info.wid.user || 'Unknown'}`);
-            this.logger.log(`👤 Bot name: ${info.pushname || 'Unknown'}`);
+            this.logger.log('🚀 WhatsApp Web client is READY (forced)!');
+            if (info && info.wid) {
+              this.logger.log(`📞 Connected phone: ${info.wid.user || 'Unknown'}`);
+              this.logger.log(`👤 Bot name: ${info.pushname || 'Unknown'}`);
+            }
             this.logger.log('✅ Now accepting messages');
             
-            // Try to emit ready event manually
-            this.client.emit('ready');
+            // Manually initialize the client
+            try {
+              await this.client.pupPage.evaluate(() => {
+                window.Store.AppState.state = 'CONNECTED';
+              });
+            } catch (e) {
+              this.logger.debug('Could not set app state:', e.message);
+            }
           }
           
           // If client is connected but ready event hasn't fired
@@ -222,6 +259,13 @@ export class WhatsAppWebService
             this.logger.log('Attempting to force ready state anyway...');
             this.isReady = true;
             clearInterval(checkInterval);
+            
+            // Last resort - try to manually trigger ready
+            try {
+              this.client.emit('ready');
+            } catch (e) {
+              this.logger.error('Could not emit ready event:', e.message);
+            }
           }
         } catch (error) {
           this.logger.error('Error checking client state:', error.message);
