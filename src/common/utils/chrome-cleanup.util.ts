@@ -47,7 +47,11 @@ export class ChromeCleanupUtil {
     logger.log('Starting Chrome cleanup process...');
 
     try {
-      await Promise.all([this.killChromeProcesses(), this.cleanupSessionDirectories()]);
+      await Promise.all([
+        this.killChromeProcesses(), 
+        this.cleanupSessionDirectories(),
+        this.cleanupChromeLocks()
+      ]);
 
       logger.log('Chrome cleanup completed successfully');
     } catch (error) {
@@ -278,6 +282,56 @@ export class ChromeCleanupUtil {
     } catch (error) {
       logger.error('Error checking for Chrome processes:', error);
       return false;
+    }
+  }
+
+  /**
+   * Clean up Chrome lock files that might prevent new sessions
+   */
+  private static async cleanupChromeLocks(): Promise<void> {
+    const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
+    const sessionPaths = [
+      path.join(process.cwd(), 'whatsapp-sessions'),
+      path.join(process.cwd(), 'whatsapp-sessions-new'),
+      '/app/whatsapp-sessions', // Docker path
+      '/app/whatsapp-sessions-new'
+    ];
+
+    let totalDeleted = 0;
+
+    for (const sessionPath of sessionPaths) {
+      try {
+        // Check if directory exists
+        await fs.access(sessionPath);
+        
+        // Find all subdirectories
+        const entries = await fs.readdir(sessionPath);
+        
+        for (const entry of entries) {
+          const entryPath = path.join(sessionPath, entry);
+          const stat = await fs.stat(entryPath);
+          
+          if (stat.isDirectory()) {
+            // Check for lock files in this directory
+            for (const lockFile of lockFiles) {
+              const lockPath = path.join(entryPath, lockFile);
+              try {
+                await fs.unlink(lockPath);
+                totalDeleted++;
+                logger.debug(`Removed Chrome lock file: ${lockPath}`);
+              } catch (error) {
+                // File doesn't exist or can't be deleted, which is fine
+              }
+            }
+          }
+        }
+      } catch (error) {
+        // Directory doesn't exist or can't be accessed, which is fine
+      }
+    }
+
+    if (totalDeleted > 0) {
+      logger.log(`Cleaned up ${totalDeleted} Chrome lock files`);
     }
   }
 }
