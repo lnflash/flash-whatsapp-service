@@ -100,10 +100,11 @@ apt install -y \
     redis-server \
     nginx \
     certbot \
-    python3-certbot-nginx \
-    # Dependencies for Puppeteer/Chrome
-    chromium \
-    chromium-driver \
+    python3-certbot-nginx
+
+# Install Chrome dependencies separately
+print_info "Installing Chrome dependencies..."
+apt install -y \
     libx11-xcb1 \
     libxcomposite1 \
     libxcursor1 \
@@ -120,7 +121,19 @@ apt install -y \
     libcairo-gobject2 \
     libgtk-3-0 \
     libgbm1 \
-    libxshmfence1
+    libxshmfence1 || true
+
+# Install Chromium
+print_info "Installing Chromium browser..."
+# Try snap first (Ubuntu 24 default)
+if command -v snap &> /dev/null; then
+    snap install chromium || true
+    # Create symlink for compatibility
+    ln -sf /snap/bin/chromium /usr/bin/chromium || true
+else
+    # Fallback to apt
+    apt install -y chromium || apt install -y chromium-browser || true
+fi
 
 # Install Node.js 20
 print_info "Installing Node.js 20..."
