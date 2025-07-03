@@ -6,7 +6,7 @@
 
 ### A WhatsApp integration service for Flash that enables users to check their Bitcoin wallet balance and interact with Flash services through WhatsApp. Now branded as "Pulse" to capture the pulse of the Lightning Network.
 
-> **Version**: 1.9.9 - "Pulse Party like its 199"  
+> **Version**: 2.0.0 - "One-Click Deploy"  
 > **Status**: Production Ready
 
 ## Overview
