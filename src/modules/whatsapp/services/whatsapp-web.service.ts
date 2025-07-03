@@ -54,11 +54,8 @@ export class WhatsAppWebService
           '--disable-accelerated-2d-canvas',
           '--no-first-run',
           '--disable-gpu',
-          '--disable-web-security',
-          '--disable-features=IsolateOrigins',
-          '--disable-site-isolation-trials',
-          '--single-process',
-          '--no-zygote',
+          '--disable-blink-features=AutomationControlled',
+          '--disable-features=IsolateOrigins,site-per-process',
         ],
         // Increase browser launch timeout
         timeout: 60000,
@@ -97,6 +94,15 @@ export class WhatsAppWebService
       this.logger.error('Failed to initialize WhatsApp Web client:', error);
       this.logger.error('Stack trace:', error.stack);
 
+      // Check for specific Puppeteer protocol errors
+      if (error.message && error.message.includes('Protocol error') && error.message.includes('Target closed')) {
+        this.logger.error('Chrome browser crashed or failed to start properly.');
+        this.logger.log('This is often due to missing dependencies or resource constraints in Docker.');
+        
+        // Try to clean up any stuck processes
+        await ChromeCleanupUtil.cleanup();
+      }
+
       // Check for specific network errors
       if (error.message && error.message.includes('ERR_ADDRESS_UNREACHABLE')) {
         this.logger.error(
@@ -121,6 +127,11 @@ export class WhatsAppWebService
           this.logger.log('WhatsApp Web client initialized successfully on retry');
         } catch (retryError) {
           this.logger.error('Failed to initialize WhatsApp Web client on retry:', retryError);
+          
+          // If it's still a protocol error, don't keep retrying
+          if (retryError.message && retryError.message.includes('Protocol error')) {
+            this.logger.error('Chrome continues to crash. Please check Docker logs and system resources.');
+          }
         }
       }, 10000); // Retry after 10 seconds
     }
