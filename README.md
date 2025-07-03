@@ -60,31 +60,42 @@ This service uses WhatsApp Web.js to provide a seamless integration between Flas
 
 ## Quick Start
 
-1. **Clone and install:**
-   ```bash
-   git clone https://github.com/your-org/flash-whatsapp-service.git
-   cd flash-whatsapp-service
-   yarn install
-   ```
+### Local Development
 
-2. **Configure environment:**
+1. **Clone and setup:**
    ```bash
-   cp .env.example .env
-   # Edit .env with your credentials
-   ```
-
-3. **Start services:**
-   ```bash
-   # Start Redis
-   docker-compose up -d redis
+   git clone https://github.com/lnflash/pulse.git
+   cd pulse
    
-   # Start the service
-   yarn start:dev
+   # Run the automated setup script
+   ./scripts/setup-local.sh
+   ```
+
+2. **Configure API keys:**
+   ```bash
+   # Edit .env and add your keys:
+   # - FLASH_API_KEY
+   # - GEMINI_API_KEY (optional)
+   # - ADMIN_PHONE_NUMBERS
+   ```
+
+3. **Start development server:**
+   ```bash
+   npm run start:dev
    ```
 
 4. **Connect WhatsApp:**
    - Scan the QR code displayed in the console
    - Use a test WhatsApp number (not your personal one)
+
+### Production Deployment
+
+For Ubuntu VPS deployment:
+```bash
+bash <(curl -s https://raw.githubusercontent.com/lnflash/pulse/main/scripts/setup-ubuntu-vps.sh)
+```
+
+See [deployment docs](docs/DEPLOYMENT.md) for detailed instructions.
 
 ## Available Commands
 
