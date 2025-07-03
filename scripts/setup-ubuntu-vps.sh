@@ -226,6 +226,10 @@ REDIS_PASSWORD=$REDIS_PASSWORD
 REDIS_DB=0
 
 # RabbitMQ Configuration
+RABBITMQ_HOST=rabbitmq
+RABBITMQ_PORT=5672
+RABBITMQ_USERNAME=pulse
+RABBITMQ_PASSWORD=$RABBITMQ_PASSWORD
 RABBITMQ_URL=amqp://pulse:$RABBITMQ_PASSWORD@rabbitmq:5672
 
 # Flash API Configuration (Update these with your API credentials)

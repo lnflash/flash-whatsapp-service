@@ -130,6 +130,19 @@ setup_env_file() {
         echo "RABBITMQ_HOST=localhost" >> .env
     fi
     
+    # Set RabbitMQ username/password for local dev
+    if grep -q "RABBITMQ_USERNAME=" .env; then
+        sed -i.bak 's/RABBITMQ_USERNAME=.*/RABBITMQ_USERNAME=guest/' .env
+    else
+        echo "RABBITMQ_USERNAME=guest" >> .env
+    fi
+    
+    if grep -q "RABBITMQ_PASSWORD=" .env; then
+        sed -i.bak 's/RABBITMQ_PASSWORD=.*/RABBITMQ_PASSWORD=guest/' .env
+    else
+        echo "RABBITMQ_PASSWORD=guest" >> .env
+    fi
+    
     # Set Redis password to empty for local dev
     if grep -q "REDIS_PASSWORD=" .env; then
         sed -i.bak 's/REDIS_PASSWORD=.*/REDIS_PASSWORD=/' .env
