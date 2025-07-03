@@ -64,7 +64,9 @@ This service uses WhatsApp Web.js to provide a seamless integration between Flas
 - Google Gemini API key (optional)
 
 ### Production
-- Ubuntu 22.04 or 24.04 VPS
+- Ubuntu LTS version (22.04 LTS or 24.04 LTS strongly recommended)
+  - ⚠️ **IMPORTANT**: Use LTS (Long Term Support) versions only
+  - ⚠️ **AVOID**: Interim releases like 24.10 - they lack third-party repository support
 - Domain name with DNS configured
 - 2GB+ RAM recommended
 
@@ -371,7 +373,10 @@ For Production (High Traffic):
   
 ### 🚀 Production Deployment Steps
 
-⚠️ **IMPORTANT**: Pulse requires native installation on Ubuntu 22.04 or 24.04. Docker is NOT supported due to WhatsApp Web.js browser requirements.
+⚠️ **IMPORTANT**: 
+- Use Ubuntu LTS versions only (22.04 LTS or 24.04 LTS)
+- Docker is NOT supported due to WhatsApp Web.js browser requirements
+- Avoid interim Ubuntu releases (like 24.10) as they lack third-party repository support
 
 Deploy Pulse on your Ubuntu VPS:
 

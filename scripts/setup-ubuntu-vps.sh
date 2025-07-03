@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Pulse Production Setup Script for Ubuntu VPS
-# Tested on Ubuntu 22.04 and 24.04
+# Tested on Ubuntu 22.04 LTS and 24.04 LTS
+# IMPORTANT: Use LTS versions only! Avoid interim releases (24.10, etc)
 # This script sets up Pulse with PM2, native Chromium, Redis, and RabbitMQ
 
 set -e  # Exit on error
@@ -45,6 +46,20 @@ fi
 # Check Ubuntu version
 UBUNTU_VERSION=$(lsb_release -rs)
 print_info "Detected Ubuntu $UBUNTU_VERSION"
+
+# Warn if not using LTS
+if [[ "$UBUNTU_VERSION" != "22.04" ]] && [[ "$UBUNTU_VERSION" != "24.04" ]]; then
+    print_warning "You are using Ubuntu $UBUNTU_VERSION which is not an LTS release"
+    print_warning "For production use, we strongly recommend Ubuntu 22.04 LTS or 24.04 LTS"
+    print_warning "Interim releases like 24.10 may have compatibility issues with third-party repositories"
+    echo ""
+    read -p "Continue anyway? (not recommended) (y/n): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        print_info "Please use Ubuntu 22.04 LTS or 24.04 LTS for production deployments"
+        exit 1
+    fi
+fi
 
 # Banner
 clear
