@@ -94,7 +94,15 @@ check_requirements() {
 # Create .env file from example if it doesn't exist
 setup_env_file() {
     if [ -f .env ]; then
-        print_warning ".env file already exists. Backing up to .env.backup-$(date +%Y%m%d-%H%M%S)"
+        print_warning ".env file already exists."
+        print_info "Your current settings will be preserved, only Docker-related hosts will be updated."
+        read -p "Continue? (y/n): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            print_info "Skipping .env configuration"
+            return
+        fi
+        print_info "Backing up to .env.backup-$(date +%Y%m%d-%H%M%S)"
         cp .env .env.backup-$(date +%Y%m%d-%H%M%S)
     else
         if [ -f .env.example ]; then
@@ -109,17 +117,17 @@ setup_env_file() {
     # Update .env for local development
     print_info "Configuring .env for local development..."
     
-    # Set Redis and RabbitMQ hosts for Docker
+    # Set Redis and RabbitMQ hosts for local development (npm run start:dev)
     if grep -q "REDIS_HOST=" .env; then
-        sed -i.bak 's/REDIS_HOST=.*/REDIS_HOST=redis/' .env
+        sed -i.bak 's/REDIS_HOST=.*/REDIS_HOST=localhost/' .env
     else
-        echo "REDIS_HOST=redis" >> .env
+        echo "REDIS_HOST=localhost" >> .env
     fi
     
     if grep -q "RABBITMQ_HOST=" .env; then
-        sed -i.bak 's/RABBITMQ_HOST=.*/RABBITMQ_HOST=rabbitmq/' .env
+        sed -i.bak 's/RABBITMQ_HOST=.*/RABBITMQ_HOST=localhost/' .env
     else
-        echo "RABBITMQ_HOST=rabbitmq" >> .env
+        echo "RABBITMQ_HOST=localhost" >> .env
     fi
     
     # Set Redis password to empty for local dev
