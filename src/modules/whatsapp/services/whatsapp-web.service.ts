@@ -55,7 +55,6 @@ export class WhatsAppWebService
           '--no-first-run',
           '--disable-gpu',
           '--disable-blink-features=AutomationControlled',
-          '--disable-features=IsolateOrigins,site-per-process',
         ],
         // Increase browser launch timeout
         timeout: 60000,
@@ -895,7 +894,6 @@ export class WhatsAppWebService
             '--no-first-run',
             '--disable-gpu',
             '--disable-blink-features=AutomationControlled',
-            '--disable-features=IsolateOrigins,site-per-process',
           ],
         },
         authTimeoutMs: 60000,
