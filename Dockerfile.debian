@@ -65,8 +65,9 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     NODE_ENV=production
 
 # Create app user with UID 1000 (matching the nodejs user in our setup)
-RUN groupadd -g 1000 nodejs && \
-    useradd -r -g nodejs -u 1000 nodejs
+# Check if group/user already exists before creating
+RUN (getent group nodejs || groupadd -g 1000 nodejs) && \
+    (id -u nodejs &>/dev/null || useradd -r -g nodejs -u 1000 nodejs)
 
 # Set working directory
 WORKDIR /app
