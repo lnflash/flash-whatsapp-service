@@ -79,6 +79,45 @@ echo "  • Nginx with SSL"
 echo "  • Automatic backups and monitoring"
 echo ""
 
+# Check for pending kernel updates
+print_step "Checking system status"
+CURRENT_KERNEL=$(uname -r)
+LATEST_KERNEL=$(dpkg -l linux-image-* | grep '^ii' | awk '{print $2}' | grep -v "$CURRENT_KERNEL" | sort -V | tail -1 | sed 's/linux-image-//')
+
+if [ ! -z "$LATEST_KERNEL" ] && [ "$LATEST_KERNEL" != "$CURRENT_KERNEL" ]; then
+    print_warning "Kernel update available!"
+    print_info "Current kernel: $CURRENT_KERNEL"
+    print_info "Available kernel: $LATEST_KERNEL"
+    print_warning "For best results, consider updating and rebooting before installation:"
+    echo "  sudo apt update && sudo apt upgrade -y && sudo reboot"
+    echo ""
+    read -p "Continue anyway? (y/n): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        print_info "Please update and reboot, then run this script again"
+        exit 0
+    fi
+fi
+
+# Configure needrestart for non-interactive mode
+export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=a
+export NEEDRESTART_SUSPEND=1
+
+# Create needrestart configuration for automatic mode
+if [ -d "/etc/needrestart/conf.d" ]; then
+    cat > /etc/needrestart/conf.d/50-autorestart.conf << 'EOF'
+# Automatically restart services
+$nrconf{restart} = 'a';
+
+# Don't ask for kernel restart
+$nrconf{kernelhints} = 0;
+
+# Skip UI
+$nrconf{ui} = '';
+EOF
+fi
+
 # Check if already installed
 if [ -d "/opt/pulse" ] && [ -f "/opt/pulse/.env" ]; then
     print_warning "Pulse appears to be already installed!"
@@ -155,11 +194,12 @@ fi
 
 # System update
 print_step "Updating system packages"
-apt update && apt upgrade -y
+DEBIAN_FRONTEND=noninteractive apt-get update -qq
+DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -qq -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
 
 # Install base packages
 print_step "Installing base packages"
-apt install -y \
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
     curl \
     wget \
     git \
@@ -258,7 +298,7 @@ fi
 
 # Install Redis
 print_step "Installing and configuring Redis"
-apt install -y redis-server
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq redis-server
 
 # Generate Redis password
 REDIS_PASSWORD=$(openssl rand -hex 32)
