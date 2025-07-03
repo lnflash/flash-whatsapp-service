@@ -504,8 +504,10 @@ export class WhatsAppWebService
         const supportPhone =
           this.configService.get<string>('SUPPORT_PHONE_NUMBER') || '18762909250';
         const fromNumber = msg.from.replace('@c.us', '');
+        // Remove + prefix from support phone for comparison since env var doesn't have +
+        const cleanSupportPhone = supportPhone.replace(/^\+/, '');
 
-        if (fromNumber === supportPhone) {
+        if (fromNumber === cleanSupportPhone || fromNumber === supportPhone) {
           // This is a message from support, route it to the user
           const result = await this.supportModeService.routeMessage(msg.from, msg.body, true);
           if (!result.routed) {
