@@ -420,7 +420,7 @@ export class WhatsappService {
             const normalizedWhatsappId = session.whatsappId.replace('+', '');
             const pendingQuestionKey = `pending_ai_question:${normalizedWhatsappId}`;
             const pendingQuestion = await this.redisService.get(pendingQuestionKey);
-            
+
             if (pendingQuestion) {
               // Convert to consent command
               const consentCommand: ParsedCommand = {
@@ -646,7 +646,7 @@ export class WhatsappService {
       }
 
       if (!session.isVerified || !session.flashUserId || !session.flashAuthToken) {
-        return 'Your account is not fully verified. Please complete the linking process first.';
+        return 'Your account is not fully verified. Please complete the linking process first. Type "link" to start.';
       }
 
       // Skip MFA for WhatsApp since the user already authenticated
@@ -728,7 +728,7 @@ export class WhatsappService {
       }
 
       if (!session.isVerified || !session.flashUserId || !session.flashAuthToken) {
-        return 'Your account is not fully verified. Please complete the linking process first.';
+        return 'Your account is not fully verified. Please complete the linking process first. Type "link" to start.';
       }
 
       // Clear the balance cache
@@ -807,7 +807,7 @@ export class WhatsappService {
       }
 
       if (!session.isVerified || !session.flashUserId || !session.flashAuthToken) {
-        return 'Your account is not fully verified. Please complete the linking process first.';
+        return 'Your account is not fully verified. Please complete the linking process first. Type "link" to start.';
       }
 
       const newUsername = command.args.username;
@@ -2108,7 +2108,9 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
     whatsappId: string,
     contactName: string,
     phoneNumber: string,
-  ): Promise<string | { text: string; media?: Buffer; voice?: Buffer; voiceOnly?: boolean } | null> {
+  ): Promise<
+    string | { text: string; media?: Buffer; voice?: Buffer; voiceOnly?: boolean } | null
+  > {
     try {
       // Check for pending send first
       const pendingSendKey = `pending_send:${whatsappId}`;
@@ -2348,7 +2350,16 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
    */
   async notifyInvoicePaid(invoice: any): Promise<void> {
     try {
-      const message = `✅ Payment Received!\n\nAmount: $${invoice.amount} USD\n${invoice.memo ? `Memo: ${invoice.memo}\n` : ''}Paid at: ${new Date(invoice.paidAt).toLocaleString()}\n\nThank you for your payment!`;
+      const paidAtDate = new Date(invoice.paidAt);
+      const paidAtStr = paidAtDate.toLocaleString('en-US', {
+        timeZone: 'America/Jamaica',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
+      const message = `✅ Payment Received!\n\nAmount: $${invoice.amount} USD\n${invoice.memo ? `Memo: ${invoice.memo}\n` : ''}Paid at: ${paidAtStr} EST\n\nThank you for your payment!`;
 
       // Send notification via WhatsApp Web
       if (this.whatsappWebService) {
@@ -3675,7 +3686,7 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
       ],
       [
         'Enter your 6-digit verification code',
-        "Complete the verification by entering your 6-digit code",
+        'Complete the verification by entering your 6-digit code',
       ],
       [
         'Send money with `send 10 to @username`',
