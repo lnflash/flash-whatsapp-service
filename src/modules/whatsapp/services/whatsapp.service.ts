@@ -1934,18 +1934,10 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
         return { text: '❌ Failed to create payment request. Please try again later.' };
       }
 
-      // Generate QR code
-      const qrBuffer = await this.qrCodeService.generateQrCode(invoice.paymentRequest);
-
-      // Format the request message
+      // Format the request message (no QR code needed)
       let requestMessage = `💸 *Payment Request*\n\n`;
       requestMessage += `From: @${requesterUsername}\n`;
       requestMessage += `Amount: $${amount!.toFixed(2)} USD\n`;
-      requestMessage += `\n📱 *To pay this request:*\n`;
-      requestMessage += `1. Open Flash app\n`;
-      requestMessage += `2. Tap "Send"\n`;
-      requestMessage += `3. Scan this QR code or paste:\n`;
-      requestMessage += `\`${invoice.paymentRequest}\`\n`;
       requestMessage += `\n_Request expires in ${Math.floor((new Date(invoice.expiresAt).getTime() - Date.now()) / 60000)} minutes_`;
 
       // If we have a phone number, try to send WhatsApp message
@@ -1988,14 +1980,11 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
           requestMessage += `From: @${requesterUsername}\n`;
           requestMessage += `Amount: $${amount!.toFixed(2)} USD\n`;
           requestMessage += `\n💳 *To pay this request:*\n`;
-          requestMessage += `• Simply type \`pay\` to send the payment\n`;
-          requestMessage += `• Or scan this QR code in the Flash app\n`;
-          requestMessage += `• Or paste this invoice:\n`;
-          requestMessage += `\`${invoice.paymentRequest}\`\n`;
+          requestMessage += `Simply type \`pay\` to send the payment\n`;
           requestMessage += `\n_Request expires in ${Math.floor((new Date(invoice.expiresAt).getTime() - Date.now()) / 60000)} minutes_`;
 
-          // Send the actual payment request with QR
-          await this.whatsappWebService.sendImage(whatsappNumber, qrBuffer, requestMessage);
+          // Send the payment request message (no QR code)
+          await this.whatsappWebService.sendMessage(whatsappNumber, requestMessage);
 
           // Track the request in contact history
           if (isFromSavedContact && targetUsername) {
@@ -2026,7 +2015,6 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
       // Return the payment request to the requester
       return {
         text: requestMessage,
-        media: qrBuffer,
       };
     } catch (error) {
       this.logger.error(`Error handling request command: ${error.message}`, error.stack);
