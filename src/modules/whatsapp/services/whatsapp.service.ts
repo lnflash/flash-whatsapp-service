@@ -99,7 +99,7 @@ export class WhatsappService {
     timestamp: string;
     name?: string;
     isVoiceCommand?: boolean;
-  }): Promise<string | { text: string; media?: Buffer; voice?: Buffer }> {
+  }): Promise<string | { text: string; media?: Buffer; voice?: Buffer; voiceOnly?: boolean }> {
     try {
       const whatsappId = this.extractWhatsappId(messageData.from);
       const phoneNumber = this.normalizePhoneNumber(messageData.from);
@@ -249,7 +249,7 @@ export class WhatsappService {
     whatsappId: string,
     phoneNumber: string,
     session: UserSession | null,
-  ): Promise<string | { text: string; media?: Buffer }> {
+  ): Promise<string | { text: string; media?: Buffer; voice?: Buffer; voiceOnly?: boolean }> {
     try {
       // Check if user has a pending payment confirmation
       const pendingPayment = await this.paymentConfirmationService.getPendingPayment(whatsappId);
@@ -520,7 +520,7 @@ export class WhatsappService {
     command: ParsedCommand,
     whatsappId: string,
     session: UserSession | null,
-  ): Promise<string | { text: string; media?: Buffer }> {
+  ): Promise<string | { text: string; media?: Buffer; voice?: Buffer; voiceOnly?: boolean }> {
     try {
       // Check if we have an OTP in the command
       const otpCode = command.args.otp;
@@ -2087,7 +2087,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
     whatsappId: string,
     contactName: string,
     phoneNumber: string,
-  ): Promise<string | { text: string; media?: Buffer; voice?: Buffer } | null> {
+  ): Promise<string | { text: string; media?: Buffer; voice?: Buffer; voiceOnly?: boolean } | null> {
     try {
       // Check for pending send first
       const pendingSendKey = `pending_send:${whatsappId}`;
@@ -2663,7 +2663,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
     command: ParsedCommand,
     whatsappId: string,
     session: UserSession | null,
-  ): Promise<string | { text: string; media?: Buffer }> {
+  ): Promise<string | { text: string; media?: Buffer; voice?: Buffer; voiceOnly?: boolean }> {
     try {
       // Check if user has a linked account
       if (!session || !session.isVerified || !session.flashAuthToken) {

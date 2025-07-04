@@ -541,7 +541,7 @@ export class WhatsAppWebService
               this.logger.log(`🎤 Sending voice note to ${phoneNumber}`);
               
               // For voice-only mode or long responses, send a placeholder immediately
-              const isVoiceOnly = response.voiceOnly === true || (!response.text || response.text.trim() === '');
+              const isVoiceOnly = (response as any).voiceOnly === true || (!response.text || response.text.trim() === '');
               const responseLength = response.text ? response.text.length : 0;
               const isLongResponse = responseLength > 500;
               
