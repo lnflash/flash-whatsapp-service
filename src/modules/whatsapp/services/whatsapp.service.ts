@@ -1496,6 +1496,65 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
             );
 
             if (result?.status === PaymentSendResult.Success) {
+              // Send notification to recipient if they have WhatsApp linked
+              try {
+                // Get all active sessions to find recipient
+                const allSessions = await this.sessionService.getAllActiveSessions();
+                
+                // Find recipient session by checking their Flash username
+                for (const recipientSession of allSessions) {
+                  if (recipientSession.flashUserId && recipientSession.flashAuthToken) {
+                    // Get user info to check username
+                    const userInfo = await this.flashApiService.executeQuery<any>(
+                      `query me { me { username } }`,
+                      {},
+                      recipientSession.flashAuthToken,
+                    );
+                    
+                    if (userInfo?.me?.username === targetUsername) {
+                      // Found the recipient! Send them a notification
+                      const senderInfo = await this.flashApiService.executeQuery<any>(
+                        `query me { me { username } }`,
+                        {},
+                        session.flashAuthToken,
+                      );
+                      const senderUsername = senderInfo?.me?.username || 'Someone';
+                      
+                      let recipientMessage = `💰 *Payment Received!*\n\n`;
+                      recipientMessage += `Amount: *$${amount.toFixed(2)} USD*\n`;
+                      recipientMessage += `From: *@${senderUsername}*\n`;
+                      if (command.args.memo) {
+                        recipientMessage += `Memo: _${command.args.memo}_\n`;
+                      }
+                      recipientMessage += `\n✅ Payment confirmed instantly`;
+                      
+                      // Get recipient's updated balance
+                      if (recipientSession.flashUserId) {
+                        await this.balanceService.clearBalanceCache(recipientSession.flashUserId);
+                        const balance = await this.balanceService.getUserBalance(
+                          recipientSession.flashUserId,
+                          recipientSession.flashAuthToken,
+                        );
+                        
+                        if (balance.fiatBalance > 0 || balance.btcBalance === 0) {
+                          recipientMessage += `\n💼 New balance: *$${balance.fiatBalance.toFixed(2)} USD*`;
+                        }
+                      }
+                      
+                      // Send the notification
+                      if (this.whatsappWebService?.isClientReady()) {
+                        await this.whatsappWebService.sendMessage(recipientSession.whatsappId, recipientMessage);
+                      }
+                      
+                      break; // Found and notified the recipient
+                    }
+                  }
+                }
+              } catch (error) {
+                // Log error but don't fail the payment
+                this.logger.error(`Error sending recipient notification: ${error.message}`);
+              }
+              
               return `✅ Payment sent to @${targetUsername}!\n\nAmount: $${amount.toFixed(2)} USD\n${command.args.memo ? `Memo: ${command.args.memo}` : ''}\n\nPayment successful!`;
             } else {
               const errorMessage = result?.errors?.[0]?.message || 'Unknown error';
