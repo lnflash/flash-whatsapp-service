@@ -1965,10 +1965,34 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
             recipientIdentifier = `the number ${targetPhone}`; // Direct phone number
           }
 
-          // Send notification to recipient
-          const notificationMessage = `💰 *Payment Request*\n\n@${requesterUsername} is requesting $${amount!.toFixed(2)} USD from you.\n\nTo view and pay this request, please check your WhatsApp messages or open the Flash app.`;
+          // Store the payment request for the recipient
+          const recipientRequestKey = `pending_request:${whatsappNumber}`;
+          const requestData = {
+            type: 'payment_request',
+            invoice: invoice.paymentRequest,
+            amount: amount!,
+            requesterUsername,
+            requesterWhatsappId: whatsappId,
+            createdAt: new Date().toISOString(),
+            expiresAt: invoice.expiresAt,
+          };
+          await this.redisService.setEncrypted(recipientRequestKey, requestData, 3600); // 1 hour expiry
+
+          // Send notification to recipient with pay instructions
+          const notificationMessage = `💰 *Payment Request*\n\n@${requesterUsername} is requesting $${amount!.toFixed(2)} USD from you.\n\n💳 *To pay this request:*\n• Simply type \`pay\` to send the payment\n• Or open the Flash app to review and pay`;
 
           await this.whatsappWebService.sendMessage(whatsappNumber, notificationMessage);
+
+          // Update the request message to include pay instructions
+          requestMessage = `💸 *Payment Request*\n\n`;
+          requestMessage += `From: @${requesterUsername}\n`;
+          requestMessage += `Amount: $${amount!.toFixed(2)} USD\n`;
+          requestMessage += `\n💳 *To pay this request:*\n`;
+          requestMessage += `• Simply type \`pay\` to send the payment\n`;
+          requestMessage += `• Or scan this QR code in the Flash app\n`;
+          requestMessage += `• Or paste this invoice:\n`;
+          requestMessage += `\`${invoice.paymentRequest}\`\n`;
+          requestMessage += `\n_Request expires in ${Math.floor((new Date(invoice.expiresAt).getTime() - Date.now()) / 60000)} minutes_`;
 
           // Send the actual payment request with QR
           await this.whatsappWebService.sendImage(whatsappNumber, qrBuffer, requestMessage);
@@ -2525,9 +2549,65 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
       const action = command.args.action;
       const modifier = command.args.modifier;
 
-      // Get pending payments (encrypted)
+      // First check for pending payment requests (when someone requested money from this user)
+      const pendingRequestKey = `pending_request:${whatsappId}`;
+      const pendingRequest = await this.redisService.getEncrypted(pendingRequestKey);
+
+      // If no action specified and there's a pending request, handle it
+      if (!action && pendingRequest) {
+        try {
+          // Check if request is still valid
+          const expiresAt = new Date(pendingRequest.expiresAt);
+          if (expiresAt < new Date()) {
+            await this.redisService.del(pendingRequestKey);
+            return '❌ This payment request has expired. Please ask for a new one.';
+          }
+
+          // Get user's wallets
+          const wallets = await this.paymentService.getUserWallets(session.flashAuthToken);
+
+          // Pay the invoice
+          const result = await this.paymentService.sendLightningPayment(
+            {
+              walletId: wallets.usdWallet?.id || wallets.defaultWalletId,
+              paymentRequest: pendingRequest.invoice,
+            },
+            session.flashAuthToken,
+          );
+
+          if (result?.status === PaymentSendResult.Success) {
+            // Clear the pending request
+            await this.redisService.del(pendingRequestKey);
+
+            // Notify the requester
+            if (pendingRequest.requesterWhatsappId && this.whatsappWebService?.isClientReady()) {
+              const payerUsername = await this.usernameService.getUsername(session.flashAuthToken) || 'Someone';
+              const successNotification = `✅ *Payment Received!*\n\n@${payerUsername} has paid your request for $${pendingRequest.amount.toFixed(2)} USD.\n\nThe payment has been confirmed and added to your balance.`;
+              
+              await this.whatsappWebService.sendMessage(pendingRequest.requesterWhatsappId, successNotification);
+            }
+
+            return `✅ Payment sent successfully!\n\nAmount: $${pendingRequest.amount.toFixed(2)} USD\nTo: @${pendingRequest.requesterUsername}\n\nThe payment has been confirmed.`;
+          } else if (result?.status === PaymentSendResult.AlreadyPaid) {
+            await this.redisService.del(pendingRequestKey);
+            return '❌ This payment request has already been paid.';
+          } else {
+            return `❌ Payment failed: ${result?.errors?.[0]?.message || 'Unknown error'}`;
+          }
+        } catch (error) {
+          this.logger.error(`Payment request error: ${error.message}`);
+          return `❌ Failed to pay request: ${error.message}`;
+        }
+      }
+
+      // Get pending Lightning invoice payments (encrypted)
       const pendingPaymentsKey = `pending_payments:${whatsappId}`;
       const payments = await this.redisService.getEncrypted(pendingPaymentsKey);
+
+      // If there's a pending request but user specified an action, show both options
+      if (pendingRequest && action && (!payments || payments.length === 0)) {
+        return `💰 You have a pending payment request from @${pendingRequest.requesterUsername} for $${pendingRequest.amount.toFixed(2)} USD.\n\n• Type \`pay\` to pay this request\n• Or continue with other payment options`;
+      }
 
       if (!payments || payments.length === 0) {
         return '❌ No pending payments found.\n\nTo pay a Lightning invoice, either:\n• Share or paste the invoice to detect it automatically\n• Use: `send [amount] to [invoice]`';
