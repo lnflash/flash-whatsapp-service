@@ -27,10 +27,11 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
   private readonly logger = new Logger(PaymentNotificationService.name);
   private activeSubscriptions = new Map<string, string>(); // whatsappId -> subscriptionId
   private notificationDedupePrefix = 'payment_notif_sent:';
-  private readonly dedupeTimeout = 24 * 60 * 60; // 24 hours
+  private readonly dedupeTimeout = 7 * 24 * 60 * 60; // 7 days - extended for better deduplication
   private pollingIntervals = new Map<string, NodeJS.Timeout>(); // whatsappId -> interval
   private readonly lastTxPrefix = 'last_tx_id:'; // Redis key prefix for last transaction IDs
   private connectionErrorLogged = new Set<string>(); // Track which users we've logged connection errors for
+  private isFirstPoll = new Set<string>(); // Track first poll after startup per user
 
   constructor(
     private readonly configService: ConfigService,
@@ -208,6 +209,9 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
       clearInterval(interval);
       this.pollingIntervals.delete(whatsappId);
     }
+
+    // Clear first poll tracking
+    this.isFirstPoll.delete(whatsappId);
 
     // Clear last transaction ID from Redis
     await this.clearLastTransactionId(whatsappId);
@@ -518,10 +522,12 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
 
     this.pollingIntervals.set(whatsappId, interval);
 
-    // Do an immediate check
-    this.checkForNewIntraledgerPayments(whatsappId, authToken).catch((error) => {
-      this.logger.error(`Error in initial payment check for ${whatsappId}:`, error);
-    });
+    // Wait a bit before doing the first check to avoid processing old transactions on startup
+    setTimeout(() => {
+      this.checkForNewIntraledgerPayments(whatsappId, authToken).catch((error) => {
+        this.logger.error(`Error in initial payment check for ${whatsappId}:`, error);
+      });
+    }, 3000); // Wait 3 seconds before first check
   }
 
   /**
@@ -535,6 +541,13 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
       // Skip if WhatsApp client is not ready
       if (!this.whatsappWebService.isClientReady()) {
         return;
+      }
+
+      // Check if this is the first poll after startup
+      const isFirstPollForUser = !this.isFirstPoll.has(whatsappId);
+      if (isFirstPollForUser) {
+        this.isFirstPoll.add(whatsappId);
+        this.logger.debug(`First poll after startup for ${whatsappId}, being extra careful`);
       }
 
       // Get recent transactions
@@ -559,6 +572,15 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
 
         // Only process successful receive transactions
         if (tx.status === 'SUCCESS' && tx.direction === 'RECEIVE') {
+          // On first poll after startup, check if transaction is recent (within last 5 minutes)
+          if (isFirstPollForUser) {
+            const txTime = new Date(tx.createdAt).getTime();
+            const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+            if (txTime < fiveMinutesAgo) {
+              this.logger.debug(`Skipping old transaction from ${tx.createdAt} on first poll`);
+              continue;
+            }
+          }
           newReceiveTransactions.push(tx);
         }
       }
@@ -568,8 +590,11 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
         // Skip if we've already sent a notification for this transaction
         const notificationKey = `tx_${tx.id}`;
         if (await this.isNotificationSent(notificationKey)) {
+          this.logger.debug(`Skipping duplicate notification for transaction ${tx.id}`);
           continue;
         }
+        
+        this.logger.log(`Processing new payment notification for transaction ${tx.id} from ${tx.createdAt}`);
 
         // Get sender information
         const senderName =
@@ -630,7 +655,16 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
 
       // Update last processed transaction ID in Redis
       if (transactions.edges.length > 0) {
-        await this.setLastTransactionId(whatsappId, transactions.edges[0].node.id);
+        const latestTxId = transactions.edges[0].node.id;
+        
+        // Only update if we actually processed transactions or if this is the first poll
+        if (newReceiveTransactions.length > 0 || isFirstPollForUser) {
+          await this.setLastTransactionId(whatsappId, latestTxId);
+          
+          if (isFirstPollForUser && newReceiveTransactions.length === 0) {
+            this.logger.debug(`First poll for ${whatsappId}: No new transactions, setting baseline at ${latestTxId}`);
+          }
+        }
       }
     } catch (error) {
       // Don't log errors for WhatsApp not being ready
@@ -702,6 +736,10 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
       const key = `${this.lastTxPrefix}${whatsappId}`;
       // Store for 30 days
       await this.redisService.set(key, transactionId, 30 * 24 * 60 * 60);
+      
+      // Also store the timestamp of when we last processed transactions
+      const timestampKey = `${this.lastTxPrefix}timestamp:${whatsappId}`;
+      await this.redisService.set(timestampKey, new Date().toISOString(), 30 * 24 * 60 * 60);
     } catch (error) {
       this.logger.error(`Error setting last transaction ID for ${whatsappId}:`, error);
     }
