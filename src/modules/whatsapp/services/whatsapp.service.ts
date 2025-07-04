@@ -3625,7 +3625,7 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
     if (!session) {
       hints.push('Type `link` to connect your Flash account');
     } else if (!session.isVerified) {
-      hints.push('Complete verification with `verify 123456`');
+      hints.push('Enter your 6-digit verification code');
     } else {
       // User is linked and verified
       if (command?.type === CommandType.BALANCE) {
@@ -3674,8 +3674,8 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
         "You can connect your Flash account by typing 'link'",
       ],
       [
-        'Complete verification with `verify 123456`',
-        "Complete the verification by typing 'verify' followed by your 6-digit code",
+        'Enter your 6-digit verification code',
+        "Complete the verification by entering your 6-digit code",
       ],
       [
         'Send money with `send 10 to @username`',
