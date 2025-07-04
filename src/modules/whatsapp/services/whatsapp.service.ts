@@ -413,6 +413,25 @@ export class WhatsappService {
             }
           }
 
+          // Check if this is a "yes" or "no" response to a pending consent request
+          const lowerText = command.rawText.toLowerCase().trim();
+          if ((lowerText === 'yes' || lowerText === 'no') && session) {
+            // Check if there's a pending AI question (which indicates consent was requested)
+            const normalizedWhatsappId = session.whatsappId.replace('+', '');
+            const pendingQuestionKey = `pending_ai_question:${normalizedWhatsappId}`;
+            const pendingQuestion = await this.redisService.get(pendingQuestionKey);
+            
+            if (pendingQuestion) {
+              // Convert to consent command
+              const consentCommand: ParsedCommand = {
+                type: CommandType.CONSENT,
+                args: { choice: lowerText },
+                rawText: command.rawText,
+              };
+              return this.handleConsentCommand(consentCommand, whatsappId, session);
+            }
+          }
+
           // Check if the message contains a Lightning invoice
           const invoiceMatch = command.rawText.match(/\b(lnbc[a-z0-9]+)\b/i);
           if (invoiceMatch) {
@@ -461,7 +480,7 @@ export class WhatsappService {
       const result = await this.authService.initiateAccountLinking(linkRequest);
 
       if (result.otpSent) {
-        return 'To link your Flash account, please enter the verification code sent to your WhatsApp. Type "verify" followed by the 6-digit code (e.g., "verify 123456").';
+        return 'To link your Flash account, please enter the 6-digit verification code sent to your WhatsApp.';
       } else {
         return 'Your Flash account is already linked! You can check your balance or use other commands.';
       }
@@ -526,7 +545,7 @@ export class WhatsappService {
       const otpCode = command.args.otp;
 
       if (!otpCode) {
-        return 'Please provide your 6-digit verification code. For example: "verify 123456".';
+        return 'Please provide your 6-digit verification code.';
       }
 
       if (!session) {
@@ -920,7 +939,7 @@ export class WhatsappService {
 
         return 'You have declined to provide consent. Some services will be limited. You can change this at any time by typing "consent yes".';
       } else {
-        return 'Please specify your consent choice by typing "consent yes" or "consent no".';
+        return 'Please specify your consent choice by typing "yes" or "no".';
       }
     } catch (error) {
       this.logger.error(`Error handling consent command: ${error.message}`, error.stack);
@@ -940,7 +959,7 @@ export class WhatsappService {
         const pendingQuestionKey = `pending_ai_question:${normalizedWhatsappId}`;
         await this.redisService.set(pendingQuestionKey, query, 300); // 5 minute expiry
 
-        return 'Hi There! I would love to chat with you more, but first I need you to give your consent to talking to an AI bot. To use AI-powered support, please provide your consent by typing "consent yes".';
+        return 'Hi There! I would love to chat with you more, but first I need you to give your consent to talking to an AI bot. To use AI-powered support, please type "yes" to consent or "no" to decline.';
       }
 
       // Create context with user info, but remove sensitive data
@@ -1049,8 +1068,7 @@ Ready? Type \`link\` to begin! 🚀`;
     if (!session.isVerified) {
       return `📲 *Complete Your Verification*
 
-Please enter the 6-digit code sent to your phone:
-Type: \`verify 123456\` (replace with your code)
+Please enter the 6-digit code sent to your phone.
 
 ⚡ *Available Commands:*
 • \`price\` - Check current Bitcoin price
@@ -1063,9 +1081,11 @@ Need a new code? Type \`link\` again.`;
 
 🚀 *Quick Start:*
 • \`balance\` - Check your balance
-• \`send 10 to @username\` - Send money
-• \`receive 20\` - Request payment
+• \`send 10 to @username\` - Send $10 USD
+• \`receive 20\` - Request $20 USD
 • \`price\` - Bitcoin price
+
+💡 *Note:* All amounts are in USD regardless of your display currency
 
 📚 *All Commands:*
 • \`help wallet\` - Balance & transactions
@@ -1096,22 +1116,23 @@ Need a new code? Type \`link\` again.`;
 
       send: `💸 *Send Money Commands*
 
-• \`send 10 to @username\` - Send to Flash user
-• \`send 5.50 to john\` - Send to saved contact
-• \`send 25 to lnbc...\` - Pay Lightning invoice
+• \`send 10 to @username\` - Send $10 USD to Flash user
+• \`send 5.50 to john\` - Send $5.50 USD to saved contact
+• \`send 25 to lnbc...\` - Pay $25 USD Lightning invoice
 
 📱 *Request from Others:*
-• \`request 20 from @john\` - Request from user
-• \`request 15 from ayanna\` - Request from contact
+• \`request 20 from @john\` - Request $20 USD from user
+• \`request 15 from ayanna\` - Request $15 USD from contact
 
+💡 *Important:* All amounts are in USD regardless of your display currency
 💡 Tip: Save contacts for easier payments!`,
 
       receive: `📥 *Receive Money Commands*
 
-• \`receive 10\` - Create $10 invoice
-• \`receive 50 Coffee\` - Add a memo
-• \`pay 12345\` - Claim pending payment
+• \`receive 10\` - Create $10 USD invoice
+• \`receive 50 Coffee\` - Create $50 USD invoice with memo
 
+💡 *Important:* All amounts are in USD regardless of your display currency
 💡 Tip: Share the invoice or QR code to get paid!`,
 
       contacts: `👥 *Contact Commands*
@@ -1308,7 +1329,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
       // Parse amount
       const amountStr = command.args.amount;
       if (!amountStr) {
-        return 'Please specify amount. Usage: send [amount] to [recipient]';
+        return 'Please specify amount in USD. Usage: send [amount] to [recipient]';
       }
 
       const parsedResult = parseAndValidateAmount(amountStr);
@@ -1762,7 +1783,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
 
       if (!amountStr || (!targetUsername && !targetPhone)) {
         return {
-          text: 'Please specify amount and recipient. Usage:\n• request [amount] from [@username]\n• request [amount] from [phone]\n• request [amount] from [@username] [phone]\n• request [amount] from [contact_name]',
+          text: 'Please specify amount (in USD) and recipient. Usage:\n• request [amount] from [@username]\n• request [amount] from [phone]\n• request [amount] from [@username] [phone]\n• request [amount] from [contact_name]',
         };
       }
 
