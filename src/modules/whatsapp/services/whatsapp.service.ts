@@ -171,7 +171,7 @@ export class WhatsappService {
 
             // If voice-only mode, return with empty text
             if (shouldSendVoiceOnly) {
-              return { text: '', voice: audioBuffer };
+              return { text: '', voice: audioBuffer, voiceOnly: true };
             }
 
             return { text: finalText, voice: audioBuffer };
@@ -210,6 +210,7 @@ export class WhatsappService {
                 ...response,
                 text: '',
                 voice: audioBuffer,
+                voiceOnly: true,
               };
             }
 

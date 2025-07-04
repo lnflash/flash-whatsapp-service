@@ -65,12 +65,21 @@ export class TtsService {
     try {
       // Clean the text first to get accurate length
       const cleanedText = this.cleanTextForTTS(text);
+      const startTime = Date.now();
 
+      this.logger.debug(`🎤 Starting TTS generation for ${cleanedText.length} characters using ${this.provider}`);
+
+      let buffer: Buffer;
       if (this.provider === 'google-cloud' && this.googleCloudClient) {
-        return this.textToSpeechGoogleCloud(cleanedText, language);
+        buffer = await this.textToSpeechGoogleCloud(cleanedText, language);
       } else {
-        return this.textToSpeechFreeApi(cleanedText, language);
+        buffer = await this.textToSpeechFreeApi(cleanedText, language);
       }
+
+      const duration = Date.now() - startTime;
+      this.logger.log(`✅ TTS generation completed in ${duration}ms (${buffer.length} bytes)`);
+
+      return buffer;
     } catch (error) {
       this.logger.error('Error converting text to speech:', error);
       throw error;

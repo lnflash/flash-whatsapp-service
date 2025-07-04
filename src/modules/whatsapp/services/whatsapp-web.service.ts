@@ -539,9 +539,27 @@ export class WhatsAppWebService
             // Send voice note if voice buffer is present
             if (response.voice) {
               this.logger.log(`🎤 Sending voice note to ${phoneNumber}`);
+              
+              // For voice-only mode or long responses, send a placeholder immediately
+              const isVoiceOnly = response.voiceOnly === true || (!response.text || response.text.trim() === '');
+              const responseLength = response.text ? response.text.length : 0;
+              const isLongResponse = responseLength > 500;
+              
+              if (isVoiceOnly || isLongResponse) {
+                // Send placeholder text immediately
+                const placeholder = isVoiceOnly 
+                  ? '🎤 *Voice message incoming...*\n\n_Processing your response. The voice note will arrive shortly._'
+                  : `📝 *Response ready*\n\n_Generating voice note (${Math.ceil(responseLength / 1000)}k characters)..._`;
+                
+                await this.sendMessage(msg.from, placeholder);
+                this.logger.log(`📨 Sent placeholder message for voice generation`);
+              }
+              
+              // Send the voice note
               await this.sendVoiceNote(msg.from, response.voice);
-              // Also send text for reference (unless it's empty for voice-only mode)
-              if (response.text && response.text.trim() !== '') {
+              
+              // Send text if not voice-only mode and not already sent placeholder
+              if (!isVoiceOnly && !isLongResponse && response.text.trim() !== '') {
                 await this.sendMessage(msg.from, response.text);
               }
             }
