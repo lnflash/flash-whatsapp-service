@@ -256,6 +256,8 @@ export class WhatsAppWebService
     this.client.on('message', async (msg: Message) => {
       this.logger.debug(`📥 Raw message received from ${msg.from}: "${msg.body}"`);
       
+      let responseTarget: string = msg.from; // Default to sender
+      
       try {
         // Ignore messages during startup grace period
         if (this.isInGracePeriod) {
@@ -268,10 +270,13 @@ export class WhatsAppWebService
           return;
         }
 
-        // Ignore group messages and status updates
-        if (!msg.from.endsWith('@c.us')) {
+        // Ignore status updates but allow group messages
+        if (!msg.from.endsWith('@c.us') && !msg.from.endsWith('@g.us')) {
           return;
         }
+        
+        // For group messages, we'll need to handle them differently
+        const isGroupMessage = msg.from.endsWith('@g.us');
 
         // Check if client is ready
         if (!this.isReady) {
@@ -518,8 +523,19 @@ export class WhatsAppWebService
 
         // Log incoming message
         const contact = await msg.getContact();
-        const phoneNumber = msg.from.replace('@c.us', '');
-        this.logger.log(`📨 Incoming message from ${phoneNumber} (${contact.pushname || 'No name'}): "${msg.body}"`);
+        let phoneNumber: string;
+        
+        if (isGroupMessage) {
+          // For group messages, extract sender from author field
+          phoneNumber = msg.author ? msg.author.replace('@c.us', '') : 'unknown';
+          responseTarget = msg.from; // Send response back to the group
+          this.logger.log(`📨 Group message from ${phoneNumber} in ${msg.from}: "${msg.body}"`);
+        } else {
+          // For direct messages
+          phoneNumber = msg.from.replace('@c.us', '');
+          responseTarget = msg.from; // Send response back to the individual
+          this.logger.log(`📨 Incoming message from ${phoneNumber} (${contact.pushname || 'No name'}): "${msg.body}"`);
+        }
 
         // Process regular text messages
         const response = await this.whatsappService.processCloudMessage({
@@ -551,38 +567,38 @@ export class WhatsAppWebService
                   ? '🎤 *Voice message incoming...*\n\n_Processing your response. The voice note will arrive shortly._'
                   : `📝 *Response ready*\n\n_Generating voice note (${Math.ceil(responseLength / 1000)}k characters)..._`;
                 
-                await this.sendMessage(msg.from, placeholder);
+                await this.sendMessage(responseTarget, placeholder);
                 this.logger.log(`📨 Sent placeholder message for voice generation`);
               }
               
               // Send the voice note
-              await this.sendVoiceNote(msg.from, response.voice);
+              await this.sendVoiceNote(responseTarget, response.voice);
               
               // Send text if not voice-only mode and not already sent placeholder
               if (!isVoiceOnly && !isLongResponse && response.text.trim() !== '') {
-                await this.sendMessage(msg.from, response.text);
+                await this.sendMessage(responseTarget, response.text);
               }
             }
             // Send image with caption if media is present
             else if (response.media) {
-              this.logger.log(`🖼️ Sending image with caption to ${phoneNumber}`);
-              await this.sendImage(msg.from, response.media, response.text);
+              this.logger.log(`🖼️ Sending image with caption to ${isGroupMessage ? 'group' : phoneNumber}`);
+              await this.sendImage(responseTarget, response.media, response.text);
             } else {
               // Just send text if no media
-              this.logger.log(`📤 Sending text message to ${phoneNumber}: "${response.text.substring(0, 50)}${response.text.length > 50 ? '...' : ''}"`);
-              await this.sendMessage(msg.from, response.text);
+              this.logger.log(`📤 Sending text message to ${isGroupMessage ? 'group' : phoneNumber}: "${response.text.substring(0, 50)}${response.text.length > 50 ? '...' : ''}"`);
+              await this.sendMessage(responseTarget, response.text);
             }
           } else if (typeof response === 'string') {
             // Simple text response
-            this.logger.log(`📤 Sending text message to ${phoneNumber}: "${response.substring(0, 50)}${response.length > 50 ? '...' : ''}"`);
-            await this.sendMessage(msg.from, response);
+            this.logger.log(`📤 Sending text message to ${isGroupMessage ? 'group' : phoneNumber}: "${response.substring(0, 50)}${response.length > 50 ? '...' : ''}"`);
+            await this.sendMessage(responseTarget, response);
           } else {
             this.logger.warn(`Unexpected response format: ${JSON.stringify(response)}`);
           }
 
           // Mark message as read
           await msg.getChat().then((chat) => chat.sendSeen());
-          this.logger.log(`✅ Response sent successfully to ${phoneNumber}`);
+          this.logger.log(`✅ Response sent successfully to ${isGroupMessage ? `group (from ${phoneNumber})` : phoneNumber}`);
         } else {
           this.logger.warn(`⚠️ No response generated for message from ${phoneNumber}`);
         }
@@ -592,7 +608,7 @@ export class WhatsAppWebService
         // Send error message to user
         try {
           await this.sendMessage(
-            msg.from,
+            responseTarget || msg.from,
             "I'm sorry, I encountered an error processing your message. Please try again.",
           );
         } catch (sendError) {
