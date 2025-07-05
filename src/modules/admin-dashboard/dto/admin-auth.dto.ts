@@ -12,6 +12,27 @@ export class AdminLoginDto {
     message: 'Invalid phone number format',
   })
   phoneNumber: string;
+
+  @ApiProperty({
+    description: 'Device fingerprint for security',
+    required: false,
+  })
+  @IsString()
+  deviceFingerprint?: string;
+
+  @ApiProperty({
+    description: 'Client IP address',
+    required: false,
+  })
+  @IsString()
+  ipAddress?: string;
+
+  @ApiProperty({
+    description: 'User agent string',
+    required: false,
+  })
+  @IsString()
+  userAgent?: string;
 }
 
 export class AdminVerifyOtpDto {
@@ -30,6 +51,13 @@ export class AdminVerifyOtpDto {
   @IsNotEmpty()
   @Length(6, 6)
   otp: string;
+
+  @ApiProperty({
+    description: 'Device fingerprint for security',
+    required: false,
+  })
+  @IsString()
+  deviceFingerprint?: string;
 }
 
 export class AdminRefreshTokenDto {
@@ -39,6 +67,44 @@ export class AdminRefreshTokenDto {
   @IsString()
   @IsNotEmpty()
   refreshToken: string;
+}
+
+export class AdminTOTPVerifyDto {
+  @ApiProperty({
+    description: 'Session ID from OTP verification',
+  })
+  @IsString()
+  @IsNotEmpty()
+  sessionId: string;
+
+  @ApiProperty({
+    description: 'TOTP code from authenticator app',
+    example: '123456',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @Length(6, 6)
+  totpCode: string;
+
+  @ApiProperty({
+    description: 'Alternative token field',
+    required: false,
+  })
+  @IsString()
+  token?: string;
+
+  @ApiProperty({
+    description: 'Device fingerprint for security',
+    required: false,
+  })
+  @IsString()
+  deviceFingerprint?: string;
+
+  @ApiProperty({
+    description: 'Trust this device for future logins',
+    required: false,
+  })
+  trustDevice?: boolean;
 }
 
 export class AdminSessionDto {
@@ -56,4 +122,13 @@ export class AdminSessionDto {
 
   @ApiProperty()
   sessionId: string;
+
+  @ApiProperty({ required: false })
+  totpRequired?: boolean;
+
+  @ApiProperty({ required: false })
+  user?: any;
+
+  @ApiProperty({ required: false })
+  message?: string;
 }

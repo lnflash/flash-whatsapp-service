@@ -20,5 +20,7 @@
     "paths": {
       "@app/*": ["src/*"]
     }
-  }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["./admin-dashboard-v2/**/*", "node_modules", "dist"]
 }

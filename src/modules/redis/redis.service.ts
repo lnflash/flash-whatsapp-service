@@ -67,6 +67,13 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Delete key (alias for del)
+   */
+  async delete(key: string): Promise<void> {
+    await this.redisClient.del(key);
+  }
+
+  /**
    * Set key with expiry only if it doesn't exist
    */
   async setNX(key: string, value: string, expiryInSeconds: number): Promise<boolean> {
@@ -86,6 +93,62 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    */
   async getSetMembers(key: string): Promise<string[]> {
     return this.redisClient.smembers(key);
+  }
+
+  /**
+   * Add one or more members to a sorted set
+   */
+  async zadd(key: string, score: number, member: string): Promise<number> {
+    return this.redisClient.zadd(key, score, member);
+  }
+
+  /**
+   * Get the number of members in a sorted set
+   */
+  async zcard(key: string): Promise<number> {
+    return this.redisClient.zcard(key);
+  }
+
+  /**
+   * Return a range of members in a sorted set, by index
+   */
+  async zrange(key: string, start: number, stop: number, withScores?: boolean): Promise<string[]> {
+    if (withScores) {
+      return this.redisClient.zrange(key, start, stop, 'WITHSCORES');
+    }
+    return this.redisClient.zrange(key, start, stop);
+  }
+
+  /**
+   * Return a range of members in a sorted set, by index, with scores ordered from high to low
+   */
+  async zrevrange(key: string, start: number, stop: number, withScores?: boolean): Promise<string[]> {
+    if (withScores) {
+      return this.redisClient.zrevrange(key, start, stop, 'WITHSCORES');
+    }
+    return this.redisClient.zrevrange(key, start, stop);
+  }
+
+  /**
+   * Return a range of members in a sorted set, by score, with scores ordered from high to low
+   */
+  async zrevrangebyscore(key: string, max: number | string, min: number | string, withScores?: boolean, limit?: { offset: number; count: number }): Promise<string[]> {
+    if (withScores && limit) {
+      return this.redisClient.zrevrangebyscore(key, max, min, 'WITHSCORES', 'LIMIT', limit.offset, limit.count);
+    } else if (withScores) {
+      return this.redisClient.zrevrangebyscore(key, max, min, 'WITHSCORES');
+    } else if (limit) {
+      return this.redisClient.zrevrangebyscore(key, max, min, 'LIMIT', limit.offset, limit.count);
+    } else {
+      return this.redisClient.zrevrangebyscore(key, max, min);
+    }
+  }
+
+  /**
+   * Remove all members in a sorted set within the given indexes
+   */
+  async zremrangebyrank(key: string, start: number, stop: number): Promise<number> {
+    return this.redisClient.zremrangebyrank(key, start, stop);
   }
 
   /**
