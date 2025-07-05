@@ -448,15 +448,15 @@ describe('WhatsappService', () => {
           3600,
         );
 
-        // Verify messages sent to recipient
+        // Verify message sent to recipient (only one message now)
+        expect(whatsappWebService.sendMessage).toHaveBeenCalledTimes(1);
         expect(whatsappWebService.sendMessage).toHaveBeenCalledWith(
           recipientWhatsappId,
           expect.stringContaining('Payment Request'),
         );
-        expect(whatsappWebService.sendMessage).toHaveBeenCalledWith(
-          recipientWhatsappId,
-          expect.stringContaining('Simply type `pay` to send the payment'),
-        );
+        // Verify the message contains the pay instruction
+        const sentMessage = (whatsappWebService.sendMessage as jest.Mock).mock.calls[0][1];
+        expect(sentMessage).toContain('Simply type `pay` to send the payment');
 
         // Verify response to requester
         expect(typeof response).toBe('object');

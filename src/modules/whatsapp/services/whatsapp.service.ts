@@ -1970,12 +1970,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
           };
           await this.redisService.setEncrypted(recipientRequestKey, requestData, 3600); // 1 hour expiry
 
-          // Send notification to recipient with pay instructions
-          const notificationMessage = `💰 *Payment Request*\n\n@${requesterUsername} is requesting $${amount!.toFixed(2)} USD from you.\n\n💳 *To pay this request:*\n• Simply type \`pay\` to send the payment\n• Or open the Flash app to review and pay`;
-
-          await this.whatsappWebService.sendMessage(whatsappNumber, notificationMessage);
-
-          // Update the request message to include pay instructions
+          // Send the payment request message with pay instructions
           requestMessage = `💸 *Payment Request*\n\n`;
           requestMessage += `From: @${requesterUsername}\n`;
           requestMessage += `Amount: $${amount!.toFixed(2)} USD\n`;
