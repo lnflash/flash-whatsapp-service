@@ -407,11 +407,12 @@ export class WhatsAppWebService
               } else {
                 // No pending request, just save the contact
                 const response = await this.whatsappService.processCloudMessage({
-                  from: msg.from.replace('@c.us', ''),
+                  from: isGroupMessage && msg.author ? msg.author.replace(/@c\.us|@lid|@s\.whatsapp\.net/g, '') : msg.from.replace('@c.us', ''),
                   text: `contacts add ${fullName.replace(/\s+/g, '_')} ${phoneNumber}`,
                   messageId: msg.id._serialized,
                   timestamp: msg.timestamp.toString(),
                   name: (await msg.getContact()).pushname,
+                  whatsappId: isGroupMessage && msg.author ? msg.author : msg.from,
                 });
 
                 if (response) {
@@ -482,12 +483,13 @@ export class WhatsAppWebService
 
             // Process the transcribed text as a regular message
             const response = await this.whatsappService.processCloudMessage({
-              from: msg.from.replace('@c.us', ''),
+              from: isGroupMessage && msg.author ? msg.author.replace(/@c\.us|@lid|@s\.whatsapp\.net/g, '') : msg.from.replace('@c.us', ''),
               text: transcribedText,
               messageId: msg.id._serialized,
               timestamp: msg.timestamp.toString(),
               name: (await msg.getContact()).pushname,
               isVoiceCommand: true, // Flag to indicate this came from voice
+              whatsappId: isGroupMessage && msg.author ? msg.author : msg.from,
             });
 
             // Send response
@@ -569,6 +571,7 @@ export class WhatsAppWebService
           messageId: msg.id._serialized,
           timestamp: msg.timestamp.toString(),
           name: contact.pushname,
+          whatsappId: isGroupMessage && msg.author ? msg.author : msg.from,
         });
 
         // Send response if we have one

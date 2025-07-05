@@ -99,9 +99,10 @@ export class WhatsappService {
     timestamp: string;
     name?: string;
     isVoiceCommand?: boolean;
+    whatsappId?: string;
   }): Promise<string | { text: string; media?: Buffer; voice?: Buffer; voiceOnly?: boolean }> {
     try {
-      const whatsappId = this.extractWhatsappId(messageData.from);
+      const whatsappId = messageData.whatsappId || this.extractWhatsappId(messageData.from);
       const phoneNumber = this.normalizePhoneNumber(messageData.from);
 
       // Store the incoming message for traceability
@@ -472,6 +473,19 @@ export class WhatsappService {
    */
   private async handleLinkCommand(whatsappId: string, phoneNumber: string): Promise<string> {
     try {
+      // Check if this is an @lid format user
+      if (whatsappId.includes('@lid')) {
+        return `⚠️ *Unable to Link Account*
+
+Your WhatsApp account uses a special ID format that cannot be linked to Flash.
+
+To use this bot, please:
+1. Use WhatsApp from a phone number registered with Flash
+2. Or contact support for assistance
+
+_This limitation is due to WhatsApp's privacy features._`;
+      }
+
       const linkRequest: AccountLinkRequestDto = {
         whatsappId,
         phoneNumber,
