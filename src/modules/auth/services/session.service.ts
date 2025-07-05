@@ -346,4 +346,18 @@ export class SessionService {
 
     return results;
   }
+
+  /**
+   * Increment a counter (for rate limiting)
+   */
+  async incr(key: string): Promise<number> {
+    return this.redisService.incr(key);
+  }
+
+  /**
+   * Set expiry on a key (for rate limiting)
+   */
+  async expire(key: string, seconds: number): Promise<void> {
+    await this.redisService.expire(key, seconds);
+  }
 }
