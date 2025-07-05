@@ -493,7 +493,10 @@ describe('WhatsappService', () => {
           createdAt: new Date().toISOString(),
           expiresAt: new Date(Date.now() + 3600000).toISOString(),
         };
-        jest.spyOn(redisService, 'getEncrypted').mockResolvedValue(mockPendingRequest);
+        // Mock that first call returns null (without @c.us), second call returns the request
+        jest.spyOn(redisService, 'getEncrypted')
+          .mockResolvedValueOnce(null) // First call with whatsappId
+          .mockResolvedValueOnce(mockPendingRequest); // Second call with @c.us suffix
 
         // Mock wallet info
         jest.spyOn(paymentService, 'getUserWallets').mockResolvedValue({
@@ -540,8 +543,8 @@ describe('WhatsappService', () => {
           'test-token-2',
         );
 
-        // Verify pending request was cleared
-        expect(redisService.del).toHaveBeenCalledWith('pending_request:18765559999');
+        // Verify pending request was cleared (with @c.us suffix since that's where it was found)
+        expect(redisService.del).toHaveBeenCalledWith('pending_request:18765559999@c.us');
 
         // Verify notification sent to requester
         expect(whatsappWebService.sendMessage).toHaveBeenCalledWith(
@@ -586,7 +589,10 @@ describe('WhatsappService', () => {
           createdAt: new Date(Date.now() - 7200000).toISOString(), // 2 hours ago
           expiresAt: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago (expired)
         };
-        jest.spyOn(redisService, 'getEncrypted').mockResolvedValue(mockExpiredRequest);
+        // Mock that first call returns null (without @c.us), second call returns the expired request
+        jest.spyOn(redisService, 'getEncrypted')
+          .mockResolvedValueOnce(null) // First call with whatsappId
+          .mockResolvedValueOnce(mockExpiredRequest); // Second call with @c.us suffix
 
         // Mock pay command
         const mockCommand = {
@@ -604,8 +610,8 @@ describe('WhatsappService', () => {
           timestamp: new Date().toISOString(),
         });
 
-        // Verify expired request was deleted
-        expect(redisService.del).toHaveBeenCalledWith('pending_request:18765559999');
+        // Verify expired request was deleted (with @c.us suffix since that's where it was found)
+        expect(redisService.del).toHaveBeenCalledWith('pending_request:18765559999@c.us');
 
         // Verify no payment was attempted
         expect(paymentService.sendLightningPayment).not.toHaveBeenCalled();
@@ -641,7 +647,10 @@ describe('WhatsappService', () => {
           createdAt: new Date().toISOString(),
           expiresAt: new Date(Date.now() + 3600000).toISOString(),
         };
-        jest.spyOn(redisService, 'getEncrypted').mockResolvedValue(mockPendingRequest);
+        // Mock that first call returns null (without @c.us), second call returns the request
+        jest.spyOn(redisService, 'getEncrypted')
+          .mockResolvedValueOnce(null) // First call with whatsappId
+          .mockResolvedValueOnce(mockPendingRequest); // Second call with @c.us suffix
 
         // Mock wallet info
         jest.spyOn(paymentService, 'getUserWallets').mockResolvedValue({
@@ -672,8 +681,8 @@ describe('WhatsappService', () => {
           timestamp: new Date().toISOString(),
         });
 
-        // Verify pending request was cleared
-        expect(redisService.del).toHaveBeenCalledWith('pending_request:18765559999');
+        // Verify pending request was cleared (with @c.us suffix since that's where it was found)
+        expect(redisService.del).toHaveBeenCalledWith('pending_request:18765559999@c.us');
 
         // Verify appropriate message
         expect(response).toContain('This payment request has already been paid');

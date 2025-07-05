@@ -2538,8 +2538,17 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
       const modifier = command.args.modifier;
 
       // First check for pending payment requests (when someone requested money from this user)
-      const pendingRequestKey = `pending_request:${whatsappId}`;
-      const pendingRequest = await this.redisService.getEncrypted(pendingRequestKey);
+      // Note: We need to check both formats as the request might be stored with @c.us suffix
+      let pendingRequestKey = `pending_request:${whatsappId}`;
+      let pendingRequest = await this.redisService.getEncrypted(pendingRequestKey);
+      
+      // If not found, try with @c.us suffix (for requests sent via phone number)
+      if (!pendingRequest) {
+        // Extract just the number part from whatsappId (remove any existing @c.us)
+        const phoneNumber = whatsappId.replace('@c.us', '').replace(/\D/g, '');
+        pendingRequestKey = `pending_request:${phoneNumber}@c.us`;
+        pendingRequest = await this.redisService.getEncrypted(pendingRequestKey);
+      }
 
       // If no action specified and there's a pending request, handle it
       if (!action && pendingRequest) {
