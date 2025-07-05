@@ -13,6 +13,7 @@ import { QrCodeService } from './qr-code.service';
 import { RedisService } from '../../redis/redis.service';
 import { SupportModeService } from './support-mode.service';
 import { SpeechService } from '../../speech/speech.service';
+import { SessionService } from '../../auth/services/session.service';
 import { ChromeCleanupUtil } from '../../../common/utils/chrome-cleanup.util';
 import * as fsPromises from 'fs/promises';
 import * as path from 'path';
@@ -38,6 +39,7 @@ export class WhatsAppWebService
     private readonly redisService: RedisService,
     private readonly supportModeService: SupportModeService,
     private readonly speechService: SpeechService,
+    private readonly sessionService: SessionService,
   ) {
     // Initialize WhatsApp Web client with persistent session
     const puppeteerConfig: any = {
@@ -545,9 +547,14 @@ export class WhatsAppWebService
         
         if (isGroupMessage) {
           // For group messages, extract sender from author field
-          phoneNumber = msg.author ? msg.author.replace('@c.us', '') : 'unknown';
+          // Handle different ID formats (@c.us, @lid, etc)
+          if (msg.author) {
+            phoneNumber = msg.author.replace(/@c\.us|@lid|@s\.whatsapp\.net/g, '');
+          } else {
+            phoneNumber = 'unknown';
+          }
           responseTarget = msg.from; // Send response back to the group
-          this.logger.log(`📨 Group message from ${phoneNumber} in ${msg.from}: "${msg.body}"`);
+          this.logger.log(`📨 Group message from ${msg.author} in ${msg.from}: "${msg.body}"`);
         } else {
           // For direct messages
           phoneNumber = msg.from.replace('@c.us', '');
@@ -556,7 +563,7 @@ export class WhatsAppWebService
         }
 
         // Process regular text messages
-        const response = await this.whatsappService.processCloudMessage({
+        let response = await this.whatsappService.processCloudMessage({
           from: phoneNumber,
           text: msg.body,
           messageId: msg.id._serialized,
@@ -570,16 +577,52 @@ export class WhatsAppWebService
           const sensitiveCommands = ['link', 'verify', 'unlink', 'balance', 'history', 'send', 'receive', 'pay'];
           const commandMatch = msg.body.trim().toLowerCase().match(/^(\w+)/);
           const command = commandMatch ? commandMatch[1] : '';
-          const shouldSendDM = isGroupMessage && sensitiveCommands.includes(command);
+          let shouldSendDM = isGroupMessage && sensitiveCommands.includes(command);
           
           if (shouldSendDM) {
-            // Send DM to the user instead of replying in the group
-            const userDM = msg.author || phoneNumber + '@c.us';
-            responseTarget = userDM;
-            this.logger.log(`🔒 Sending private response to ${phoneNumber} for sensitive command: ${command}`);
-            
-            // Send a brief acknowledgment to the group
-            await this.sendMessage(msg.from, `✅ @${phoneNumber} I've sent you a private message with the response.`);
+            // Check if we can send DM to this user
+            if (msg.author && msg.author.includes('@lid')) {
+              // @lid format users can't receive DMs - respond in group with privacy warning
+              this.logger.warn(`Cannot send DM to @lid format: ${msg.author}. Responding in group with privacy notice.`);
+              responseTarget = msg.from;
+              
+              // Add privacy notice to the response
+              if (typeof response === 'string') {
+                response = `⚠️ *Privacy Notice*: This response contains sensitive information. Consider using the bot in a private chat.\n\n${response}`;
+              } else if (typeof response === 'object' && 'text' in response) {
+                response.text = `⚠️ *Privacy Notice*: This response contains sensitive information. Consider using the bot in a private chat.\n\n${response.text}`;
+              }
+            } else {
+              // Try to send as DM for regular users
+              try {
+                // First check if we have a session for this user
+                const userSession = await this.sessionService.getSessionByWhatsappId(phoneNumber);
+                
+                if (userSession && userSession.whatsappId) {
+                  // Use the session's WhatsApp ID
+                  responseTarget = userSession.whatsappId.includes('@') ? userSession.whatsappId : userSession.whatsappId + '@c.us';
+                } else {
+                  // Construct standard WhatsApp DM address
+                  responseTarget = phoneNumber + '@c.us';
+                }
+                
+                this.logger.log(`🔒 Sending private response to ${responseTarget} for sensitive command: ${command}`);
+                
+                // Send a brief acknowledgment to the group
+                const displayName = contact.pushname || phoneNumber;
+                await this.sendMessage(msg.from, `✅ @${displayName} I've sent you a private message with the response.`);
+              } catch (error) {
+                this.logger.error(`Error sending DM: ${error.message}`);
+                // Fallback to group response with privacy notice
+                responseTarget = msg.from;
+                
+                if (typeof response === 'string') {
+                  response = `⚠️ *Privacy Notice*: Unable to send DM. This response contains sensitive information.\n\n${response}`;
+                } else if (typeof response === 'object' && 'text' in response) {
+                  response.text = `⚠️ *Privacy Notice*: Unable to send DM. This response contains sensitive information.\n\n${response.text}`;
+                }
+              }
+            }
           }
           
           this.logger.log(`💬 Sending response to ${shouldSendDM ? 'DM' : (isGroupMessage ? 'group' : phoneNumber)}...`);
