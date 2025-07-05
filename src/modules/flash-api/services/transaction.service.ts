@@ -149,12 +149,14 @@ export class TransactionService {
 
     // Format date - createdAt is in seconds, convert to milliseconds
     const date = new Date(parseInt(tx.createdAt) * 1000);
-    const dateStr = date.toLocaleDateString('en-US', {
+    const dateStr = date.toLocaleString('en-US', {
+      timeZone: 'America/Jamaica',
       month: 'short',
       day: 'numeric',
-      hour: '2-digit',
+      hour: 'numeric',
       minute: '2-digit',
-    });
+      hour12: true,
+    }) + ' EST';
 
     // Format amounts
     let amountStr = '';
@@ -232,20 +234,26 @@ export class TransactionService {
    */
   private groupTransactionsByDate(edges: TransactionEdge[]): Record<string, TransactionEdge[]> {
     const groups: Record<string, TransactionEdge[]> = {};
-    const today = new Date();
+    
+    // Get current date in Jamaica timezone
+    const nowJamaica = new Date().toLocaleString('en-US', { timeZone: 'America/Jamaica' });
+    const today = new Date(nowJamaica);
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
     for (const edge of edges) {
       const txDate = new Date(parseInt(edge.node.createdAt) * 1000);
+      // Convert transaction date to Jamaica timezone for comparison
+      const txDateJamaica = new Date(txDate.toLocaleString('en-US', { timeZone: 'America/Jamaica' }));
       let dateGroup: string;
 
-      if (this.isSameDay(txDate, today)) {
+      if (this.isSameDay(txDateJamaica, today)) {
         dateGroup = 'Today';
-      } else if (this.isSameDay(txDate, yesterday)) {
+      } else if (this.isSameDay(txDateJamaica, yesterday)) {
         dateGroup = 'Yesterday';
       } else {
         dateGroup = txDate.toLocaleDateString('en-US', {
+          timeZone: 'America/Jamaica',
           month: 'long',
           day: 'numeric',
           year: txDate.getFullYear() !== today.getFullYear() ? 'numeric' : undefined,

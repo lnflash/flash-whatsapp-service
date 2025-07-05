@@ -82,6 +82,18 @@ export class CommandParserService {
       let trimmedText = text.trim();
       const originalText = trimmedText;
 
+      // Check if this is a 6-digit code (for simplified verification)
+      const sixDigitPattern = /^(\d{6})$/;
+      const sixDigitMatch = trimmedText.match(sixDigitPattern);
+      if (sixDigitMatch) {
+        // Convert 6-digit code to verify command
+        return {
+          type: CommandType.VERIFY,
+          args: { otp: sixDigitMatch[1] },
+          rawText: originalText,
+        };
+      }
+
       // Check if this is specifically a voice settings command first
       const voiceSettingsPattern = /^voice\s*(on|off|only|status|help)?$/i;
       if (voiceSettingsPattern.test(trimmedText)) {

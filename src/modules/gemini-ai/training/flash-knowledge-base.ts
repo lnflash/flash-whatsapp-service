@@ -34,6 +34,20 @@ export const FLASH_COMMANDS: CommandInfo[] = [
       'Shows your USD balance. BTC balances are hidden by default as BTC wallets are non-custodial.',
   },
   {
+    command: 'send',
+    description: 'Send money to another user',
+    usage: 'send [amount] to [recipient]',
+    examples: [
+      'send 10 to @username',
+      'send 5.50 to john',
+      'send 25 to +18765551234',
+      'send 100 to lnbc...',
+    ],
+    requiresAuth: true,
+    notes:
+      'Send money to Flash users, saved contacts, phone numbers, or pay Lightning invoices. All amounts are in USD regardless of your display currency.',
+  },
+  {
     command: 'refresh',
     description: 'Refresh your balance by clearing the cache',
     usage: 'refresh',
@@ -53,7 +67,7 @@ export const FLASH_COMMANDS: CommandInfo[] = [
     ],
     requiresAuth: true,
     notes:
-      'Only USD amounts are supported. BTC invoices are not available. Amount must be between $0.01 and $10,000. Memo is optional and limited to 200 characters.',
+      'All amounts are in USD regardless of your display currency. Amount must be between $0.01 and $10,000. Memo is optional and limited to 200 characters.',
   },
   {
     command: 'history',
@@ -75,7 +89,7 @@ export const FLASH_COMMANDS: CommandInfo[] = [
     ],
     requiresAuth: true,
     notes:
-      'Creates a payment request. Target can be: @username, phone number, or saved contact name. Can send via WhatsApp if phone number is known.',
+      'Creates a payment request. All amounts are in USD regardless of your display currency. Target can be: @username, phone number, or saved contact name. Can send via WhatsApp if phone number is known.',
   },
   {
     command: 'contacts',
@@ -125,18 +139,18 @@ export const FLASH_COMMANDS: CommandInfo[] = [
   {
     command: 'verify',
     description: 'Complete OTP verification for account linking',
-    usage: 'verify [code]',
-    examples: ['verify 123456'],
+    usage: 'Just type the 6-digit code',
+    examples: ['123456'],
     requiresAuth: false,
-    notes: 'Used during the linking process',
+    notes: 'During account linking, just type the 6-digit code you receive',
   },
   {
     command: 'consent',
     description: 'Manage your AI support consent',
-    usage: 'consent [yes/no]',
-    examples: ['consent yes', 'consent no'],
+    usage: 'Type "yes" or "no" when prompted',
+    examples: ['yes', 'no', 'consent yes', 'consent no'],
     requiresAuth: false,
-    notes: 'Required before using AI features',
+    notes: 'When asked for consent, just type "yes" or "no"',
   },
   {
     command: 'help',
@@ -210,7 +224,7 @@ export const TRAINING_EXAMPLES: TrainingExample[] = [
   {
     question: 'How do I receive money?',
     answer:
-      'To receive money, use the "receive" command followed by the amount in USD. For example: "receive 10" creates an invoice for $10. You can add an optional memo: "receive 10 Coffee payment".',
+      'To receive money, use the "receive" command followed by the amount in USD. For example: "receive 10" creates an invoice for $10. You can add an optional memo: "receive 10 Coffee payment". Note: All amounts are in USD regardless of your display currency.',
     category: 'receive',
     keywords: ['receive', 'money', 'payment', 'invoice', 'lightning'],
   },
@@ -220,6 +234,22 @@ export const TRAINING_EXAMPLES: TrainingExample[] = [
       'Currently, the receive command only supports USD amounts. BTC invoices are not available at this time. All amounts should be specified in USD (e.g., "receive 25" for $25).',
     category: 'receive',
     keywords: ['receive', 'bitcoin', 'btc', 'crypto'],
+  },
+  
+  // Send related
+  {
+    question: 'How do I send money?',
+    answer:
+      'To send money, use "send [amount] to [recipient]". For example: "send 10 to @john" or "send 25.50 to mary". All amounts are in USD regardless of your display currency. Recipients can be @usernames, phone numbers, saved contacts, or Lightning invoices.',
+    category: 'send',
+    keywords: ['send', 'money', 'payment', 'transfer'],
+  },
+  {
+    question: 'Are all amounts in USD?',
+    answer:
+      'Yes, all amounts in commands (send, receive, request) are in USD, regardless of your display currency. If your balance shows in JMD, you still enter amounts in USD. For example, "send 10 to @john" sends $10 USD.',
+    category: 'general',
+    keywords: ['amount', 'usd', 'currency', 'jmd', 'dollar'],
   },
   {
     question: "What's the maximum amount I can receive?",
