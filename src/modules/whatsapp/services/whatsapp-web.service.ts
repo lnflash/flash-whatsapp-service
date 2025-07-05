@@ -277,6 +277,24 @@ export class WhatsAppWebService
         
         // For group messages, we'll need to handle them differently
         const isGroupMessage = msg.from.endsWith('@g.us');
+        
+        // For group messages, only respond if mentioned or message starts with "!"
+        if (isGroupMessage) {
+          const botInfo = await this.client.info;
+          const botId = botInfo.wid._serialized;
+          const isMentioned = msg.mentionedIds?.some(id => id === botId);
+          const startsWithBang = msg.body.trim().startsWith('!');
+          
+          if (!isMentioned && !startsWithBang) {
+            // Ignore group messages that don't mention us or start with !
+            return;
+          }
+          
+          // If message starts with !, remove the ! prefix
+          if (startsWithBang) {
+            msg.body = msg.body.trim().substring(1).trim();
+          }
+        }
 
         // Check if client is ready
         if (!this.isReady) {
@@ -548,7 +566,23 @@ export class WhatsAppWebService
 
         // Send response if we have one
         if (response) {
-          this.logger.log(`💬 Sending response to ${phoneNumber}...`);
+          // For group messages, check if this is a sensitive command that should be sent as DM
+          const sensitiveCommands = ['link', 'verify', 'unlink', 'balance', 'history', 'send', 'receive', 'pay'];
+          const commandMatch = msg.body.trim().toLowerCase().match(/^(\w+)/);
+          const command = commandMatch ? commandMatch[1] : '';
+          const shouldSendDM = isGroupMessage && sensitiveCommands.includes(command);
+          
+          if (shouldSendDM) {
+            // Send DM to the user instead of replying in the group
+            const userDM = msg.author || phoneNumber + '@c.us';
+            responseTarget = userDM;
+            this.logger.log(`🔒 Sending private response to ${phoneNumber} for sensitive command: ${command}`);
+            
+            // Send a brief acknowledgment to the group
+            await this.sendMessage(msg.from, `✅ @${phoneNumber} I've sent you a private message with the response.`);
+          }
+          
+          this.logger.log(`💬 Sending response to ${shouldSendDM ? 'DM' : (isGroupMessage ? 'group' : phoneNumber)}...`);
           
           // Check if response is an object with text property
           if (typeof response === 'object' && 'text' in response) {
