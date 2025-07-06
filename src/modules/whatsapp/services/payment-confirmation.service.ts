@@ -91,11 +91,30 @@ export class PaymentConfirmationService {
     const { args } = command;
 
     if (command.type === 'send') {
-      const recipient = args.recipient || args.username || args.phoneNumber || 'unknown';
-      return `Send $${args.amount} to ${recipient}${args.memo ? ` with memo: "${args.memo}"` : ''}`;
+      const amount = parseFloat(args.amount);
+      let recipient = '';
+      
+      if (args.recipient?.startsWith('lnbc')) {
+        recipient = 'Lightning invoice';
+      } else if (args.recipient?.includes('@')) {
+        recipient = args.recipient;
+      } else if (args.username) {
+        recipient = `@${args.username}`;
+      } else if (args.phoneNumber) {
+        recipient = `+${args.phoneNumber}`;
+      } else {
+        recipient = args.recipient || 'unknown';
+      }
+      
+      let details = `💰 **$${amount.toFixed(2)} USD** to **${recipient}**`;
+      if (args.memo) {
+        details += `\n📝 Memo: "${args.memo}"`;
+      }
+      return details;
     } else if (command.type === 'request') {
-      const from = args.username || args.phoneNumber || 'unknown';
-      return `Request $${args.amount} from ${from}`;
+      const amount = parseFloat(args.amount);
+      const from = args.username ? `@${args.username}` : args.phoneNumber ? `+${args.phoneNumber}` : 'unknown';
+      return `Request **$${amount.toFixed(2)} USD** from **${from}**`;
     }
 
     return 'Unknown payment';

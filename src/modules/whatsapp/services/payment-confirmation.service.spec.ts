@@ -169,7 +169,7 @@ describe('PaymentConfirmationService', () => {
   describe('formatPaymentDetails', () => {
     it('should format send command details', () => {
       const result = service.formatPaymentDetails(mockCommand);
-      expect(result).toBe('Send $10 to alice with memo: "test payment"');
+      expect(result).toBe('💰 **$10.00 USD** to **alice**\n📝 Memo: "test payment"');
     });
 
     it('should format send command without memo', () => {
@@ -179,7 +179,7 @@ describe('PaymentConfirmationService', () => {
         args: argsWithoutMemo,
       };
       const result = service.formatPaymentDetails(commandNoMemo);
-      expect(result).toBe('Send $10 to alice');
+      expect(result).toBe('💰 **$10.00 USD** to **alice**');
     });
 
     it('should format request command details', () => {
@@ -193,7 +193,7 @@ describe('PaymentConfirmationService', () => {
         rawText: 'request 5 from bob',
       };
       const result = service.formatPaymentDetails(requestCommand);
-      expect(result).toBe('Request $5 from bob');
+      expect(result).toBe('Request **$5.00 USD** from **@bob**');
     });
 
     it('should handle unknown command type', () => {
