@@ -26,10 +26,21 @@ export class BalanceTemplate {
     const fiatFormatted = this.formatFiatAmount(data.fiatBalance, data.fiatCurrency);
     const lastUpdated = this.formatDateTime(data.lastUpdated);
 
+    // Determine contextual tips based on balance
+    let tip = '';
+    if (data.fiatBalance === 0) {
+      tip = '\n\n💡 Tip: Start with "receive 10" to request your first payment';
+    } else if (data.fiatBalance < 5) {
+      tip = '\n\n💡 Low balance! Type "receive" to request more funds';
+    } else if (data.fiatBalance > 100) {
+      tip = '\n\n💡 Nice balance! Try "send 5 to [username]" to share the wealth';
+    }
+
     return (
       `${greeting}💰 *Your Flash Balance*\n\n` +
       `${fiatFormatted}\n\n` +
-      `_Updated: ${lastUpdated}_`
+      `_Updated: ${lastUpdated}_` +
+      tip
     );
   }
 

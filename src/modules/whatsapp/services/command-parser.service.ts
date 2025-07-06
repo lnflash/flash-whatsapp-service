@@ -109,6 +109,9 @@ export class CommandParserService {
         }
       }
 
+      // Apply smart command corrections
+      trimmedText = this.applyCommandCorrections(trimmedText);
+
       // If this is voice input, try natural language patterns first
       if (isVoiceInput) {
         const naturalCommand = this.parseNaturalLanguage(trimmedText);
@@ -505,5 +508,98 @@ export class CommandParserService {
     }
 
     return { type, args, rawText };
+  }
+
+  /**
+   * Apply smart command corrections for common typos and shortcuts
+   */
+  private applyCommandCorrections(text: string): string {
+    const lowerText = text.toLowerCase();
+    
+    // Common typos and corrections
+    const corrections: Record<string, string> = {
+      // Send command variations
+      'sent': 'send',
+      'snd': 'send',
+      'sen': 'send',
+      'sedn': 'send',
+      'sned': 'send',
+      
+      // Receive command variations
+      'recieve': 'receive',
+      'recive': 'receive',
+      'recv': 'receive',
+      'rec': 'receive',
+      
+      // Balance shortcuts
+      'bal': 'balance',
+      'balnce': 'balance',
+      'balanc': 'balance',
+      'balalce': 'balance',
+      '$': 'balance',
+      
+      // History shortcuts
+      'hist': 'history',
+      'histry': 'history',
+      'histroy': 'history',
+      'txs': 'history',
+      'tx': 'history',
+      
+      // Price shortcuts
+      'btc': 'price',
+      'rate': 'price',
+      'rates': 'price',
+      
+      // Contact variations
+      'contact': 'contacts',
+      'contacs': 'contacts',
+      'contcts': 'contacts',
+      
+      // Link variations
+      'conect': 'link',
+      'connect': 'link',
+      'lnk': 'link',
+      
+      // Request variations
+      'req': 'request',
+      'requst': 'request',
+      'rquest': 'request',
+      
+      // Help variations
+      'hlp': 'help',
+      'halp': 'help',
+      'hepl': 'help',
+      
+      // Username variations
+      'user': 'username',
+      'usrname': 'username',
+      'uname': 'username',
+    };
+
+    // Check if the entire command matches a correction
+    if (corrections[lowerText]) {
+      return corrections[lowerText];
+    }
+
+    // Check if the first word needs correction
+    const words = text.split(/\s+/);
+    const firstWord = words[0].toLowerCase();
+    
+    if (corrections[firstWord]) {
+      words[0] = corrections[firstWord];
+      return words.join(' ');
+    }
+
+    // Special case: handle case-insensitive commands
+    const commandWords = ['send', 'receive', 'balance', 'link', 'unlink', 'verify', 
+                         'username', 'price', 'history', 'request', 'contacts', 
+                         'pay', 'vybz', 'admin', 'pending', 'voice', 'help', 'refresh'];
+    
+    if (commandWords.includes(firstWord)) {
+      words[0] = firstWord;
+      return words.join(' ');
+    }
+
+    return text;
   }
 }
