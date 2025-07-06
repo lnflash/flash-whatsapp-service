@@ -36,7 +36,7 @@ export class CommandParserService {
   private readonly commandPatterns = [
     {
       type: CommandType.HELP,
-      pattern: /^help(?:\s+(wallet|send|receive|contacts|pending|voice))?$/i,
+      pattern: /^help(?:\s+(wallet|send|receive|contacts|pending|voice|more|1|2|3))?$/i,
     },
     { type: CommandType.BALANCE, pattern: /^balance|^bal$/i },
     { type: CommandType.LINK, pattern: /^link|^connect$/i },
@@ -574,6 +574,12 @@ export class CommandParserService {
       'user': 'username',
       'usrname': 'username',
       'uname': 'username',
+      
+      // Help navigation
+      'more': 'help more',
+      '1': 'help 1',
+      '2': 'help 2', 
+      '3': 'help 3',
     };
 
     // Check if the entire command matches a correction

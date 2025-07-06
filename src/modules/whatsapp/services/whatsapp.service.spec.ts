@@ -286,7 +286,7 @@ describe('WhatsappService', () => {
       // Verify response is a string (help message)
       expect(response).toBeDefined();
       expect(typeof response).toBe('string');
-      expect(response).toContain('Welcome to Flash WhatsApp Bot');
+      expect(response).toContain('Welcome to Flash WhatsApp Bot!');
 
       // Verify command parser was called with text and isVoiceCommand flag
       expect(commandParserService.parseCommand).toHaveBeenCalledWith('help', undefined);
@@ -314,10 +314,8 @@ describe('WhatsappService', () => {
 
       const response = await service.processCloudMessage(messageData);
 
-      // Verify response suggests linking or help
-      expect(response).toContain('Keep your finger on it');
-      expect(response).toContain('link');
-      expect(response).toContain('help');
+      // Verify response contains the unknown command message (may include hints)
+      expect(response).toContain(`Keep your finger on it. Type 'link' to connect or 'help' for commands.`);
     });
 
     it('should require link for payment commands', async () => {
@@ -343,8 +341,8 @@ describe('WhatsappService', () => {
       const response = await service.processCloudMessage(messageData);
 
       // Verify response prompts user to link their account
-      expect(response).toContain('Please link your Flash account first');
-      expect(response).toContain('Type "link" to get started');
+      expect(response).toContain('Account not linked yet!');
+      expect(response).toContain("Type 'link' to start");
     });
   });
 

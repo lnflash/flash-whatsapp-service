@@ -1074,9 +1074,18 @@ _This limitation is due to WhatsApp's privacy features._`;
    * Get help message based on session status
    */
   private getHelpMessage(session: UserSession | null, command?: ParsedCommand): string {
-    // Check if a category was requested
+    // Check if a category or navigation was requested
     if (command?.args?.category) {
-      return this.getCategoryHelp(command.args.category);
+      const category = command.args.category;
+      
+      // Handle numbered navigation
+      if (category === '1') return this.getCategoryHelp('wallet');
+      if (category === '2') return this.getCategoryHelp('send');
+      if (category === '3') return this.getCategoryHelp('receive');
+      if (category === 'more') return this.getFullHelpMenu(session);
+      
+      // Handle regular categories
+      return this.getCategoryHelp(category);
     }
     if (!session) {
       return `🌟 *Welcome to Flash WhatsApp Bot!*
@@ -1112,27 +1121,59 @@ Please enter the 6-digit code sent to your phone.
 Need a new code? Type \`link\` again.`;
     }
 
-    return `⚡ *Pulse Commands*
+    return `⚡ *Welcome to Pulse!*
 
-🚀 *Quick Start:*
+📱 *Essential Commands:*
+1️⃣ Balance - Check your wallet
+2️⃣ Send - Send money
+3️⃣ Receive - Get paid
+
+Type a number for details or:
+• \`more\` - See all commands
+• \`support\` - Get help
+
+💡 Quick example: \`send 5 to john\``;
+  }
+
+  /**
+   * Get full help menu with all commands
+   */
+  private getFullHelpMenu(session: UserSession | null): string {
+    if (!session?.isVerified) {
+      return this.getHelpMessage(session);
+    }
+
+    return `⚡ *All Pulse Commands*
+
+💰 *Wallet & Balance:*
 • \`balance\` - Check your balance
-• \`send 10 to @username\` - Send $10 USD
-• \`receive 20\` - Request $20 USD
-• \`price\` - Bitcoin price
+• \`refresh\` - Refresh balance
+• \`username\` - View/set Lightning username
+• \`history\` - Transaction history
 
-💡 *Note:* All amounts are in USD regardless of your display currency
+💸 *Send & Receive:*
+• \`send 10 to @user\` - Send money
+• \`receive 20\` - Create invoice
+• \`request 15 from @user\` - Request payment
+• \`pay\` - Confirm pending payment
 
-📚 *All Commands:*
-• \`help wallet\` - Balance & transactions
-• \`help send\` - Sending money  
-• \`help receive\` - Receiving money
-• \`help contacts\` - Managing contacts
-• \`help pending\` - Pending payments
-• \`help voice\` - Voice commands
+👥 *Contacts:*
+• \`contacts\` - List all contacts
+• \`contacts add john +1234567890\`
+• \`contacts remove john\`
 
-💡 Need assistance? Type \`support\`
+🎙️ *Voice & Settings:*
+• \`voice on/off/only\` - Voice settings
+• \`vybz\` - Earn sats
+• \`pending\` - View pending payments
 
-🎙️ *Voice Mode:* Say "voice" before any command!`;
+💡 *Tips:*
+• All amounts are in USD
+• Save contacts for easy payments
+• Use voice mode for hands-free
+
+📱 Type \`help [topic]\` for details
+💬 Type \`support\` for assistance`;
   }
 
   /**
@@ -1147,7 +1188,9 @@ Need a new code? Type \`link\` again.`;
 • \`username\` - View or set Lightning username
 • \`history\` - View recent transactions
 
-💡 Tip: Set a username to get your own Lightning address!`,
+💡 Tip: Set a username to get your own Lightning address!
+
+⬅️ Type \`help\` to go back`,
 
       send: `💸 *Send Money Commands*
 
@@ -1160,7 +1203,9 @@ Need a new code? Type \`link\` again.`;
 • \`request 15 from ayanna\` - Request $15 USD from contact
 
 💡 *Important:* All amounts are in USD regardless of your display currency
-💡 Tip: Save contacts for easier payments!`,
+💡 Tip: Save contacts for easier payments!
+
+⬅️ Type \`help\` to go back`,
 
       receive: `📥 *Receive Money Commands*
 
@@ -1168,7 +1213,9 @@ Need a new code? Type \`link\` again.`;
 • \`receive 50 Coffee\` - Create $50 USD invoice with memo
 
 💡 *Important:* All amounts are in USD regardless of your display currency
-💡 Tip: Share the invoice or QR code to get paid!`,
+💡 Tip: Share the invoice or QR code to get paid!
+
+⬅️ Type \`help\` to go back`,
 
       contacts: `👥 *Contact Commands*
 
@@ -1195,7 +1242,9 @@ Simply add "voice", "audio", or "speak" to any command:
 
 Current mode: Check with \`admin voice\`
 
-💡 Tip: I'll respond with both voice and text!`,
+💡 Tip: I'll respond with both voice and text!
+
+⬅️ Type \`help\` to go back`,
     };
 
     return (

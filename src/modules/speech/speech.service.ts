@@ -1,14 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SpeechClient } from '@google-cloud/speech';
+import { WhisperService } from './whisper.service';
 
 @Injectable()
 export class SpeechService {
   private readonly logger = new Logger(SpeechService.name);
   private speechClient?: SpeechClient;
   private readonly isConfigured: boolean;
+  private readonly preferWhisper: boolean;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly whisperService: WhisperService,
+  ) {
     // Check if Google Cloud credentials are configured
     const googleCloudKeyFile = this.configService.get<string>('GOOGLE_CLOUD_KEYFILE');
     const googleApplicationCredentials = this.configService.get<string>(
@@ -30,6 +35,9 @@ export class SpeechService {
       this.isConfigured = false;
       this.logger.warn('Google Cloud Speech-to-Text not configured');
     }
+
+    // Check if we should prefer Whisper over Google Cloud Speech
+    this.preferWhisper = this.configService.get<boolean>('PREFER_WHISPER', false);
   }
 
   /**
@@ -39,8 +47,42 @@ export class SpeechService {
    * @returns Transcribed text or null if not available
    */
   async speechToText(audioBuffer: Buffer, mimeType: string): Promise<string | null> {
-    if (!this.isConfigured || !this.speechClient) {
-      this.logger.warn('Speech-to-Text not available - Google Cloud not configured');
+    // If Whisper is preferred and available, try it first
+    if (this.preferWhisper && this.whisperService.isAvailable()) {
+      this.logger.log('Using Whisper AI for speech-to-text (preferred)');
+      const whisperResult = await this.whisperService.speechToText(audioBuffer, mimeType);
+      if (whisperResult) {
+        return whisperResult;
+      }
+      this.logger.warn('Whisper transcription failed, falling back to Google Cloud Speech');
+    }
+
+    // Try Google Cloud Speech if configured
+    if (this.isConfigured && this.speechClient) {
+      const googleResult = await this.transcribeWithGoogle(audioBuffer, mimeType);
+      if (googleResult) {
+        return googleResult;
+      }
+    }
+
+    // If Google failed or not configured, try Whisper as fallback
+    if (!this.preferWhisper && this.whisperService.isAvailable()) {
+      this.logger.log('Trying Whisper AI as fallback');
+      const whisperResult = await this.whisperService.speechToText(audioBuffer, mimeType);
+      if (whisperResult) {
+        return whisperResult;
+      }
+    }
+
+    this.logger.warn('No speech-to-text service available or all transcription attempts failed');
+    return null;
+  }
+
+  /**
+   * Transcribe using Google Cloud Speech
+   */
+  private async transcribeWithGoogle(audioBuffer: Buffer, mimeType: string): Promise<string | null> {
+    if (!this.speechClient) {
       return null;
     }
 
@@ -143,7 +185,7 @@ export class SpeechService {
 
       return transcription;
     } catch (error) {
-      this.logger.error('Error transcribing speech:', error);
+      this.logger.error('Error transcribing speech with Google Cloud:', error);
 
       // Log more details about the error
       if (error.code) {
@@ -164,6 +206,6 @@ export class SpeechService {
    * Check if Speech-to-Text is available
    */
   isAvailable(): boolean {
-    return this.isConfigured;
+    return this.isConfigured || this.whisperService.isAvailable();
   }
 }
