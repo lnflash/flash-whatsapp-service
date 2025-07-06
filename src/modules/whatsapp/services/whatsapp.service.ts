@@ -256,12 +256,14 @@ export class WhatsappService {
       if (pendingPayment) {
         // Check if this is a confirmation response
         const confirmText = command.rawText.toLowerCase().trim();
-        if (confirmText === 'yes' || confirmText === 'y' || confirmText === 'confirm') {
+        if (confirmText === 'yes' || confirmText === 'y' || confirmText === 'confirm' || confirmText === 'pay') {
           // Clear the pending payment and execute it
           await this.paymentConfirmationService.clearPendingPayment(whatsappId);
 
-          // Execute the original command
+          // Execute the original command without confirmation
           const originalCommand = pendingPayment.command;
+          // Mark as already confirmed to skip confirmation in handleSendCommand
+          originalCommand.args.skipConfirmation = 'true';
           if (originalCommand.type === CommandType.SEND) {
             return this.handleSendCommand(originalCommand, whatsappId, session);
           } else if (originalCommand.type === CommandType.REQUEST) {
@@ -276,7 +278,7 @@ export class WhatsappService {
           const details = this.paymentConfirmationService.formatPaymentDetails(
             pendingPayment.command,
           );
-          return `⏳ You have a pending payment:\n\n${details}\n\nPlease type "yes" to confirm or "no" to cancel.`;
+          return `⏳ You have a pending payment:\n\n${details}\n\nPlease type "pay" to confirm or "cancel" to cancel.`;
         }
       }
 
@@ -296,7 +298,7 @@ export class WhatsappService {
           session?.sessionId,
         );
 
-        return `🎤 Voice Payment Confirmation Required\n\n${details}\n\nPlease type "yes" to confirm or "no" to cancel.\n\n⏱️ This request will expire in 5 minutes.`;
+        return `🎤 Voice Payment Confirmation Required\n\n${details}\n\nPlease type "pay" to confirm or "cancel" to cancel.\n\n⏱️ This request will expire in 5 minutes.`;
       }
 
       switch (command.type) {
@@ -1305,6 +1307,9 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
         return 'Please link your Flash account first to send payments. Type "link" to get started.';
       }
 
+      // Check if we should skip confirmation (already confirmed via "pay" command)
+      const skipConfirmation = command.args.skipConfirmation === 'true';
+
       // Parse amount
       const amountStr = command.args.amount;
       if (!amountStr) {
@@ -1397,6 +1402,66 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
             }
           }
         }
+      }
+
+      // If not skipping confirmation, show confirmation message
+      if (!skipConfirmation) {
+        // Format recipient display name
+        let recipientDisplay = '';
+        let recipientDetails = '';
+        
+        if (lightningAddress && lightningAddress.startsWith('lnbc')) {
+          recipientDisplay = 'Lightning invoice';
+          recipientDetails = lightningAddress.substring(0, 30) + '...';
+        } else if (lightningAddress && lightningAddress.includes('@')) {
+          recipientDisplay = lightningAddress;
+        } else if (targetUsername) {
+          recipientDisplay = `@${targetUsername}`;
+          // Check if this is a contact
+          if (isContactPayment && targetPhone) {
+            recipientDetails = `(+${targetPhone})`;
+          }
+        } else if (targetPhone) {
+          recipientDisplay = `+${targetPhone}`;
+          const contactsKey = `contacts:${whatsappId}`;
+          const savedContacts = await this.redisService.get(contactsKey);
+          if (savedContacts) {
+            const contacts = JSON.parse(savedContacts);
+            // Find contact name by phone number
+            for (const [name, info] of Object.entries(contacts)) {
+              const phone = typeof info === 'string' ? info : (info as any).phone;
+              if (phone === targetPhone) {
+                recipientDisplay = name;
+                recipientDetails = `(+${targetPhone})`;
+                break;
+              }
+            }
+          }
+        } else {
+          recipientDisplay = command.args.recipient || 'unknown recipient';
+        }
+
+        // Store pending payment and show confirmation
+        await this.paymentConfirmationService.storePendingPayment(
+          whatsappId,
+          session?.phoneNumber || '',
+          command,
+          session?.sessionId,
+        );
+
+        // Format confirmation message
+        let confirmationMsg = `💳 **Payment Confirmation**\n\n`;
+        confirmationMsg += `💰 **$${amount.toFixed(2)} USD** will be sent to **${recipientDisplay}**`;
+        if (recipientDetails) {
+          confirmationMsg += ` ${recipientDetails}`;
+        }
+        if (command.args.memo) {
+          confirmationMsg += `\n📝 Memo: "${command.args.memo}"`;
+        }
+        confirmationMsg += `\n\n✅ Type **"pay"** to confirm\n❌ Type **"cancel"** to cancel`;
+        confirmationMsg += `\n\n⏱️ This request will expire in 5 minutes.`;
+
+        return confirmationMsg;
       }
 
       // Check if it's a Lightning invoice/address
