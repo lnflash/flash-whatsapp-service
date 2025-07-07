@@ -22,6 +22,7 @@ jest.mock('fs', () => ({
   promises: {
     writeFile: jest.fn(),
     unlink: jest.fn(),
+    mkdir: jest.fn(),
   },
   createReadStream: jest.fn(),
 }));
@@ -65,6 +66,7 @@ describe('WhisperService', () => {
       const mockTranscription = 'Hello, this is a test message';
       
       // Mock fs operations
+      (fs.promises.mkdir as jest.Mock).mockResolvedValue(undefined);
       (fs.promises.writeFile as jest.Mock).mockResolvedValue(undefined);
       (fs.promises.unlink as jest.Mock).mockResolvedValue(undefined);
       (fs.createReadStream as jest.Mock).mockReturnValue('mock-stream');
@@ -75,6 +77,7 @@ describe('WhisperService', () => {
       const result = await service.speechToText(mockAudioBuffer, 'audio/ogg; codecs=opus');
 
       expect(result).toBe(mockTranscription);
+      expect(fs.promises.mkdir).toHaveBeenCalledWith('/tmp', { recursive: true });
       expect(fs.promises.writeFile).toHaveBeenCalled();
       expect(fs.createReadStream).toHaveBeenCalled();
       expect(fs.promises.unlink).toHaveBeenCalled();
@@ -112,6 +115,7 @@ describe('WhisperService', () => {
       const mockAudioBuffer = Buffer.from('mock audio data');
       
       // Mock fs operations
+      (fs.promises.mkdir as jest.Mock).mockResolvedValue(undefined);
       (fs.promises.writeFile as jest.Mock).mockResolvedValue(undefined);
       (fs.promises.unlink as jest.Mock).mockResolvedValue(undefined);
       (fs.createReadStream as jest.Mock).mockReturnValue('mock-stream');

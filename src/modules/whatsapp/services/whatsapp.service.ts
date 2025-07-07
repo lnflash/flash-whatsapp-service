@@ -603,6 +603,16 @@ _This limitation is due to WhatsApp's privacy features._`;
           whatsappId: updatedSession.whatsappId,
           authToken: updatedSession.flashAuthToken,
         });
+        
+        // Fetch and store username mapping for efficient lookups
+        try {
+          const username = await this.usernameService.getUsername(updatedSession.flashAuthToken);
+          if (username) {
+            await this.sessionService.storeUsernameMapping(username, whatsappId);
+          }
+        } catch (error) {
+          this.logger.error(`Error storing username mapping: ${error.message}`);
+        }
       }
 
       // Check for pending payments to auto-claim
@@ -852,6 +862,8 @@ _This limitation is due to WhatsApp's privacy features._`;
         const currentUsername = await this.usernameService.getUsername(session.flashAuthToken);
 
         if (currentUsername) {
+          // Store username mapping for efficient lookups
+          await this.sessionService.storeUsernameMapping(currentUsername, whatsappId);
           return `Your username is: @${currentUsername}. \n\n Your lightning address is: ${currentUsername}@flashapp.me. \n\n Want to know more about lightning addresses? Just ask!`;
         } else {
           return 'You haven\'t set a username yet. To set one, type "username" followed by your desired username.\n\nExample: username johndoe';
@@ -875,6 +887,8 @@ _This limitation is due to WhatsApp's privacy features._`;
         // Try to set the username
         try {
           await this.usernameService.setUsername(newUsername, session.flashAuthToken);
+          // Store username mapping for efficient lookups
+          await this.sessionService.storeUsernameMapping(newUsername, whatsappId);
           return `Success! Your username has been set to: @${newUsername}\n\nYour Lightning address is now: ${newUsername}@flashapp.me\n\n⚠️ Remember: Usernames cannot be changed once set.`;
         } catch (error) {
           if (error.message.includes('already taken')) {
@@ -1607,27 +1621,12 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
             if (result?.status === PaymentSendResult.Success) {
               // Send notification to recipient if they have WhatsApp linked
               try {
-                // Get all active sessions to find recipient
-                const allSessions = await this.sessionService.getAllActiveSessions();
+                // Use optimized lookup by username
+                const recipientSession = await this.sessionService.getSessionByUsername(targetUsername);
                 
-                // Find recipient session by checking their Flash username
-                for (const recipientSession of allSessions) {
-                  if (recipientSession.flashUserId && recipientSession.flashAuthToken) {
-                    // Get user info to check username
-                    const userInfo = await this.flashApiService.executeQuery<any>(
-                      `query me { me { username } }`,
-                      {},
-                      recipientSession.flashAuthToken,
-                    );
-                    
-                    if (userInfo?.me?.username === targetUsername) {
-                      // Found the recipient! Send them a notification
-                      const senderInfo = await this.flashApiService.executeQuery<any>(
-                        `query me { me { username } }`,
-                        {},
-                        session.flashAuthToken,
-                      );
-                      const senderUsername = senderInfo?.me?.username || 'Someone';
+                if (recipientSession && recipientSession.flashUserId && recipientSession.flashAuthToken) {
+                  // Found the recipient! Send them a notification
+                  const senderUsername = await this.usernameService.getUsername(session.flashAuthToken) || 'Someone';
                       
                       let recipientMessage = `💰 *Payment Received!*\n\n`;
                       recipientMessage += `Amount: *$${amount.toFixed(2)} USD*\n`;
@@ -1654,10 +1653,6 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
                       if (this.whatsappWebService?.isClientReady()) {
                         await this.whatsappWebService.sendMessage(recipientSession.whatsappId, recipientMessage);
                       }
-                      
-                      break; // Found and notified the recipient
-                    }
-                  }
                 }
               } catch (error) {
                 // Log error but don't fail the payment

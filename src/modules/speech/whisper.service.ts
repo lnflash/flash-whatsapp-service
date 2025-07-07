@@ -46,6 +46,15 @@ export class WhisperService {
 
     // Create a temporary file for the audio
     const tempDir = this.configService.get<string>('TEMP_DIR') || '/tmp';
+    
+    try {
+      // Ensure temp directory exists
+      await fs.promises.mkdir(tempDir, { recursive: true });
+    } catch (error) {
+      this.logger.error(`Failed to create temp directory ${tempDir}:`, error);
+      return null;
+    }
+    
     const tempFileName = `whisper-${randomBytes(8).toString('hex')}.${this.getFileExtension(mimeType)}`;
     const tempFilePath = path.join(tempDir, tempFileName);
 

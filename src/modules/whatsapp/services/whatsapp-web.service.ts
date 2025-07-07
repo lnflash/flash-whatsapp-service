@@ -501,24 +501,24 @@ export class WhatsAppWebService
                 const textWithPrefix = prefix + response.text;
 
                 if (response.voice) {
-                  await this.sendVoiceNote(msg.from, response.voice);
+                  await this.sendVoiceNote(responseTarget, response.voice);
                   // Only send text if not in voice-only mode
                   if (response.text && response.text.trim() !== '') {
-                    await this.sendMessage(msg.from, textWithPrefix);
+                    await this.sendMessage(responseTarget, textWithPrefix);
                   }
                 } else if (response.media) {
-                  await this.sendImage(msg.from, response.media, textWithPrefix);
+                  await this.sendImage(responseTarget, response.media, textWithPrefix);
                 } else {
-                  await this.sendMessage(msg.from, textWithPrefix);
+                  await this.sendMessage(responseTarget, textWithPrefix);
                 }
               } else if (typeof response === 'string') {
-                await this.sendMessage(msg.from, prefix + response);
+                await this.sendMessage(responseTarget, prefix + response);
               }
             }
           } catch (error) {
             this.logger.error('Error processing voice message:', error);
             await this.sendMessage(
-              msg.from,
+              responseTarget,
               '❌ Error processing voice message. Please try typing your command.',
             );
           }
