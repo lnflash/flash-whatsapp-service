@@ -99,9 +99,10 @@ export class WhatsappService {
     timestamp: string;
     name?: string;
     isVoiceCommand?: boolean;
+    whatsappId?: string;
   }): Promise<string | { text: string; media?: Buffer; voice?: Buffer; voiceOnly?: boolean }> {
     try {
-      const whatsappId = this.extractWhatsappId(messageData.from);
+      const whatsappId = messageData.whatsappId || this.extractWhatsappId(messageData.from);
       const phoneNumber = this.normalizePhoneNumber(messageData.from);
 
       // Store the incoming message for traceability
@@ -256,7 +257,11 @@ export class WhatsappService {
       if (pendingPayment) {
         // Check if this is a confirmation response
         const confirmText = command.rawText.toLowerCase().trim();
-        if (confirmText === 'yes' || confirmText === 'y' || confirmText === 'confirm') {
+        // Flexible positive confirmations
+        const positiveResponses = ['yes', 'y', 'ok', 'okay', 'sure', 'confirm', 'pay', 'send', 'go', 'proceed', 'yep', 'yeah', 'yup'];
+        const negativeResponses = ['no', 'n', 'cancel', 'stop', 'abort', 'nope', 'nah', 'exit', 'quit', 'nevermind', 'forget it'];
+        
+        if (positiveResponses.includes(confirmText)) {
           // Clear the pending payment and execute it
           await this.paymentConfirmationService.clearPendingPayment(whatsappId);
 
@@ -267,7 +272,7 @@ export class WhatsappService {
           } else if (originalCommand.type === CommandType.REQUEST) {
             return this.handleRequestCommand(originalCommand, whatsappId, session);
           }
-        } else if (confirmText === 'no' || confirmText === 'n' || confirmText === 'cancel') {
+        } else if (negativeResponses.includes(confirmText)) {
           // Cancel the pending payment
           await this.paymentConfirmationService.clearPendingPayment(whatsappId);
           return '❌ Payment cancelled.';
@@ -276,7 +281,24 @@ export class WhatsappService {
           const details = this.paymentConfirmationService.formatPaymentDetails(
             pendingPayment.command,
           );
-          return `⏳ You have a pending payment:\n\n${details}\n\nPlease type "yes" to confirm or "no" to cancel.`;
+          // Check if user is trying to change the amount
+          const amountMatch = confirmText.match(/^\d+(\.\d{1,2})?$/);
+          if (amountMatch) {
+            // User entered a new amount
+            const newAmount = amountMatch[0];
+            const updatedCommand = { ...pendingPayment.command };
+            updatedCommand.args.amount = newAmount;
+            await this.paymentConfirmationService.storePendingPayment(
+              whatsappId,
+              pendingPayment.phoneNumber,
+              updatedCommand,
+              pendingPayment.sessionId,
+            );
+            const updatedDetails = this.paymentConfirmationService.formatPaymentDetails(updatedCommand);
+            return `🔄 Amount updated!\n\n${updatedDetails}\n\n✅ Type "yes" or "ok" to confirm\n❌ Type "no" or "cancel" to cancel`;
+          }
+          
+          return `⏳ You have a pending payment:\n\n${details}\n\n✅ Type "yes" or "ok" to confirm\n❌ Type "no" or "cancel" to cancel\n✏️ Or enter a new amount (e.g., "25")`;
         }
       }
 
@@ -296,7 +318,7 @@ export class WhatsappService {
           session?.sessionId,
         );
 
-        return `🎤 Voice Payment Confirmation Required\n\n${details}\n\nPlease type "yes" to confirm or "no" to cancel.\n\n⏱️ This request will expire in 5 minutes.`;
+        return `🎤 Voice Payment Confirmation Required\n\n${details}\n\n✅ Type "yes" or "ok" to confirm\n❌ Type "no" or "cancel" to cancel\n✏️ Or enter a new amount (e.g., "25")\n\n⏱️ This request will expire in 5 minutes.`;
       }
 
       switch (command.type) {
@@ -413,6 +435,25 @@ export class WhatsappService {
             }
           }
 
+          // Check if this is a "yes" or "no" response to a pending consent request
+          const lowerText = command.rawText.toLowerCase().trim();
+          if ((lowerText === 'yes' || lowerText === 'no') && session) {
+            // Check if there's a pending AI question (which indicates consent was requested)
+            const normalizedWhatsappId = session.whatsappId.replace('+', '');
+            const pendingQuestionKey = `pending_ai_question:${normalizedWhatsappId}`;
+            const pendingQuestion = await this.redisService.get(pendingQuestionKey);
+
+            if (pendingQuestion) {
+              // Convert to consent command
+              const consentCommand: ParsedCommand = {
+                type: CommandType.CONSENT,
+                args: { choice: lowerText },
+                rawText: command.rawText,
+              };
+              return this.handleConsentCommand(consentCommand, whatsappId, session);
+            }
+          }
+
           // Check if the message contains a Lightning invoice
           const invoiceMatch = command.rawText.match(/\b(lnbc[a-z0-9]+)\b/i);
           if (invoiceMatch) {
@@ -453,6 +494,19 @@ export class WhatsappService {
    */
   private async handleLinkCommand(whatsappId: string, phoneNumber: string): Promise<string> {
     try {
+      // Check if this is an @lid format user
+      if (whatsappId.includes('@lid')) {
+        return `⚠️ *Unable to Link Account*
+
+Your WhatsApp account uses a special ID format that cannot be linked to Flash.
+
+To use this bot, please:
+1. Use WhatsApp from a phone number registered with Flash
+2. Or contact support for assistance
+
+_This limitation is due to WhatsApp's privacy features._`;
+      }
+
       const linkRequest: AccountLinkRequestDto = {
         whatsappId,
         phoneNumber,
@@ -461,7 +515,7 @@ export class WhatsappService {
       const result = await this.authService.initiateAccountLinking(linkRequest);
 
       if (result.otpSent) {
-        return 'To link your Flash account, please enter the verification code sent to your WhatsApp. Type "verify" followed by the 6-digit code (e.g., "verify 123456").';
+        return 'To link your Flash account, please enter the 6-digit verification code sent to your WhatsApp.';
       } else {
         return 'Your Flash account is already linked! You can check your balance or use other commands.';
       }
@@ -526,7 +580,7 @@ export class WhatsappService {
       const otpCode = command.args.otp;
 
       if (!otpCode) {
-        return 'Please provide your 6-digit verification code. For example: "verify 123456".';
+        return 'Please provide your 6-digit verification code.';
       }
 
       if (!session) {
@@ -549,6 +603,16 @@ export class WhatsappService {
           whatsappId: updatedSession.whatsappId,
           authToken: updatedSession.flashAuthToken,
         });
+        
+        // Fetch and store username mapping for efficient lookups
+        try {
+          const username = await this.usernameService.getUsername(updatedSession.flashAuthToken);
+          if (username) {
+            await this.sessionService.storeUsernameMapping(username, whatsappId);
+          }
+        } catch (error) {
+          this.logger.error(`Error storing username mapping: ${error.message}`);
+        }
       }
 
       // Check for pending payments to auto-claim
@@ -623,11 +687,11 @@ export class WhatsappService {
   ): Promise<string> {
     try {
       if (!session) {
-        return 'Please link your Flash account first by typing "link".';
+        return this.getNotLinkedMessage();
       }
 
       if (!session.isVerified || !session.flashUserId || !session.flashAuthToken) {
-        return 'Your account is not fully verified. Please complete the linking process first.';
+        return 'Your account is not fully verified. Please complete the linking process first. Type "link" to start.';
       }
 
       // Skip MFA for WhatsApp since the user already authenticated
@@ -705,11 +769,11 @@ export class WhatsappService {
   ): Promise<string> {
     try {
       if (!session) {
-        return 'Please link your Flash account first by typing "link".';
+        return this.getNotLinkedMessage();
       }
 
       if (!session.isVerified || !session.flashUserId || !session.flashAuthToken) {
-        return 'Your account is not fully verified. Please complete the linking process first.';
+        return 'Your account is not fully verified. Please complete the linking process first. Type "link" to start.';
       }
 
       // Clear the balance cache
@@ -784,11 +848,11 @@ export class WhatsappService {
   ): Promise<string> {
     try {
       if (!session) {
-        return 'Please link your Flash account first by typing "link".';
+        return this.getNotLinkedMessage();
       }
 
       if (!session.isVerified || !session.flashUserId || !session.flashAuthToken) {
-        return 'Your account is not fully verified. Please complete the linking process first.';
+        return 'Your account is not fully verified. Please complete the linking process first. Type "link" to start.';
       }
 
       const newUsername = command.args.username;
@@ -798,6 +862,8 @@ export class WhatsappService {
         const currentUsername = await this.usernameService.getUsername(session.flashAuthToken);
 
         if (currentUsername) {
+          // Store username mapping for efficient lookups
+          await this.sessionService.storeUsernameMapping(currentUsername, whatsappId);
           return `Your username is: @${currentUsername}. \n\n Your lightning address is: ${currentUsername}@flashapp.me. \n\n Want to know more about lightning addresses? Just ask!`;
         } else {
           return 'You haven\'t set a username yet. To set one, type "username" followed by your desired username.\n\nExample: username johndoe';
@@ -821,6 +887,8 @@ export class WhatsappService {
         // Try to set the username
         try {
           await this.usernameService.setUsername(newUsername, session.flashAuthToken);
+          // Store username mapping for efficient lookups
+          await this.sessionService.storeUsernameMapping(newUsername, whatsappId);
           return `Success! Your username has been set to: @${newUsername}\n\nYour Lightning address is now: ${newUsername}@flashapp.me\n\n⚠️ Remember: Usernames cannot be changed once set.`;
         } catch (error) {
           if (error.message.includes('already taken')) {
@@ -878,7 +946,7 @@ export class WhatsappService {
   ): Promise<string> {
     try {
       if (!session) {
-        return 'Please link your Flash account first by typing "link".';
+        return this.getNotLinkedMessage();
       }
 
       const choice = command.args.choice;
@@ -920,7 +988,7 @@ export class WhatsappService {
 
         return 'You have declined to provide consent. Some services will be limited. You can change this at any time by typing "consent yes".';
       } else {
-        return 'Please specify your consent choice by typing "consent yes" or "consent no".';
+        return 'Please specify your consent choice by typing "yes" or "no".';
       }
     } catch (error) {
       this.logger.error(`Error handling consent command: ${error.message}`, error.stack);
@@ -940,7 +1008,7 @@ export class WhatsappService {
         const pendingQuestionKey = `pending_ai_question:${normalizedWhatsappId}`;
         await this.redisService.set(pendingQuestionKey, query, 300); // 5 minute expiry
 
-        return 'Hi There! I would love to chat with you more, but first I need you to give your consent to talking to an AI bot. To use AI-powered support, please provide your consent by typing "consent yes".';
+        return 'Hi There! I would love to chat with you more, but first I need you to give your consent to talking to an AI bot. To use AI-powered support, please type "yes" to consent or "no" to decline.';
       }
 
       // Create context with user info, but remove sensitive data
@@ -1020,9 +1088,18 @@ export class WhatsappService {
    * Get help message based on session status
    */
   private getHelpMessage(session: UserSession | null, command?: ParsedCommand): string {
-    // Check if a category was requested
+    // Check if a category or navigation was requested
     if (command?.args?.category) {
-      return this.getCategoryHelp(command.args.category);
+      const category = command.args.category;
+      
+      // Handle numbered navigation
+      if (category === '1') return this.getCategoryHelp('wallet');
+      if (category === '2') return this.getCategoryHelp('send');
+      if (category === '3') return this.getCategoryHelp('receive');
+      if (category === 'more') return this.getFullHelpMenu(session);
+      
+      // Handle regular categories
+      return this.getCategoryHelp(category);
     }
     if (!session) {
       return `🌟 *Welcome to Flash WhatsApp Bot!*
@@ -1049,8 +1126,7 @@ Ready? Type \`link\` to begin! 🚀`;
     if (!session.isVerified) {
       return `📲 *Complete Your Verification*
 
-Please enter the 6-digit code sent to your phone:
-Type: \`verify 123456\` (replace with your code)
+Please enter the 6-digit code sent to your phone.
 
 ⚡ *Available Commands:*
 • \`price\` - Check current Bitcoin price
@@ -1059,25 +1135,59 @@ Type: \`verify 123456\` (replace with your code)
 Need a new code? Type \`link\` again.`;
     }
 
-    return `⚡ *Pulse Commands*
+    return `⚡ *Welcome to Pulse!*
 
-🚀 *Quick Start:*
+📱 *Essential Commands:*
+1️⃣ Balance - Check your wallet
+2️⃣ Send - Send money
+3️⃣ Receive - Get paid
+
+Type a number for details or:
+• \`more\` - See all commands
+• \`support\` - Get help
+
+💡 Quick example: \`send 5 to john\``;
+  }
+
+  /**
+   * Get full help menu with all commands
+   */
+  private getFullHelpMenu(session: UserSession | null): string {
+    if (!session?.isVerified) {
+      return this.getHelpMessage(session);
+    }
+
+    return `⚡ *All Pulse Commands*
+
+💰 *Wallet & Balance:*
 • \`balance\` - Check your balance
-• \`send 10 to @username\` - Send money
-• \`receive 20\` - Request payment
-• \`price\` - Bitcoin price
+• \`refresh\` - Refresh balance
+• \`username\` - View/set Lightning username
+• \`history\` - Transaction history
 
-📚 *All Commands:*
-• \`help wallet\` - Balance & transactions
-• \`help send\` - Sending money  
-• \`help receive\` - Receiving money
-• \`help contacts\` - Managing contacts
-• \`help pending\` - Pending payments
-• \`help voice\` - Voice commands
+💸 *Send & Receive:*
+• \`send 10 to @user\` - Send money
+• \`receive 20\` - Create invoice
+• \`request 15 from @user\` - Request payment
+• \`pay\` - Confirm pending payment
 
-💡 Need assistance? Type \`support\`
+👥 *Contacts:*
+• \`contacts\` - List all contacts
+• \`contacts add john +1234567890\`
+• \`contacts remove john\`
 
-🎙️ *Voice Mode:* Say "voice" before any command!`;
+🎙️ *Voice & Settings:*
+• \`voice on/off/only\` - Voice settings
+• \`vybz\` - Earn sats
+• \`pending\` - View pending payments
+
+💡 *Tips:*
+• All amounts are in USD
+• Save contacts for easy payments
+• Use voice mode for hands-free
+
+📱 Type \`help [topic]\` for details
+💬 Type \`support\` for assistance`;
   }
 
   /**
@@ -1092,27 +1202,34 @@ Need a new code? Type \`link\` again.`;
 • \`username\` - View or set Lightning username
 • \`history\` - View recent transactions
 
-💡 Tip: Set a username to get your own Lightning address!`,
+💡 Tip: Set a username to get your own Lightning address!
+
+⬅️ Type \`help\` to go back`,
 
       send: `💸 *Send Money Commands*
 
-• \`send 10 to @username\` - Send to Flash user
-• \`send 5.50 to john\` - Send to saved contact
-• \`send 25 to lnbc...\` - Pay Lightning invoice
+• \`send 10 to @username\` - Send $10 USD to Flash user
+• \`send 5.50 to john\` - Send $5.50 USD to saved contact
+• \`send 25 to lnbc...\` - Pay $25 USD Lightning invoice
 
 📱 *Request from Others:*
-• \`request 20 from @john\` - Request from user
-• \`request 15 from ayanna\` - Request from contact
+• \`request 20 from @john\` - Request $20 USD from user
+• \`request 15 from ayanna\` - Request $15 USD from contact
 
-💡 Tip: Save contacts for easier payments!`,
+💡 *Important:* All amounts are in USD regardless of your display currency
+💡 Tip: Save contacts for easier payments!
+
+⬅️ Type \`help\` to go back`,
 
       receive: `📥 *Receive Money Commands*
 
-• \`receive 10\` - Create $10 invoice
-• \`receive 50 Coffee\` - Add a memo
-• \`pay 12345\` - Claim pending payment
+• \`receive 10\` - Create $10 USD invoice
+• \`receive 50 Coffee\` - Create $50 USD invoice with memo
 
-💡 Tip: Share the invoice or QR code to get paid!`,
+💡 *Important:* All amounts are in USD regardless of your display currency
+💡 Tip: Share the invoice or QR code to get paid!
+
+⬅️ Type \`help\` to go back`,
 
       contacts: `👥 *Contact Commands*
 
@@ -1139,7 +1256,9 @@ Simply add "voice", "audio", or "speak" to any command:
 
 Current mode: Check with \`admin voice\`
 
-💡 Tip: I'll respond with both voice and text!`,
+💡 Tip: I'll respond with both voice and text!
+
+⬅️ Type \`help\` to go back`,
     };
 
     return (
@@ -1302,13 +1421,13 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
     try {
       // Check if user has a linked account
       if (!session || !session.isVerified || !session.flashAuthToken) {
-        return 'Please link your Flash account first to send payments. Type "link" to get started.';
+        return this.getNotLinkedMessage();
       }
 
       // Parse amount
       const amountStr = command.args.amount;
       if (!amountStr) {
-        return 'Please specify amount. Usage: send [amount] to [recipient]';
+        return 'Please specify amount in USD. Usage: send [amount] to [recipient]';
       }
 
       const parsedResult = parseAndValidateAmount(amountStr);
@@ -1426,17 +1545,42 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
           }
 
           if (result?.status === PaymentSendResult.Success) {
-            return `✅ Payment sent!\n\nAmount: $${amount.toFixed(2)} USD\nTo: ${lightningAddress.substring(0, 30)}...\n\nPayment successful!`;
+            // Generate transaction ID
+            const txId = `LN${Date.now().toString().slice(-8)}`;
+            // Get current balance for display
+            let balanceDisplay = 'Check balance for details';
+            try {
+              const balanceInfo = await this.balanceService.getUserBalance(
+                session.flashUserId!,
+                session.flashAuthToken,
+              );
+              balanceDisplay = `$${balanceInfo.fiatBalance.toFixed(2)} ${balanceInfo.fiatCurrency}`;
+            } catch (e) {
+              // Ignore balance fetch errors in success message
+            }
+            
+            return `✅ Payment sent successfully!\n\n💸 Amount: $${amount.toFixed(2)} USD\n⚡ To: ${lightningAddress.substring(0, 30)}...\n📍 Transaction: #${txId}\n💰 New balance: ${balanceDisplay}\n\n💡 Tip: Save this invoice for future payments`;
           } else {
             const errorMessage = result?.errors?.[0]?.message || 'Unknown error';
 
             // Provide more helpful error messages
             if (errorMessage.includes('Account is inactive')) {
-              return `❌ Payment failed: Account is inactive.\n\nYour account has restrictions on sending payments.\n\nPlease contact support@flashapp.me for assistance.`;
+              return `❌ Payment blocked: Account restricted\n\n🔒 Your account has temporary restrictions\n\n💉 Next steps:\n→ Type 'support' to chat with an agent\n→ Email support@flashapp.me\n→ Reference: #ERR${Date.now().toString().slice(-6)}`;
             } else if (errorMessage.includes('Insufficient balance')) {
-              return `❌ Payment failed: Insufficient balance.\n\nYou need at least $${amount.toFixed(2)} USD to send this payment.`;
+              // Get current balance for display
+            let balanceDisplay = 'Check balance for details';
+            try {
+              const balanceInfo = await this.balanceService.getUserBalance(
+                session.flashUserId!,
+                session.flashAuthToken,
+              );
+              balanceDisplay = `$${balanceInfo.fiatBalance.toFixed(2)} ${balanceInfo.fiatCurrency}`;
+            } catch (e) {
+              // Ignore balance fetch errors in success message
+            }
+              return `❌ Payment failed: Insufficient balance\n\n💰 You need: $${amount.toFixed(2)} USD\n💳 You have: ${balanceDisplay}\n\n🔄 Next steps:\n→ Type 'receive ${amount}' to request funds\n→ Ask someone to send you money\n→ Add funds in the Flash app`;
             } else if (errorMessage.includes('limit')) {
-              return `❌ Payment failed: ${errorMessage}\n\nYou may have reached a transaction limit. Check your account limits in the Flash app.`;
+              return `❌ Payment failed: Transaction limit reached\n\n📏 Daily/monthly limit exceeded\n\n💡 Next steps:\n→ Wait 24 hours for daily limit reset\n→ Check limits in Flash app\n→ Type 'support' for limit increase\n→ Reference: #LMT${Date.now().toString().slice(-6)}`;
             }
 
             return `❌ Payment failed: ${errorMessage}`;
@@ -1475,23 +1619,95 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
             );
 
             if (result?.status === PaymentSendResult.Success) {
-              return `✅ Payment sent to @${targetUsername}!\n\nAmount: $${amount.toFixed(2)} USD\n${command.args.memo ? `Memo: ${command.args.memo}` : ''}\n\nPayment successful!`;
+              // Send notification to recipient if they have WhatsApp linked
+              try {
+                // Use optimized lookup by username
+                const recipientSession = await this.sessionService.getSessionByUsername(targetUsername);
+                
+                if (recipientSession && recipientSession.flashUserId && recipientSession.flashAuthToken) {
+                  // Found the recipient! Send them a notification
+                  const senderUsername = await this.usernameService.getUsername(session.flashAuthToken) || 'Someone';
+                      
+                      let recipientMessage = `💰 *Payment Received!*\n\n`;
+                      recipientMessage += `Amount: *$${amount.toFixed(2)} USD*\n`;
+                      recipientMessage += `From: *@${senderUsername}*\n`;
+                      if (command.args.memo) {
+                        recipientMessage += `Memo: _${command.args.memo}_\n`;
+                      }
+                      recipientMessage += `\n✅ Payment confirmed instantly`;
+                      
+                      // Get recipient's updated balance
+                      if (recipientSession.flashUserId) {
+                        await this.balanceService.clearBalanceCache(recipientSession.flashUserId);
+                        const balance = await this.balanceService.getUserBalance(
+                          recipientSession.flashUserId,
+                          recipientSession.flashAuthToken,
+                        );
+                        
+                        if (balance.fiatBalance > 0 || balance.btcBalance === 0) {
+                          recipientMessage += `\n💼 New balance: *$${balance.fiatBalance.toFixed(2)} USD*`;
+                        }
+                      }
+                      
+                      // Send the notification
+                      if (this.whatsappWebService?.isClientReady()) {
+                        await this.whatsappWebService.sendMessage(recipientSession.whatsappId, recipientMessage);
+                      }
+                }
+              } catch (error) {
+                // Log error but don't fail the payment
+                this.logger.error(`Error sending recipient notification: ${error.message}`);
+              }
+              
+              // Generate transaction ID
+              const txId = `TX${Date.now().toString().slice(-8)}`;
+              // Get current balance for display
+            let balanceDisplay = 'Check balance for details';
+            try {
+              const balanceInfo = await this.balanceService.getUserBalance(
+                session.flashUserId!,
+                session.flashAuthToken,
+              );
+              balanceDisplay = `$${balanceInfo.fiatBalance.toFixed(2)} ${balanceInfo.fiatCurrency}`;
+            } catch (e) {
+              // Ignore balance fetch errors in success message
+            }
+              
+              let successMsg = `✅ Payment sent to @${targetUsername}!\n\n`;
+              successMsg += `💸 Amount: $${amount.toFixed(2)} USD\n`;
+              if (command.args.memo) {
+                successMsg += `📝 Memo: "${command.args.memo}"\n`;
+              }
+              successMsg += `📍 Transaction: #${txId}\n`;
+              successMsg += `💰 New balance: ${balanceDisplay}\n\n`;
+              successMsg += `💡 Tip: Request it back with "request ${amount} from ${targetUsername}"`;
             } else {
               const errorMessage = result?.errors?.[0]?.message || 'Unknown error';
 
               // Provide more helpful error messages
               if (errorMessage.includes('Account is inactive')) {
-                return `❌ Payment failed: Account is inactive.\n\nThis could mean:\n• The recipient's account (@${targetUsername}) is suspended or deactivated\n• Your account has restrictions on sending payments\n\nPlease contact support@flashapp.me for assistance.`;
+                return `❌ Payment blocked: Account issue\n\n🔍 Possible reasons:\n• @${targetUsername}'s account is restricted\n• Your account has limitations\n\n💡 Next steps:\n→ Verify recipient username is correct\n→ Type 'support' for help\n→ Reference: #ACC${Date.now().toString().slice(-6)}`;
               } else if (errorMessage.includes('Insufficient balance')) {
-                return `❌ Payment failed: Insufficient balance.\n\nYou need at least $${amount.toFixed(2)} USD to send this payment.`;
+                // Get current balance for display
+            let balanceDisplay = 'Check balance for details';
+            try {
+              const balanceInfo = await this.balanceService.getUserBalance(
+                session.flashUserId!,
+                session.flashAuthToken,
+              );
+              balanceDisplay = `$${balanceInfo.fiatBalance.toFixed(2)} ${balanceInfo.fiatCurrency}`;
+            } catch (e) {
+              // Ignore balance fetch errors in success message
+            }
+                return `❌ Payment failed: Insufficient balance\n\n💰 You need: $${amount.toFixed(2)} USD\n💳 You have: ${balanceDisplay}\n\n🔄 Next steps:\n→ Type 'receive ${amount}' to request funds\n→ Ask @${targetUsername} to request payment instead\n→ Add funds in the Flash app`;
               } else if (errorMessage.includes('limit')) {
-                return `❌ Payment failed: ${errorMessage}\n\nYou may have reached a transaction limit. Check your account limits in the Flash app.`;
+                return `❌ Payment failed: Transaction limit reached\n\n📏 Daily/monthly limit exceeded\n\n💡 Next steps:\n→ Wait 24 hours for daily limit reset\n→ Check limits in Flash app\n→ Type 'support' for limit increase\n→ Reference: #LMT${Date.now().toString().slice(-6)}`;
               }
 
               return `❌ Payment failed: ${errorMessage}`;
             }
           } else {
-            return `❌ Username @${targetUsername} not found.`;
+            return `❌ Username @${targetUsername} not found\n\n🔍 Possible issues:\n• Typo in username\n• User hasn't set a username yet\n• Account doesn't exist\n\n💡 Next steps:\n→ Double-check the spelling\n→ Ask for their phone number instead\n→ Use 'contacts add' to save them`;
           }
         } catch (error) {
           this.logger.error(`Username payment error: ${error.message}`);
@@ -1581,7 +1797,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
                     }
                   }
 
-                  return `✅ Payment sent successfully!\n\n💰 $${amount.toFixed(2)} USD is waiting for ${targetUsername}\n📱 They've been notified via WhatsApp\n🔑 Claim code: ${pendingPayment.claimCode}\n⏱️ Expires in 30 days\n\n${targetUsername} will receive the money automatically when they create their Flash account.`;
+                  return `✅ Payment sent - Pending delivery!\n\n💰 $${amount.toFixed(2)} USD is waiting for ${targetUsername}\n📱 They've been notified via WhatsApp\n🔑 Claim code: ${pendingPayment.claimCode}\n⏱️ Expires: ${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()}\n\n🎯 What happens next:\n• ${targetUsername} gets your payment when they join Flash\n• You'll be notified when claimed\n• Refunded automatically if not claimed in 30 days\n\n💡 Tip: Tell ${targetUsername} to type 'link' to Flash to claim`;
                 } catch (error) {
                   this.logger.error(
                     `Error creating pending payment: ${error.message}`,
@@ -1762,7 +1978,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
 
       if (!amountStr || (!targetUsername && !targetPhone)) {
         return {
-          text: 'Please specify amount and recipient. Usage:\n• request [amount] from [@username]\n• request [amount] from [phone]\n• request [amount] from [@username] [phone]\n• request [amount] from [contact_name]',
+          text: 'Please specify amount (in USD) and recipient. Usage:\n• request [amount] from [@username]\n• request [amount] from [phone]\n• request [amount] from [@username] [phone]\n• request [amount] from [contact_name]',
         };
       }
 
@@ -1826,7 +2042,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
 
           if (!walletCheck?.accountDefaultWallet?.id) {
             return {
-              text: `❌ Username @${targetUsername} not found. Please check the username and try again.`,
+              text: `❌ Username @${targetUsername} not found\n\n🔍 Double-check the spelling\n→ Try: 'request ${amount} from [phone_number]'\n→ Or ask them to send you their username`,
             };
           }
         } catch (error) {
@@ -1854,18 +2070,10 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
         return { text: '❌ Failed to create payment request. Please try again later.' };
       }
 
-      // Generate QR code
-      const qrBuffer = await this.qrCodeService.generateQrCode(invoice.paymentRequest);
-
-      // Format the request message
+      // Format the request message (no QR code needed)
       let requestMessage = `💸 *Payment Request*\n\n`;
       requestMessage += `From: @${requesterUsername}\n`;
       requestMessage += `Amount: $${amount!.toFixed(2)} USD\n`;
-      requestMessage += `\n📱 *To pay this request:*\n`;
-      requestMessage += `1. Open Flash app\n`;
-      requestMessage += `2. Tap "Send"\n`;
-      requestMessage += `3. Scan this QR code or paste:\n`;
-      requestMessage += `\`${invoice.paymentRequest}\`\n`;
       requestMessage += `\n_Request expires in ${Math.floor((new Date(invoice.expiresAt).getTime() - Date.now()) / 60000)} minutes_`;
 
       // If we have a phone number, try to send WhatsApp message
@@ -1885,13 +2093,29 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
             recipientIdentifier = `the number ${targetPhone}`; // Direct phone number
           }
 
-          // Send notification to recipient
-          const notificationMessage = `💰 *Payment Request*\n\n@${requesterUsername} is requesting $${amount!.toFixed(2)} USD from you.\n\nTo view and pay this request, please check your WhatsApp messages or open the Flash app.`;
+          // Store the payment request for the recipient
+          const recipientRequestKey = `pending_request:${whatsappNumber}`;
+          const requestData = {
+            type: 'payment_request',
+            invoice: invoice.paymentRequest,
+            amount: amount!,
+            requesterUsername,
+            requesterWhatsappId: whatsappId,
+            createdAt: new Date().toISOString(),
+            expiresAt: invoice.expiresAt,
+          };
+          await this.redisService.setEncrypted(recipientRequestKey, requestData, 3600); // 1 hour expiry
 
-          await this.whatsappWebService.sendMessage(whatsappNumber, notificationMessage);
+          // Send the payment request message with pay instructions
+          requestMessage = `💸 *Payment Request*\n\n`;
+          requestMessage += `From: @${requesterUsername}\n`;
+          requestMessage += `Amount: $${amount!.toFixed(2)} USD\n`;
+          requestMessage += `\n💳 *To pay this request:*\n`;
+          requestMessage += `Simply type \`pay\` to send the payment\n`;
+          requestMessage += `\n_Request expires in ${Math.floor((new Date(invoice.expiresAt).getTime() - Date.now()) / 60000)} minutes_`;
 
-          // Send the actual payment request with QR
-          await this.whatsappWebService.sendImage(whatsappNumber, qrBuffer, requestMessage);
+          // Send the payment request message (no QR code)
+          await this.whatsappWebService.sendMessage(whatsappNumber, requestMessage);
 
           // Track the request in contact history
           if (isFromSavedContact && targetUsername) {
@@ -1922,7 +2146,6 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
       // Return the payment request to the requester
       return {
         text: requestMessage,
-        media: qrBuffer,
       };
     } catch (error) {
       this.logger.error(`Error handling request command: ${error.message}`, error.stack);
@@ -2087,7 +2310,9 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
     whatsappId: string,
     contactName: string,
     phoneNumber: string,
-  ): Promise<string | { text: string; media?: Buffer; voice?: Buffer; voiceOnly?: boolean } | null> {
+  ): Promise<
+    string | { text: string; media?: Buffer; voice?: Buffer; voiceOnly?: boolean } | null
+  > {
     try {
       // Check for pending send first
       const pendingSendKey = `pending_send:${whatsappId}`;
@@ -2327,7 +2552,16 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
    */
   async notifyInvoicePaid(invoice: any): Promise<void> {
     try {
-      const message = `✅ Payment Received!\n\nAmount: $${invoice.amount} USD\n${invoice.memo ? `Memo: ${invoice.memo}\n` : ''}Paid at: ${new Date(invoice.paidAt).toLocaleString()}\n\nThank you for your payment!`;
+      const paidAtDate = new Date(invoice.paidAt);
+      const paidAtStr = paidAtDate.toLocaleString('en-US', {
+        timeZone: 'America/Jamaica',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
+      const message = `✅ Payment Received!\n\nAmount: $${invoice.amount} USD\n${invoice.memo ? `Memo: ${invoice.memo}\n` : ''}Paid at: ${paidAtStr} EST\n\nThank you for your payment!`;
 
       // Send notification via WhatsApp Web
       if (this.whatsappWebService) {
@@ -2428,15 +2662,80 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
     try {
       // Check if user has a linked account
       if (!session || !session.isVerified || !session.flashAuthToken) {
-        return 'Please link your Flash account first to make payments. Type "link" to get started.';
+        return this.getNotLinkedMessage();
       }
 
       const action = command.args.action;
       const modifier = command.args.modifier;
 
-      // Get pending payments (encrypted)
+      // First check for pending payment requests (when someone requested money from this user)
+      // Note: We need to check both formats as the request might be stored with @c.us suffix
+      let pendingRequestKey = `pending_request:${whatsappId}`;
+      let pendingRequest = await this.redisService.getEncrypted(pendingRequestKey);
+      
+      // If not found, try with @c.us suffix (for requests sent via phone number)
+      if (!pendingRequest) {
+        // Extract just the number part from whatsappId (remove any existing @c.us)
+        const phoneNumber = whatsappId.replace('@c.us', '').replace(/\D/g, '');
+        pendingRequestKey = `pending_request:${phoneNumber}@c.us`;
+        pendingRequest = await this.redisService.getEncrypted(pendingRequestKey);
+      }
+
+      // If no action specified and there's a pending request, handle it
+      if (!action && pendingRequest) {
+        try {
+          // Check if request is still valid
+          const expiresAt = new Date(pendingRequest.expiresAt);
+          if (expiresAt < new Date()) {
+            await this.redisService.del(pendingRequestKey);
+            return '❌ This payment request has expired. Please ask for a new one.';
+          }
+
+          // Get user's wallets
+          const wallets = await this.paymentService.getUserWallets(session.flashAuthToken);
+
+          // Pay the invoice
+          const result = await this.paymentService.sendLightningPayment(
+            {
+              walletId: wallets.usdWallet?.id || wallets.defaultWalletId,
+              paymentRequest: pendingRequest.invoice,
+            },
+            session.flashAuthToken,
+          );
+
+          if (result?.status === PaymentSendResult.Success) {
+            // Clear the pending request
+            await this.redisService.del(pendingRequestKey);
+
+            // Notify the requester
+            if (pendingRequest.requesterWhatsappId && this.whatsappWebService?.isClientReady()) {
+              const payerUsername = await this.usernameService.getUsername(session.flashAuthToken) || 'Someone';
+              const successNotification = `✅ *Payment Received!*\n\n@${payerUsername} has paid your request for $${pendingRequest.amount.toFixed(2)} USD.\n\nThe payment has been confirmed and added to your balance.`;
+              
+              await this.whatsappWebService.sendMessage(pendingRequest.requesterWhatsappId, successNotification);
+            }
+
+            return `✅ Payment sent successfully!\n\nAmount: $${pendingRequest.amount.toFixed(2)} USD\nTo: @${pendingRequest.requesterUsername}\n\nThe payment has been confirmed.`;
+          } else if (result?.status === PaymentSendResult.AlreadyPaid) {
+            await this.redisService.del(pendingRequestKey);
+            return '❌ This payment request has already been paid.';
+          } else {
+            return `❌ Payment failed: ${result?.errors?.[0]?.message || 'Unknown error'}`;
+          }
+        } catch (error) {
+          this.logger.error(`Payment request error: ${error.message}`);
+          return `❌ Failed to pay request: ${error.message}`;
+        }
+      }
+
+      // Get pending Lightning invoice payments (encrypted)
       const pendingPaymentsKey = `pending_payments:${whatsappId}`;
       const payments = await this.redisService.getEncrypted(pendingPaymentsKey);
+
+      // If there's a pending request but user specified an action, show both options
+      if (pendingRequest && action && (!payments || payments.length === 0)) {
+        return `💰 You have a pending payment request from @${pendingRequest.requesterUsername} for $${pendingRequest.amount.toFixed(2)} USD.\n\n• Type \`pay\` to pay this request\n• Or continue with other payment options`;
+      }
 
       if (!payments || payments.length === 0) {
         return '❌ No pending payments found.\n\nTo pay a Lightning invoice, either:\n• Share or paste the invoice to detect it automatically\n• Use: `send [amount] to [invoice]`';
@@ -3527,6 +3826,13 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
   }
 
   /**
+   * Get standardized "not linked" error message
+   */
+  private getNotLinkedMessage(): string {
+    return `🔗 Account not linked yet!\n\n📱 To use Pulse, you need to connect your Flash account:\n\n1️⃣ Type 'link' to start\n2️⃣ Enter your Flash phone number\n3️⃣ Enter the 6-digit code we send you\n\n⏱️ Takes just 30 seconds!`;
+  }
+
+  /**
    * Send response as voice note if requested
    */
   private async sendResponseWithVoice(
@@ -3604,7 +3910,7 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
     if (!session) {
       hints.push('Type `link` to connect your Flash account');
     } else if (!session.isVerified) {
-      hints.push('Complete verification with `verify 123456`');
+      hints.push('Enter your 6-digit verification code');
     } else {
       // User is linked and verified
       if (command?.type === CommandType.BALANCE) {
@@ -3653,8 +3959,8 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
         "You can connect your Flash account by typing 'link'",
       ],
       [
-        'Complete verification with `verify 123456`',
-        "Complete the verification by typing 'verify' followed by your 6-digit code",
+        'Enter your 6-digit verification code',
+        'Complete the verification by entering your 6-digit code',
       ],
       [
         'Send money with `send 10 to @username`',

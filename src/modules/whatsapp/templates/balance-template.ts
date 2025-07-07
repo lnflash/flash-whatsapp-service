@@ -26,10 +26,21 @@ export class BalanceTemplate {
     const fiatFormatted = this.formatFiatAmount(data.fiatBalance, data.fiatCurrency);
     const lastUpdated = this.formatDateTime(data.lastUpdated);
 
+    // Determine contextual tips based on balance
+    let tip = '';
+    if (data.fiatBalance === 0) {
+      tip = '\n\n💡 Tip: Start with "receive 10" to request your first payment';
+    } else if (data.fiatBalance < 5) {
+      tip = '\n\n💡 Low balance! Type "receive" to request more funds';
+    } else if (data.fiatBalance > 100) {
+      tip = '\n\n💡 Nice balance! Try "send 5 to [username]" to share the wealth';
+    }
+
     return (
       `${greeting}💰 *Your Flash Balance*\n\n` +
       `${fiatFormatted}\n\n` +
-      `_Updated: ${lastUpdated}_`
+      `_Updated: ${lastUpdated}_` +
+      tip
     );
   }
 
@@ -109,22 +120,35 @@ export class BalanceTemplate {
     }
 
     const now = new Date();
-    const isToday = dateObj.toDateString() === now.toDateString();
+    
+    // Format in Jamaica timezone (EST/EDT)
+    const jamaicaOptions: Intl.DateTimeFormatOptions = {
+      timeZone: 'America/Jamaica',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    };
+
+    // Check if it's today in Jamaica timezone
+    const jamaicaDateStr = dateObj.toLocaleDateString('en-US', { timeZone: 'America/Jamaica' });
+    const nowJamaicaStr = now.toLocaleDateString('en-US', { timeZone: 'America/Jamaica' });
+    const isToday = jamaicaDateStr === nowJamaicaStr;
 
     if (isToday) {
-      return `Today at ${dateObj.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-      })}`;
+      const timeStr = dateObj.toLocaleTimeString('en-US', jamaicaOptions);
+      return `Today at ${timeStr} EST`;
     }
 
-    return dateObj.toLocaleString('en-US', {
+    // For dates other than today
+    const fullOptions: Intl.DateTimeFormatOptions = {
+      timeZone: 'America/Jamaica',
       month: 'short',
       day: 'numeric',
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
-    });
+    };
+
+    return `${dateObj.toLocaleString('en-US', fullOptions)} EST`;
   }
 }

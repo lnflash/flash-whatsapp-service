@@ -149,12 +149,14 @@ export class TransactionService {
 
     // Format date - createdAt is in seconds, convert to milliseconds
     const date = new Date(parseInt(tx.createdAt) * 1000);
-    const dateStr = date.toLocaleDateString('en-US', {
+    const dateStr = date.toLocaleString('en-US', {
+      timeZone: 'America/Jamaica',
       month: 'short',
       day: 'numeric',
-      hour: '2-digit',
+      hour: 'numeric',
       minute: '2-digit',
-    });
+      hour12: true,
+    }) + ' EST';
 
     // Format amounts
     let amountStr = '';
@@ -232,23 +234,45 @@ export class TransactionService {
    */
   private groupTransactionsByDate(edges: TransactionEdge[]): Record<string, TransactionEdge[]> {
     const groups: Record<string, TransactionEdge[]> = {};
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
+    
+    // Get current timestamp and create dates for comparison
+    const now = new Date();
+    
+    // Create dates at midnight in Jamaica timezone for today and yesterday
+    const todayFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Jamaica',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+    });
+    
+    const todayParts = todayFormatter.formatToParts(now);
+    const todayYear = parseInt(todayParts.find(p => p.type === 'year')?.value || '0');
+    const todayMonth = parseInt(todayParts.find(p => p.type === 'month')?.value || '0') - 1; // 0-based
+    const todayDay = parseInt(todayParts.find(p => p.type === 'day')?.value || '0');
 
     for (const edge of edges) {
       const txDate = new Date(parseInt(edge.node.createdAt) * 1000);
+      
+      // Get transaction date parts in Jamaica timezone
+      const txParts = todayFormatter.formatToParts(txDate);
+      const txYear = parseInt(txParts.find(p => p.type === 'year')?.value || '0');
+      const txMonth = parseInt(txParts.find(p => p.type === 'month')?.value || '0') - 1; // 0-based
+      const txDay = parseInt(txParts.find(p => p.type === 'day')?.value || '0');
+      
       let dateGroup: string;
 
-      if (this.isSameDay(txDate, today)) {
+      // Compare dates using year, month, day components
+      if (txYear === todayYear && txMonth === todayMonth && txDay === todayDay) {
         dateGroup = 'Today';
-      } else if (this.isSameDay(txDate, yesterday)) {
+      } else if (txYear === todayYear && txMonth === todayMonth && txDay === todayDay - 1) {
         dateGroup = 'Yesterday';
       } else {
         dateGroup = txDate.toLocaleDateString('en-US', {
+          timeZone: 'America/Jamaica',
           month: 'long',
           day: 'numeric',
-          year: txDate.getFullYear() !== today.getFullYear() ? 'numeric' : undefined,
+          year: txYear !== todayYear ? 'numeric' : undefined,
         });
       }
 
@@ -261,16 +285,6 @@ export class TransactionService {
     return groups;
   }
 
-  /**
-   * Check if two dates are the same day
-   */
-  private isSameDay(date1: Date, date2: Date): boolean {
-    return (
-      date1.getFullYear() === date2.getFullYear() &&
-      date1.getMonth() === date2.getMonth() &&
-      date1.getDate() === date2.getDate()
-    );
-  }
 
   /**
    * Calculate BTC equivalent from USD amount and price

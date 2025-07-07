@@ -24,6 +24,7 @@ import { SupportModeService } from './support-mode.service';
 import { TtsService } from '../../tts/tts.service';
 import { PaymentConfirmationService } from './payment-confirmation.service';
 import { UserVoiceSettingsService } from './user-voice-settings.service';
+import { PaymentSendResult, WalletCurrency } from '../../flash-api/services/payment.service';
 
 describe('WhatsappService', () => {
   let service: WhatsappService;
@@ -32,9 +33,10 @@ describe('WhatsappService', () => {
   let commandParserService: CommandParserService;
   let sessionService: SessionService;
   let _geminiAiService: GeminiAiService;
+  let module: TestingModule;
 
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
+    module = await Test.createTestingModule({
       providers: [
         WhatsappService,
         {
@@ -128,6 +130,9 @@ describe('WhatsappService', () => {
             sendPayment: jest.fn(),
             sendPaymentToUsername: jest.fn(),
             sendPaymentToPhone: jest.fn(),
+            getUserWallets: jest.fn(),
+            sendLightningPayment: jest.fn(),
+            sendIntraLedgerUsdPayment: jest.fn(),
           },
         },
         {
@@ -281,7 +286,7 @@ describe('WhatsappService', () => {
       // Verify response is a string (help message)
       expect(response).toBeDefined();
       expect(typeof response).toBe('string');
-      expect(response).toContain('Welcome to Flash WhatsApp Bot');
+      expect(response).toContain('Welcome to Flash WhatsApp Bot!');
 
       // Verify command parser was called with text and isVoiceCommand flag
       expect(commandParserService.parseCommand).toHaveBeenCalledWith('help', undefined);
@@ -309,10 +314,8 @@ describe('WhatsappService', () => {
 
       const response = await service.processCloudMessage(messageData);
 
-      // Verify response suggests linking or help
-      expect(response).toContain('Keep your finger on it');
-      expect(response).toContain('link');
-      expect(response).toContain('help');
+      // Verify response contains the unknown command message (may include hints)
+      expect(response).toContain(`Keep your finger on it. Type 'link' to connect or 'help' for commands.`);
     });
 
     it('should require link for payment commands', async () => {
@@ -338,8 +341,350 @@ describe('WhatsappService', () => {
       const response = await service.processCloudMessage(messageData);
 
       // Verify response prompts user to link their account
-      expect(response).toContain('Please link your Flash account first');
-      expect(response).toContain('Type "link" to get started');
+      expect(response).toContain('Account not linked yet!');
+      expect(response).toContain("Type 'link' to start");
+    });
+  });
+
+  describe('Payment Request Flow', () => {
+    let redisService: RedisService;
+    let invoiceService: InvoiceService;
+    let whatsappWebService: WhatsAppWebService;
+    let paymentService: PaymentService;
+    let usernameService: UsernameService;
+    let flashApiService: FlashApiService;
+
+    beforeEach(() => {
+      redisService = module.get<RedisService>(RedisService);
+      invoiceService = module.get<InvoiceService>(InvoiceService);
+      whatsappWebService = module.get<WhatsAppWebService>(WhatsAppWebService);
+      paymentService = module.get<PaymentService>(PaymentService);
+      usernameService = module.get<UsernameService>(UsernameService);
+      flashApiService = module.get<FlashApiService>(FlashApiService);
+    });
+
+    describe('handleRequestCommand', () => {
+      it('should create a payment request and store it for the recipient', async () => {
+        // Mock session for requester
+        const mockSession = {
+          sessionId: 'test-session',
+          whatsappId: '18765551234',
+          phoneNumber: '+18765551234',
+          flashUserId: 'user123',
+          flashAuthToken: 'test-token',
+          isVerified: true,
+          createdAt: new Date(),
+          expiresAt: new Date(Date.now() + 86400000),
+          lastActivity: new Date(),
+          mfaVerified: true,
+          consentGiven: true,
+        };
+        jest.spyOn(sessionService, 'getSessionByWhatsappId').mockResolvedValue(mockSession);
+
+        // Mock username service
+        jest.spyOn(usernameService, 'getUsername').mockResolvedValue('alice');
+
+        // Mock Flash API query for recipient username check
+        jest.spyOn(flashApiService, 'executeQuery').mockResolvedValue({
+          accountDefaultWallet: { id: 'wallet123' },
+        });
+
+        // Mock invoice creation
+        const mockInvoice = {
+          paymentRequest: 'lnbc1000n1234567890',
+          paymentHash: 'hash1234567890',
+          amount: 1,
+          memo: 'Payment request from @alice',
+          expiresAt: new Date(Date.now() + 3600000),
+          walletCurrency: 'USD' as const,
+        };
+        jest.spyOn(invoiceService, 'createInvoice').mockResolvedValue(mockInvoice);
+
+        // Mock WhatsApp web service
+        jest.spyOn(whatsappWebService, 'sendMessage').mockResolvedValue(undefined);
+
+        // Mock request command
+        const mockCommand = {
+          type: CommandType.REQUEST,
+          args: {
+            amount: '1',
+            username: 'bob',
+            phoneNumber: '+18765559999',
+          },
+          rawText: 'request 1 from bob',
+        };
+        jest.spyOn(commandParserService, 'parseCommand').mockReturnValue(mockCommand);
+
+        // Process the request command
+        const response = await service.processCloudMessage({
+          from: '+18765551234',
+          text: 'request 1 from bob',
+          messageId: 'test_msg_request',
+          timestamp: new Date().toISOString(),
+        });
+
+        // Verify invoice was created
+        expect(invoiceService.createInvoice).toHaveBeenCalledWith(
+          'test-token',
+          1,
+          'Payment request from @alice',
+          'USD',
+        );
+
+        // Verify payment request was stored for recipient
+        // Note: WhatsApp IDs in the actual code are normalized without + sign
+        const recipientWhatsappId = '18765559999@c.us';
+        expect(redisService.setEncrypted).toHaveBeenCalledWith(
+          `pending_request:${recipientWhatsappId}`,
+          expect.objectContaining({
+            type: 'payment_request',
+            invoice: 'lnbc1000n1234567890',
+            amount: 1,
+            requesterUsername: 'alice',
+            requesterWhatsappId: '18765551234',
+          }),
+          3600,
+        );
+
+        // Verify message sent to recipient (only one message now)
+        expect(whatsappWebService.sendMessage).toHaveBeenCalledTimes(1);
+        expect(whatsappWebService.sendMessage).toHaveBeenCalledWith(
+          recipientWhatsappId,
+          expect.stringContaining('Payment Request'),
+        );
+        // Verify the message contains the pay instruction
+        const sentMessage = (whatsappWebService.sendMessage as jest.Mock).mock.calls[0][1];
+        expect(sentMessage).toContain('Simply type `pay` to send the payment');
+
+        // Verify response to requester
+        expect(typeof response).toBe('object');
+        expect(response).toHaveProperty('text');
+        expect((response as any).text).toContain('Payment request sent to @bob via WhatsApp');
+      });
+    });
+
+    describe('handlePayCommand', () => {
+      it('should pay a pending payment request when user types "pay"', async () => {
+        // Mock session for payer
+        const mockSession = {
+          sessionId: 'test-session-2',
+          whatsappId: '18765559999',
+          phoneNumber: '+18765559999',
+          flashUserId: 'user456',
+          flashAuthToken: 'test-token-2',
+          isVerified: true,
+          createdAt: new Date(),
+          expiresAt: new Date(Date.now() + 86400000),
+          lastActivity: new Date(),
+          mfaVerified: true,
+          consentGiven: true,
+        };
+        jest.spyOn(sessionService, 'getSessionByWhatsappId').mockResolvedValue(mockSession);
+
+        // Mock pending payment request
+        const mockPendingRequest = {
+          type: 'payment_request',
+          invoice: 'lnbc1000n1234567890',
+          amount: 1,
+          requesterUsername: 'alice',
+          requesterWhatsappId: '18765551234',
+          createdAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 3600000).toISOString(),
+        };
+        // Mock that first call returns null (without @c.us), second call returns the request
+        jest.spyOn(redisService, 'getEncrypted')
+          .mockResolvedValueOnce(null) // First call with whatsappId
+          .mockResolvedValueOnce(mockPendingRequest); // Second call with @c.us suffix
+
+        // Mock wallet info
+        jest.spyOn(paymentService, 'getUserWallets').mockResolvedValue({
+          defaultWalletId: 'wallet456',
+          usdWallet: { id: 'usd-wallet456', balance: 100, walletCurrency: WalletCurrency.Usd },
+          btcWallet: undefined,
+        });
+
+        // Mock successful payment
+        jest.spyOn(paymentService, 'sendLightningPayment').mockResolvedValue({
+          status: PaymentSendResult.Success,
+          errors: [],
+        });
+
+        // Mock payer username
+        jest.spyOn(usernameService, 'getUsername').mockResolvedValue('bob');
+
+        // Mock WhatsApp ready
+        jest.spyOn(whatsappWebService, 'isClientReady').mockReturnValue(true);
+        jest.spyOn(whatsappWebService, 'sendMessage').mockResolvedValue(undefined);
+
+        // Mock pay command (no arguments = pay pending request)
+        const mockCommand = {
+          type: CommandType.PAY,
+          args: {},
+          rawText: 'pay',
+        };
+        jest.spyOn(commandParserService, 'parseCommand').mockReturnValue(mockCommand);
+
+        // Process the pay command
+        const response = await service.processCloudMessage({
+          from: '+18765559999',
+          text: 'pay',
+          messageId: 'test_msg_pay',
+          timestamp: new Date().toISOString(),
+        });
+
+        // Verify payment was sent
+        expect(paymentService.sendLightningPayment).toHaveBeenCalledWith(
+          {
+            walletId: 'usd-wallet456',
+            paymentRequest: 'lnbc1000n1234567890',
+          },
+          'test-token-2',
+        );
+
+        // Verify pending request was cleared (with @c.us suffix since that's where it was found)
+        expect(redisService.del).toHaveBeenCalledWith('pending_request:18765559999@c.us');
+
+        // Verify notification sent to requester
+        expect(whatsappWebService.sendMessage).toHaveBeenCalledWith(
+          '18765551234',
+          expect.stringContaining('Payment Received!'),
+        );
+        expect(whatsappWebService.sendMessage).toHaveBeenCalledWith(
+          '18765551234',
+          expect.stringContaining('@bob has paid your request'),
+        );
+
+        // Verify response to payer
+        expect(response).toContain('Payment sent successfully!');
+        expect(response).toContain('Amount: $1.00 USD');
+        expect(response).toContain('To: @alice');
+      });
+
+      it('should handle expired payment requests', async () => {
+        // Mock session
+        const mockSession = {
+          sessionId: 'test-session-3',
+          whatsappId: '18765559999',
+          phoneNumber: '+18765559999',
+          flashUserId: 'user789',
+          flashAuthToken: 'test-token-3',
+          isVerified: true,
+          createdAt: new Date(),
+          expiresAt: new Date(Date.now() + 86400000),
+          lastActivity: new Date(),
+          mfaVerified: true,
+          consentGiven: true,
+        };
+        jest.spyOn(sessionService, 'getSessionByWhatsappId').mockResolvedValue(mockSession);
+
+        // Mock expired payment request
+        const mockExpiredRequest = {
+          type: 'payment_request',
+          invoice: 'lnbc1000n1234567890',
+          amount: 1,
+          requesterUsername: 'alice',
+          requesterWhatsappId: '18765551234',
+          createdAt: new Date(Date.now() - 7200000).toISOString(), // 2 hours ago
+          expiresAt: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago (expired)
+        };
+        // Mock that first call returns null (without @c.us), second call returns the expired request
+        jest.spyOn(redisService, 'getEncrypted')
+          .mockResolvedValueOnce(null) // First call with whatsappId
+          .mockResolvedValueOnce(mockExpiredRequest); // Second call with @c.us suffix
+
+        // Mock pay command
+        const mockCommand = {
+          type: CommandType.PAY,
+          args: {},
+          rawText: 'pay',
+        };
+        jest.spyOn(commandParserService, 'parseCommand').mockReturnValue(mockCommand);
+
+        // Process the pay command
+        const response = await service.processCloudMessage({
+          from: '+18765559999',
+          text: 'pay',
+          messageId: 'test_msg_pay_expired',
+          timestamp: new Date().toISOString(),
+        });
+
+        // Verify expired request was deleted (with @c.us suffix since that's where it was found)
+        expect(redisService.del).toHaveBeenCalledWith('pending_request:18765559999@c.us');
+
+        // Verify no payment was attempted
+        expect(paymentService.sendLightningPayment).not.toHaveBeenCalled();
+
+        // Verify appropriate error message
+        expect(response).toContain('This payment request has expired');
+      });
+
+      it('should handle already paid requests', async () => {
+        // Mock session
+        const mockSession = {
+          sessionId: 'test-session-4',
+          whatsappId: '18765559999',
+          phoneNumber: '+18765559999',
+          flashUserId: 'user101',
+          flashAuthToken: 'test-token-4',
+          isVerified: true,
+          createdAt: new Date(),
+          expiresAt: new Date(Date.now() + 86400000),
+          lastActivity: new Date(),
+          mfaVerified: true,
+          consentGiven: true,
+        };
+        jest.spyOn(sessionService, 'getSessionByWhatsappId').mockResolvedValue(mockSession);
+
+        // Mock pending payment request
+        const mockPendingRequest = {
+          type: 'payment_request',
+          invoice: 'lnbc1000n1234567890',
+          amount: 1,
+          requesterUsername: 'alice',
+          requesterWhatsappId: '18765551234',
+          createdAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 3600000).toISOString(),
+        };
+        // Mock that first call returns null (without @c.us), second call returns the request
+        jest.spyOn(redisService, 'getEncrypted')
+          .mockResolvedValueOnce(null) // First call with whatsappId
+          .mockResolvedValueOnce(mockPendingRequest); // Second call with @c.us suffix
+
+        // Mock wallet info
+        jest.spyOn(paymentService, 'getUserWallets').mockResolvedValue({
+          defaultWalletId: 'wallet101',
+          usdWallet: { id: 'usd-wallet101', balance: 100, walletCurrency: WalletCurrency.Usd },
+          btcWallet: undefined,
+        });
+
+        // Mock already paid error
+        jest.spyOn(paymentService, 'sendLightningPayment').mockResolvedValue({
+          status: PaymentSendResult.AlreadyPaid,
+          errors: [],
+        });
+
+        // Mock pay command
+        const mockCommand = {
+          type: CommandType.PAY,
+          args: {},
+          rawText: 'pay',
+        };
+        jest.spyOn(commandParserService, 'parseCommand').mockReturnValue(mockCommand);
+
+        // Process the pay command
+        const response = await service.processCloudMessage({
+          from: '+18765559999',
+          text: 'pay',
+          messageId: 'test_msg_pay_already_paid',
+          timestamp: new Date().toISOString(),
+        });
+
+        // Verify pending request was cleared (with @c.us suffix since that's where it was found)
+        expect(redisService.del).toHaveBeenCalledWith('pending_request:18765559999@c.us');
+
+        // Verify appropriate message
+        expect(response).toContain('This payment request has already been paid');
+      });
     });
   });
 });

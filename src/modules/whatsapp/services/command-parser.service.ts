@@ -36,7 +36,7 @@ export class CommandParserService {
   private readonly commandPatterns = [
     {
       type: CommandType.HELP,
-      pattern: /^help(?:\s+(wallet|send|receive|contacts|pending|voice))?$/i,
+      pattern: /^help(?:\s+(wallet|send|receive|contacts|pending|voice|more|1|2|3))?$/i,
     },
     { type: CommandType.BALANCE, pattern: /^balance|^bal$/i },
     { type: CommandType.LINK, pattern: /^link|^connect$/i },
@@ -82,6 +82,18 @@ export class CommandParserService {
       let trimmedText = text.trim();
       const originalText = trimmedText;
 
+      // Check if this is a 6-digit code (for simplified verification)
+      const sixDigitPattern = /^(\d{6})$/;
+      const sixDigitMatch = trimmedText.match(sixDigitPattern);
+      if (sixDigitMatch) {
+        // Convert 6-digit code to verify command
+        return {
+          type: CommandType.VERIFY,
+          args: { otp: sixDigitMatch[1] },
+          rawText: originalText,
+        };
+      }
+
       // Check if this is specifically a voice settings command first
       const voiceSettingsPattern = /^voice\s*(on|off|only|status|help)?$/i;
       if (voiceSettingsPattern.test(trimmedText)) {
@@ -96,6 +108,9 @@ export class CommandParserService {
           trimmedText = trimmedText.replace(voicePrefixes, '').trim();
         }
       }
+
+      // Apply smart command corrections
+      trimmedText = this.applyCommandCorrections(trimmedText);
 
       // If this is voice input, try natural language patterns first
       if (isVoiceInput) {
@@ -493,5 +508,104 @@ export class CommandParserService {
     }
 
     return { type, args, rawText };
+  }
+
+  /**
+   * Apply smart command corrections for common typos and shortcuts
+   */
+  private applyCommandCorrections(text: string): string {
+    const lowerText = text.toLowerCase();
+    
+    // Common typos and corrections
+    const corrections: Record<string, string> = {
+      // Send command variations
+      'sent': 'send',
+      'snd': 'send',
+      'sen': 'send',
+      'sedn': 'send',
+      'sned': 'send',
+      
+      // Receive command variations
+      'recieve': 'receive',
+      'recive': 'receive',
+      'recv': 'receive',
+      'rec': 'receive',
+      
+      // Balance shortcuts
+      'bal': 'balance',
+      'balnce': 'balance',
+      'balanc': 'balance',
+      'balalce': 'balance',
+      '$': 'balance',
+      
+      // History shortcuts
+      'hist': 'history',
+      'histry': 'history',
+      'histroy': 'history',
+      'txs': 'history',
+      'tx': 'history',
+      
+      // Price shortcuts
+      'btc': 'price',
+      'rate': 'price',
+      'rates': 'price',
+      
+      // Contact variations
+      'contact': 'contacts',
+      'contacs': 'contacts',
+      'contcts': 'contacts',
+      
+      // Link variations
+      'conect': 'link',
+      'connect': 'link',
+      'lnk': 'link',
+      
+      // Request variations
+      'req': 'request',
+      'requst': 'request',
+      'rquest': 'request',
+      
+      // Help variations
+      'hlp': 'help',
+      'halp': 'help',
+      'hepl': 'help',
+      
+      // Username variations
+      'user': 'username',
+      'usrname': 'username',
+      'uname': 'username',
+      
+      // Help navigation
+      'more': 'help more',
+      '1': 'help 1',
+      '2': 'help 2', 
+      '3': 'help 3',
+    };
+
+    // Check if the entire command matches a correction
+    if (corrections[lowerText]) {
+      return corrections[lowerText];
+    }
+
+    // Check if the first word needs correction
+    const words = text.split(/\s+/);
+    const firstWord = words[0].toLowerCase();
+    
+    if (corrections[firstWord]) {
+      words[0] = corrections[firstWord];
+      return words.join(' ');
+    }
+
+    // Special case: handle case-insensitive commands
+    const commandWords = ['send', 'receive', 'balance', 'link', 'unlink', 'verify', 
+                         'username', 'price', 'history', 'request', 'contacts', 
+                         'pay', 'vybz', 'admin', 'pending', 'voice', 'help', 'refresh'];
+    
+    if (commandWords.includes(firstWord)) {
+      words[0] = firstWord;
+      return words.join(' ');
+    }
+
+    return text;
   }
 }

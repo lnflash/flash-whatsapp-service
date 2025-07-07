@@ -258,6 +258,47 @@ export class SessionService {
   }
 
   /**
+   * Store username to WhatsApp ID mapping
+   */
+  async storeUsernameMapping(username: string, whatsappId: string): Promise<void> {
+    try {
+      const usernameKey = `username:${username.toLowerCase()}`;
+      await this.redisService.set(usernameKey, whatsappId, this.sessionExpiry);
+    } catch (error) {
+      this.logger.error(`Error storing username mapping: ${error.message}`, error.stack);
+    }
+  }
+
+  /**
+   * Get WhatsApp ID by username
+   */
+  async getWhatsappIdByUsername(username: string): Promise<string | null> {
+    try {
+      const usernameKey = `username:${username.toLowerCase()}`;
+      return await this.redisService.get(usernameKey);
+    } catch (error) {
+      this.logger.error(`Error getting WhatsApp ID by username: ${error.message}`, error.stack);
+      return null;
+    }
+  }
+
+  /**
+   * Get session by username
+   */
+  async getSessionByUsername(username: string): Promise<UserSession | null> {
+    try {
+      const whatsappId = await this.getWhatsappIdByUsername(username);
+      if (!whatsappId) {
+        return null;
+      }
+      return await this.getSessionByWhatsappId(whatsappId);
+    } catch (error) {
+      this.logger.error(`Error getting session by username: ${error.message}`, error.stack);
+      return null;
+    }
+  }
+
+  /**
    * Get all active sessions
    */
   async getAllActiveSessions(): Promise<UserSession[]> {
