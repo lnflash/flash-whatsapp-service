@@ -1442,7 +1442,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
     command: ParsedCommand,
     whatsappId: string,
     session: UserSession | null,
-  ): Promise<string> {
+  ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
     try {
       // Check if user has a linked account
       if (!session || !session.isVerified || !session.flashAuthToken) {
@@ -1584,31 +1584,58 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
               // Ignore balance fetch errors in success message
             }
             
-            return `✅ Payment sent successfully!\n\n💸 Amount: $${amount.toFixed(2)} USD\n⚡ To: ${lightningAddress.substring(0, 30)}...\n📍 Transaction: #${txId}\n💰 New balance: ${balanceDisplay}\n\n💡 Tip: Save this invoice for future payments`;
+            const textMessage = `✅ Payment sent successfully!\n\n💸 Amount: $${amount.toFixed(2)} USD\n⚡ To: ${lightningAddress.substring(0, 30)}...\n📍 Transaction: #${txId}\n💰 New balance: ${balanceDisplay}\n\n💡 Tip: Save this invoice for future payments`;
+            
+            // Check if voice response is needed
+            const shouldUseVoice = await this.ttsService.shouldUseVoice(
+              command.rawText,
+              command.args.isVoiceCommand === 'true',
+              session.whatsappId,
+            );
+
+            if (shouldUseVoice) {
+              const voiceText = this.paymentConfirmationService.formatPaymentSuccessForVoice(
+                amount, 
+                lightningAddress.substring(0, 20),
+                balanceDisplay
+              );
+              const audioBuffer = await this.ttsService.textToSpeech(voiceText);
+              
+              const shouldSendVoiceOnly = await this.ttsService.shouldSendVoiceOnly(session.whatsappId);
+              
+              return {
+                text: shouldSendVoiceOnly ? '' : textMessage,
+                voice: audioBuffer,
+                voiceOnly: shouldSendVoiceOnly,
+              };
+            }
+
+            return textMessage;
           } else {
             const errorMessage = result?.errors?.[0]?.message || 'Unknown error';
 
-            // Provide more helpful error messages
-            if (errorMessage.includes('Account is inactive')) {
-              return `❌ Payment blocked: Account restricted\n\n🔒 Your account has temporary restrictions\n\n💉 Next steps:\n→ Type 'support' to chat with an agent\n→ Email support@flashapp.me\n→ Reference: #ERR${Date.now().toString().slice(-6)}`;
-            } else if (errorMessage.includes('Insufficient balance')) {
-              // Get current balance for display
+            // Get current balance for display if needed
             let balanceDisplay = 'Check balance for details';
-            try {
-              const balanceInfo = await this.balanceService.getUserBalance(
-                session.flashUserId!,
-                session.flashAuthToken,
-              );
-              balanceDisplay = `$${balanceInfo.fiatBalance.toFixed(2)} ${balanceInfo.fiatCurrency}`;
-            } catch (e) {
-              // Ignore balance fetch errors in success message
-            }
-              return `❌ Payment failed: Insufficient balance\n\n💰 You need: $${amount.toFixed(2)} USD\n💳 You have: ${balanceDisplay}\n\n🔄 Next steps:\n→ Type 'receive ${amount}' to request funds\n→ Ask someone to send you money\n→ Add funds in the Flash app`;
-            } else if (errorMessage.includes('limit')) {
-              return `❌ Payment failed: Transaction limit reached\n\n📏 Daily/monthly limit exceeded\n\n💡 Next steps:\n→ Wait 24 hours for daily limit reset\n→ Check limits in Flash app\n→ Type 'support' for limit increase\n→ Reference: #LMT${Date.now().toString().slice(-6)}`;
+            if (errorMessage.includes('Insufficient balance')) {
+              try {
+                const balanceInfo = await this.balanceService.getUserBalance(
+                  session.flashUserId!,
+                  session.flashAuthToken,
+                );
+                balanceDisplay = `$${balanceInfo.fiatBalance.toFixed(2)} ${balanceInfo.fiatCurrency}`;
+              } catch (e) {
+                // Ignore balance fetch errors
+              }
             }
 
-            return `❌ Payment failed: ${errorMessage}`;
+            return this.generatePaymentErrorResponse(
+              errorMessage,
+              command,
+              session,
+              amount,
+              lightningAddress,
+              balanceDisplay
+            );
           }
         } catch (error) {
           this.logger.error(`Lightning payment error: ${error.message}`);
@@ -1706,33 +1733,66 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
               successMsg += `📍 Transaction: #${txId}\n`;
               successMsg += `💰 New balance: ${balanceDisplay}\n\n`;
               successMsg += `💡 Tip: Request it back with "request ${amount} from ${targetUsername}"`;
+              
+              // Check if voice response is needed
+              const shouldUseVoice = await this.ttsService.shouldUseVoice(
+                command.rawText,
+                command.args.isVoiceCommand === 'true',
+                session.whatsappId,
+              );
+
+              if (shouldUseVoice) {
+                const voiceText = this.paymentConfirmationService.formatPaymentSuccessForVoice(
+                  amount, 
+                  `@${targetUsername}`,
+                  balanceDisplay
+                );
+                const audioBuffer = await this.ttsService.textToSpeech(voiceText);
+                
+                const shouldSendVoiceOnly = await this.ttsService.shouldSendVoiceOnly(session.whatsappId);
+                
+                return {
+                  text: shouldSendVoiceOnly ? '' : successMsg,
+                  voice: audioBuffer,
+                  voiceOnly: shouldSendVoiceOnly,
+                };
+              }
+
+              return successMsg;
             } else {
               const errorMessage = result?.errors?.[0]?.message || 'Unknown error';
 
-              // Provide more helpful error messages
-              if (errorMessage.includes('Account is inactive')) {
-                return `❌ Payment blocked: Account issue\n\n🔍 Possible reasons:\n• @${targetUsername}'s account is restricted\n• Your account has limitations\n\n💡 Next steps:\n→ Verify recipient username is correct\n→ Type 'support' for help\n→ Reference: #ACC${Date.now().toString().slice(-6)}`;
-              } else if (errorMessage.includes('Insufficient balance')) {
-                // Get current balance for display
-            let balanceDisplay = 'Check balance for details';
-            try {
-              const balanceInfo = await this.balanceService.getUserBalance(
-                session.flashUserId!,
-                session.flashAuthToken,
-              );
-              balanceDisplay = `$${balanceInfo.fiatBalance.toFixed(2)} ${balanceInfo.fiatCurrency}`;
-            } catch (e) {
-              // Ignore balance fetch errors in success message
-            }
-                return `❌ Payment failed: Insufficient balance\n\n💰 You need: $${amount.toFixed(2)} USD\n💳 You have: ${balanceDisplay}\n\n🔄 Next steps:\n→ Type 'receive ${amount}' to request funds\n→ Ask @${targetUsername} to request payment instead\n→ Add funds in the Flash app`;
-              } else if (errorMessage.includes('limit')) {
-                return `❌ Payment failed: Transaction limit reached\n\n📏 Daily/monthly limit exceeded\n\n💡 Next steps:\n→ Wait 24 hours for daily limit reset\n→ Check limits in Flash app\n→ Type 'support' for limit increase\n→ Reference: #LMT${Date.now().toString().slice(-6)}`;
+              // Get current balance for display if needed
+              let balanceDisplay = 'Check balance for details';
+              if (errorMessage.includes('Insufficient balance')) {
+                try {
+                  const balanceInfo = await this.balanceService.getUserBalance(
+                    session.flashUserId!,
+                    session.flashAuthToken,
+                  );
+                  balanceDisplay = `$${balanceInfo.fiatBalance.toFixed(2)} ${balanceInfo.fiatCurrency}`;
+                } catch (e) {
+                  // Ignore balance fetch errors
+                }
               }
 
-              return `❌ Payment failed: ${errorMessage}`;
+              return this.generatePaymentErrorResponse(
+                errorMessage,
+                command,
+                session,
+                amount,
+                `@${targetUsername}`,
+                balanceDisplay
+              );
             }
           } else {
-            return `❌ Username @${targetUsername} not found\n\n🔍 Possible issues:\n• Typo in username\n• User hasn't set a username yet\n• Account doesn't exist\n\n💡 Next steps:\n→ Double-check the spelling\n→ Ask for their phone number instead\n→ Use 'contacts add' to save them`;
+            return this.generatePaymentErrorResponse(
+              `Username @${targetUsername} not found`,
+              command,
+              session,
+              amount,
+              `@${targetUsername}`
+            );
           }
         } catch (error) {
           this.logger.error(`Username payment error: ${error.message}`);
@@ -1984,6 +2044,54 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
       this.logger.error(`Error handling history command: ${error.message}`, error.stack);
       return '❌ Failed to fetch transaction history. Please try again later.';
     }
+  }
+
+  /**
+   * Generate payment error response with optional voice
+   */
+  private async generatePaymentErrorResponse(
+    errorMessage: string,
+    command: ParsedCommand,
+    session: UserSession,
+    amount?: number,
+    recipient?: string,
+    balanceDisplay?: string,
+  ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
+    let textResponse: string;
+    
+    if (errorMessage.includes('Insufficient balance')) {
+      textResponse = `❌ Payment failed: Insufficient balance\n\n💰 You need: $${amount?.toFixed(2)} USD\n💳 You have: ${balanceDisplay || 'Check balance for details'}\n\n🔄 Next steps:\n→ Type 'receive ${amount}' to request funds\n→ ${recipient ? `Ask ${recipient} to request payment instead` : 'Ask someone to send you money'}\n→ Add funds in the Flash app`;
+    } else if (errorMessage.includes('limit')) {
+      textResponse = `❌ Payment failed: Transaction limit reached\n\n📏 Daily/monthly limit exceeded\n\n💡 Next steps:\n→ Wait 24 hours for daily limit reset\n→ Check limits in Flash app\n→ Type 'support' for limit increase\n→ Reference: #LMT${Date.now().toString().slice(-6)}`;
+    } else if (errorMessage.includes('Account is inactive')) {
+      textResponse = `❌ Payment blocked: Account restricted\n\n🔒 Your account has temporary restrictions\n\n💉 Next steps:\n→ Type 'support' to chat with an agent\n→ Email support@flashapp.me\n→ Reference: #ERR${Date.now().toString().slice(-6)}`;
+    } else if (errorMessage.includes('not found') || errorMessage.includes('Username')) {
+      textResponse = `❌ ${errorMessage}\n\n🔍 Possible issues:\n• Typo in username\n• User hasn't set a username yet\n• Account doesn't exist\n\n💡 Next steps:\n→ Double-check the spelling\n→ Ask for their phone number instead\n→ Use 'contacts add' to save them`;
+    } else {
+      textResponse = `❌ Payment failed: ${errorMessage}`;
+    }
+
+    // Check if voice response is needed
+    const shouldUseVoice = await this.ttsService.shouldUseVoice(
+      command.rawText,
+      command.args.isVoiceCommand === 'true',
+      session.whatsappId,
+    );
+
+    if (shouldUseVoice) {
+      const voiceText = this.paymentConfirmationService.formatPaymentErrorForVoice(errorMessage);
+      const audioBuffer = await this.ttsService.textToSpeech(voiceText);
+      
+      const shouldSendVoiceOnly = await this.ttsService.shouldSendVoiceOnly(session.whatsappId);
+      
+      return {
+        text: shouldSendVoiceOnly ? '' : textResponse,
+        voice: audioBuffer,
+        voiceOnly: shouldSendVoiceOnly,
+      };
+    }
+
+    return textResponse;
   }
 
   /**
