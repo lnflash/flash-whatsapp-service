@@ -42,6 +42,7 @@ export default () => ({
   // ElevenLabs TTS Configuration
   elevenLabs: {
     apiKey: process.env.ELEVENLABS_API_KEY,
+    voiceId: process.env.ELEVENLABS_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL', // Default to Sarah voice
   },
 
   // Security

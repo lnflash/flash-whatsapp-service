@@ -170,7 +170,7 @@ export class WhatsappService {
               }
             }
 
-            const audioBuffer = await this.ttsService.textToSpeech(voiceText);
+            const audioBuffer = await this.ttsService.textToSpeech(voiceText, 'en', whatsappId);
 
             // If voice-only mode, return with empty text
             if (shouldSendVoiceOnly) {
@@ -225,7 +225,7 @@ export class WhatsappService {
               voiceText = this.cleanTextForVoice(finalText);
             }
 
-            const audioBuffer = await this.ttsService.textToSpeech(voiceText);
+            const audioBuffer = await this.ttsService.textToSpeech(voiceText, 'en', whatsappId);
 
             // If voice-only mode, return with empty text
             if (shouldSendVoiceOnly) {
@@ -817,7 +817,7 @@ _This limitation is due to WhatsApp's privacy features._`;
 
       if (shouldUseVoice) {
         const voiceText = this.balanceTemplate.generateVoiceBalanceMessage(balanceData);
-        const audioBuffer = await this.ttsService.textToSpeech(voiceText);
+        const audioBuffer = await this.ttsService.textToSpeech(voiceText, 'en', whatsappId);
 
         const shouldSendVoiceOnly = await this.ttsService.shouldSendVoiceOnly(session.whatsappId);
 
@@ -1660,7 +1660,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
                 lightningAddress.substring(0, 20),
                 balanceDisplay,
               );
-              const audioBuffer = await this.ttsService.textToSpeech(voiceText);
+              const audioBuffer = await this.ttsService.textToSpeech(voiceText, 'en', whatsappId);
 
               const shouldSendVoiceOnly = await this.ttsService.shouldSendVoiceOnly(
                 session.whatsappId,
@@ -1819,7 +1819,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
                   `@${targetUsername}`,
                   balanceDisplay,
                 );
-                const audioBuffer = await this.ttsService.textToSpeech(voiceText);
+                const audioBuffer = await this.ttsService.textToSpeech(voiceText, 'en', whatsappId);
 
                 const shouldSendVoiceOnly = await this.ttsService.shouldSendVoiceOnly(
                   session.whatsappId,
@@ -2154,7 +2154,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
 
     if (shouldUseVoice) {
       const voiceText = this.paymentConfirmationService.formatPaymentErrorForVoice(errorMessage);
-      const audioBuffer = await this.ttsService.textToSpeech(voiceText);
+      const audioBuffer = await this.ttsService.textToSpeech(voiceText, 'en', session.whatsappId);
 
       const shouldSendVoiceOnly = await this.ttsService.shouldSendVoiceOnly(session.whatsappId);
 
@@ -2217,7 +2217,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
 
       if (shouldUseVoice) {
         const voiceText = this.transactionService.formatTransactionForVoice(tx);
-        const audioBuffer = await this.ttsService.textToSpeech(voiceText);
+        const audioBuffer = await this.ttsService.textToSpeech(voiceText, 'en', session.whatsappId);
 
         const shouldSendVoiceOnly = await this.ttsService.shouldSendVoiceOnly(session.whatsappId);
 
@@ -4149,7 +4149,7 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
 
         // Convert to speech
         try {
-          const audioBuffer = await this.ttsService.textToSpeech(cleanedText);
+          const audioBuffer = await this.ttsService.textToSpeech(cleanedText, 'en', whatsappId);
 
           // Send voice note
           await this.whatsappWebService.sendVoiceNote(whatsappId, audioBuffer);
