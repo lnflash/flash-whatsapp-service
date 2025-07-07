@@ -2142,6 +2142,11 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
     session: UserSession,
   ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
     try {
+      // Ensure we have auth token
+      if (!session.flashAuthToken) {
+        return '❌ Authentication required. Please try again.';
+      }
+
       // First, try to find the transaction in recent history
       const transactions = await this.transactionService.getRecentTransactions(
         session.flashAuthToken,
