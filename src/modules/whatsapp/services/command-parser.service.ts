@@ -51,7 +51,7 @@ export class CommandParserService {
       pattern: /^(?:send|sent)\s+(\d*\.?\d+)\s+to\s+(?:@?(\w+)|(\+?\d{10,})|(\w+))(?:\s+(.*))?$/i,
     },
     { type: CommandType.RECEIVE, pattern: /^receive(?:\s+(\d*\.?\d+))?\s*(.*)$/i },
-    { type: CommandType.HISTORY, pattern: /^history|^transactions|^txs$/i },
+    { type: CommandType.HISTORY, pattern: /^(?:history|transactions|txs)(?:\s+#?([A-Za-z0-9]+))?$/i },
     {
       type: CommandType.REQUEST,
       pattern: /^request\s+(\d*\.?\d+)\s+from\s+(?:@?(\w+)|(\+?\d{10,}))(?:\s+(.+))?$/i,
@@ -404,6 +404,13 @@ export class CommandParserService {
           // Limit memo length at parsing stage to prevent issues
           const rawMemo = match[2].trim();
           args.memo = rawMemo.substring(0, 1000); // Generous limit at parse stage
+        }
+        break;
+
+      case CommandType.HISTORY:
+        // Extract transaction ID if provided
+        if (match[1]) {
+          args.transactionId = match[1].replace('#', ''); // Remove # if present
         }
         break;
 

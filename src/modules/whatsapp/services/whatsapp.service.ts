@@ -353,7 +353,7 @@ export class WhatsappService {
           return this.handleReceiveCommand(command, whatsappId, session);
 
         case CommandType.HISTORY:
-          return this.handleHistoryCommand(whatsappId, session);
+          return this.handleHistoryCommand(command, whatsappId, session);
 
         case CommandType.REQUEST:
           return this.handleRequestCommand(command, whatsappId, session);
@@ -684,7 +684,7 @@ _This limitation is due to WhatsApp's privacy features._`;
   private async handleBalanceCommand(
     whatsappId: string,
     session: UserSession | null,
-  ): Promise<string> {
+  ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
     try {
       if (!session) {
         return this.getNotLinkedMessage();
@@ -741,14 +741,39 @@ _This limitation is due to WhatsApp's privacy features._`;
         }
       }
 
-      // Format and return the balance message using the template
-      return this.balanceTemplate.generateBalanceMessage({
+      // Format the balance data
+      const balanceData = {
         btcBalance: balanceInfo.btcBalance,
         fiatBalance: displayBalance,
         fiatCurrency: displayCurrency,
         lastUpdated: balanceInfo.lastUpdated,
         userName: session.profileName,
-      });
+      };
+
+      // Generate text message
+      const textMessage = this.balanceTemplate.generateBalanceMessage(balanceData);
+
+      // Check if voice response is needed
+      const shouldUseVoice = await this.ttsService.shouldUseVoice(
+        'balance',
+        false,
+        session.whatsappId,
+      );
+
+      if (shouldUseVoice) {
+        const voiceText = this.balanceTemplate.generateVoiceBalanceMessage(balanceData);
+        const audioBuffer = await this.ttsService.textToSpeech(voiceText);
+        
+        const shouldSendVoiceOnly = await this.ttsService.shouldSendVoiceOnly(session.whatsappId);
+        
+        return {
+          text: shouldSendVoiceOnly ? '' : textMessage,
+          voice: audioBuffer,
+          voiceOnly: shouldSendVoiceOnly,
+        };
+      }
+
+      return textMessage;
     } catch (error) {
       this.logger.error(`Error handling balance command: ${error.message}`, error.stack);
 
@@ -1921,13 +1946,19 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
    * Handle history command - show recent transactions
    */
   private async handleHistoryCommand(
+    command: ParsedCommand,
     whatsappId: string,
     session: UserSession | null,
-  ): Promise<string> {
+  ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
     try {
       // Check if user has a linked account
       if (!session || !session.isVerified || !session.flashAuthToken || !session.flashUserId) {
-        return 'Please link your Flash account first to view transaction history. Type "link" to get started.';
+        return this.getNotLinkedMessage();
+      }
+
+      // Check if a specific transaction ID was requested
+      if (command.args.transactionId) {
+        return this.getTransactionDetails(command.args.transactionId, session);
       }
 
       // Get recent transactions
@@ -1952,6 +1983,66 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
     } catch (error) {
       this.logger.error(`Error handling history command: ${error.message}`, error.stack);
       return '❌ Failed to fetch transaction history. Please try again later.';
+    }
+  }
+
+  /**
+   * Get detailed information about a specific transaction
+   */
+  private async getTransactionDetails(
+    transactionId: string,
+    session: UserSession,
+  ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
+    try {
+      // First, try to find the transaction in recent history
+      const transactions = await this.transactionService.getRecentTransactions(
+        session.flashAuthToken,
+        50, // Look through more transactions
+      );
+
+      if (!transactions || !transactions.edges) {
+        return '❌ Unable to fetch transaction details. Please try again later.';
+      }
+
+      // Search for the transaction by ID
+      const txEdge = transactions.edges.find(edge => {
+        // Transaction IDs could be the full ID or a shortened version
+        return edge.node.id.includes(transactionId) || 
+               edge.node.id.endsWith(transactionId);
+      });
+
+      if (!txEdge) {
+        return `❌ Transaction #${transactionId} not found.\n\n💡 Tips:\n• Check the transaction ID\n• Try "history" to see recent transactions\n• Transaction might be too old`;
+      }
+
+      // Format detailed transaction information
+      const tx = txEdge.node;
+      const detailsText = await this.transactionService.formatDetailedTransaction(tx, session.flashAuthToken);
+      
+      // Check if voice response is needed
+      const shouldUseVoice = await this.ttsService.shouldUseVoice(
+        `history ${transactionId}`,
+        false,
+        session.whatsappId,
+      );
+
+      if (shouldUseVoice) {
+        const voiceText = this.transactionService.formatTransactionForVoice(tx);
+        const audioBuffer = await this.ttsService.textToSpeech(voiceText);
+        
+        const shouldSendVoiceOnly = await this.ttsService.shouldSendVoiceOnly(session.whatsappId);
+        
+        return {
+          text: shouldSendVoiceOnly ? '' : detailsText,
+          voice: audioBuffer,
+          voiceOnly: shouldSendVoiceOnly,
+        };
+      }
+
+      return detailsText;
+    } catch (error) {
+      this.logger.error(`Error getting transaction details: ${error.message}`, error.stack);
+      return '❌ Failed to fetch transaction details. Please try again later.';
     }
   }
 
