@@ -42,7 +42,7 @@ export class AdminHealthService {
       this.getMetrics(),
     ]);
 
-    const healthy = 
+    const healthy =
       isolationStatus.adminExceptionFilter &&
       isolationStatus.rateLimiting &&
       isolationStatus.circuitBreaker &&
@@ -67,7 +67,7 @@ export class AdminHealthService {
       // Check if rate limiting is working
       const rateLimitTestKey = 'admin:health:ratelimit:test';
       await this.redisService.set(rateLimitTestKey, '1', 10);
-      const rateLimiting = await this.redisService.get(rateLimitTestKey) === '1';
+      const rateLimiting = (await this.redisService.get(rateLimitTestKey)) === '1';
 
       // Check if circuit breaker is functioning
       const circuitBreaker = true; // Circuit breakers are self-contained
@@ -130,10 +130,10 @@ export class AdminHealthService {
       const dayAgo = now - 24 * 60 * 60 * 1000;
 
       // Get admin errors
-      const errorLogs = await this.redisService.get('system:errors') || '[]';
+      const errorLogs = (await this.redisService.get('system:errors')) || '[]';
       const errors = JSON.parse(errorLogs);
-      const adminErrors24h = errors.filter((e: any) => 
-        e.timestamp > dayAgo && e.source === 'admin'
+      const adminErrors24h = errors.filter(
+        (e: any) => e.timestamp > dayAgo && e.source === 'admin',
       ).length;
 
       // Get rate limit hits (simplified)
@@ -178,7 +178,7 @@ export class AdminHealthService {
     // Test 4: Admin operations are audited
     tests.auditLogging = await this.testAuditLogging();
 
-    const passed = Object.values(tests).every(t => t);
+    const passed = Object.values(tests).every((t) => t);
 
     return { passed, tests };
   }

@@ -43,7 +43,7 @@ export class HealthController {
   @Get('health')
   @ApiOperation({ summary: 'Basic health check' })
   async healthCheck() {
-    return { 
+    return {
       status: 'ok',
       timestamp: new Date().toISOString(),
       version: this.version,
@@ -62,15 +62,11 @@ export class HealthController {
       this.checkRabbitMQ(),
     ]);
 
-    const allHealthy = 
-      whatsapp.status === 'up' && 
-      redis.status === 'up' && 
-      rabbitmq.status === 'up';
+    const allHealthy =
+      whatsapp.status === 'up' && redis.status === 'up' && rabbitmq.status === 'up';
 
-    const anyDown = 
-      whatsapp.status === 'down' || 
-      redis.status === 'down' || 
-      rabbitmq.status === 'down';
+    const anyDown =
+      whatsapp.status === 'down' || redis.status === 'down' || rabbitmq.status === 'down';
 
     const response: HealthStatus = {
       status: anyDown ? 'unhealthy' : allHealthy ? 'healthy' : 'degraded',
@@ -125,10 +121,12 @@ export class HealthController {
     try {
       const isReady = this.whatsappWebService.isClientReady();
       const status = this.whatsappWebService.getStatus();
-      
+
       return {
         status: isReady ? 'up' : 'down',
-        message: status.connected ? `Connected: ${status.number || 'Unknown number'}` : 'Disconnected',
+        message: status.connected
+          ? `Connected: ${status.number || 'Unknown number'}`
+          : 'Disconnected',
         latency: Date.now() - start,
       };
     } catch (error) {
@@ -145,7 +143,7 @@ export class HealthController {
     try {
       const client = this.redisService.getClient();
       await client.ping();
-      
+
       return {
         status: 'up',
         message: 'Connected',
@@ -165,7 +163,7 @@ export class HealthController {
     try {
       // Check if events service is connected
       const isConnected = await this.eventsService.isConnected();
-      
+
       return {
         status: isConnected ? 'up' : 'down',
         message: isConnected ? 'Connected' : 'Disconnected',

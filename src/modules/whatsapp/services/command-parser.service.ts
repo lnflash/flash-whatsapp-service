@@ -51,7 +51,10 @@ export class CommandParserService {
       pattern: /^(?:send|sent)\s+(\d*\.?\d+)\s+to\s+(?:@?(\w+)|(\+?\d{10,})|(\w+))(?:\s+(.*))?$/i,
     },
     { type: CommandType.RECEIVE, pattern: /^receive(?:\s+(\d*\.?\d+))?\s*(.*)$/i },
-    { type: CommandType.HISTORY, pattern: /^(?:history|transactions|txs)(?:\s+#?([A-Za-z0-9]+))?$/i },
+    {
+      type: CommandType.HISTORY,
+      pattern: /^(?:history|transactions|txs)(?:\s+#?([A-Za-z0-9]+))?$/i,
+    },
     {
       type: CommandType.REQUEST,
       pattern: /^request\s+(\d*\.?\d+)\s+from\s+(?:@?(\w+)|(\+?\d{10,}))(?:\s+(.+))?$/i,
@@ -175,7 +178,12 @@ export class CommandParserService {
       lowerText.includes('show me my balance') ||
       lowerText.includes('how much do i have') ||
       lowerText.includes('how much money') ||
-      lowerText.includes('my wallet balance')
+      lowerText.includes('my wallet balance') ||
+      lowerText.includes('i want to know what my balance is') ||
+      lowerText.includes('i want to know my balance') ||
+      lowerText.includes('tell me my balance') ||
+      lowerText.includes('what\'s my balance') ||
+      lowerText.includes('whats my balance')
     ) {
       return { type: CommandType.BALANCE, args: {}, rawText: text };
     }
@@ -522,70 +530,70 @@ export class CommandParserService {
    */
   private applyCommandCorrections(text: string): string {
     const lowerText = text.toLowerCase();
-    
+
     // Common typos and corrections
     const corrections: Record<string, string> = {
       // Send command variations
-      'sent': 'send',
-      'snd': 'send',
-      'sen': 'send',
-      'sedn': 'send',
-      'sned': 'send',
-      
+      sent: 'send',
+      snd: 'send',
+      sen: 'send',
+      sedn: 'send',
+      sned: 'send',
+
       // Receive command variations
-      'recieve': 'receive',
-      'recive': 'receive',
-      'recv': 'receive',
-      'rec': 'receive',
-      
+      recieve: 'receive',
+      recive: 'receive',
+      recv: 'receive',
+      rec: 'receive',
+
       // Balance shortcuts
-      'bal': 'balance',
-      'balnce': 'balance',
-      'balanc': 'balance',
-      'balalce': 'balance',
-      '$': 'balance',
-      
+      bal: 'balance',
+      balnce: 'balance',
+      balanc: 'balance',
+      balalce: 'balance',
+      $: 'balance',
+
       // History shortcuts
-      'hist': 'history',
-      'histry': 'history',
-      'histroy': 'history',
-      'txs': 'history',
-      'tx': 'history',
-      
+      hist: 'history',
+      histry: 'history',
+      histroy: 'history',
+      txs: 'history',
+      tx: 'history',
+
       // Price shortcuts
-      'btc': 'price',
-      'rate': 'price',
-      'rates': 'price',
-      
+      btc: 'price',
+      rate: 'price',
+      rates: 'price',
+
       // Contact variations
-      'contact': 'contacts',
-      'contacs': 'contacts',
-      'contcts': 'contacts',
-      
+      contact: 'contacts',
+      contacs: 'contacts',
+      contcts: 'contacts',
+
       // Link variations
-      'conect': 'link',
-      'connect': 'link',
-      'lnk': 'link',
-      
+      conect: 'link',
+      connect: 'link',
+      lnk: 'link',
+
       // Request variations
-      'req': 'request',
-      'requst': 'request',
-      'rquest': 'request',
-      
+      req: 'request',
+      requst: 'request',
+      rquest: 'request',
+
       // Help variations
-      'hlp': 'help',
-      'halp': 'help',
-      'hepl': 'help',
-      
+      hlp: 'help',
+      halp: 'help',
+      hepl: 'help',
+
       // Username variations
-      'user': 'username',
-      'usrname': 'username',
-      'uname': 'username',
-      
+      user: 'username',
+      usrname: 'username',
+      uname: 'username',
+
       // Help navigation
-      'more': 'help more',
+      more: 'help more',
       '1': 'help 1',
-      '2': 'help 2', 
+      '2': 'help 2',
       '3': 'help 3',
     };
 
@@ -597,17 +605,34 @@ export class CommandParserService {
     // Check if the first word needs correction
     const words = text.split(/\s+/);
     const firstWord = words[0].toLowerCase();
-    
+
     if (corrections[firstWord]) {
       words[0] = corrections[firstWord];
       return words.join(' ');
     }
 
     // Special case: handle case-insensitive commands
-    const commandWords = ['send', 'receive', 'balance', 'link', 'unlink', 'verify', 
-                         'username', 'price', 'history', 'request', 'contacts', 
-                         'pay', 'vybz', 'admin', 'pending', 'voice', 'help', 'refresh'];
-    
+    const commandWords = [
+      'send',
+      'receive',
+      'balance',
+      'link',
+      'unlink',
+      'verify',
+      'username',
+      'price',
+      'history',
+      'request',
+      'contacts',
+      'pay',
+      'vybz',
+      'admin',
+      'pending',
+      'voice',
+      'help',
+      'refresh',
+    ];
+
     if (commandWords.includes(firstWord)) {
       words[0] = firstWord;
       return words.join(' ');

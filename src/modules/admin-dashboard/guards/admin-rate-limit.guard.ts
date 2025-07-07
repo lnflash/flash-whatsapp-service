@@ -51,10 +51,8 @@ export class AdminRateLimitGuard implements CanActivate {
 
       if (current > rateLimitConfig.limit) {
         const ttl = await this.redisService.ttl(key);
-        
-        this.logger.warn(
-          `Rate limit exceeded for ${identifier} on ${context.getHandler().name}`,
-        );
+
+        this.logger.warn(`Rate limit exceeded for ${identifier} on ${context.getHandler().name}`);
 
         throw new HttpException(
           {
@@ -70,7 +68,10 @@ export class AdminRateLimitGuard implements CanActivate {
       const response = context.switchToHttp().getResponse();
       response.setHeader('X-RateLimit-Limit', rateLimitConfig.limit);
       response.setHeader('X-RateLimit-Remaining', Math.max(0, rateLimitConfig.limit - current));
-      response.setHeader('X-RateLimit-Reset', new Date(Date.now() + rateLimitConfig.windowMs).toISOString());
+      response.setHeader(
+        'X-RateLimit-Reset',
+        new Date(Date.now() + rateLimitConfig.windowMs).toISOString(),
+      );
 
       return true;
     } catch (error) {

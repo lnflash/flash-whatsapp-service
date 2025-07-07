@@ -45,10 +45,7 @@ export class AdminFacadeService {
         setTimeout(() => reject(new Error('Operation timed out')), this.OPERATION_TIMEOUT),
       );
 
-      await Promise.race([
-        this.whatsappWebService.sendMessage(to, adminMessage),
-        timeoutPromise,
-      ]);
+      await Promise.race([this.whatsappWebService.sendMessage(to, adminMessage), timeoutPromise]);
     } catch (error) {
       this.logger.error(`Admin message failed: ${error.message}`, error.stack);
       // Don't rethrow - isolate admin errors

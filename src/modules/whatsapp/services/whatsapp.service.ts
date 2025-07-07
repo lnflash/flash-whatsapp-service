@@ -184,6 +184,18 @@ export class WhatsappService {
 
         return finalText;
       } else if (response && typeof response === 'object' && 'text' in response) {
+        // If response already has voice, don't regenerate it
+        if (response.voice) {
+          // For voice-only mode, return as is without modifying
+          if (response.voiceOnly) {
+            return response;
+          }
+          // Just add hint to text if not in voice-only mode
+          const finalText = this.addHint(response.text, session, command);
+          return { ...response, text: finalText };
+        }
+
+        // Response doesn't have voice yet, process normally
         const finalText = this.addHint(response.text, session, command);
 
         // Check for forceVoice flag or normal voice conditions

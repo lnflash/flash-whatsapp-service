@@ -102,18 +102,24 @@ export class WhatsAppWebService
       this.logger.log('Initializing WhatsApp Web client...');
       await this.client.initialize();
       this.logger.log('WhatsApp Web client initialized successfully');
-      
+
       // Wait a bit for page to stabilize
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
     } catch (error) {
       this.logger.error('Failed to initialize WhatsApp Web client:', error);
       this.logger.error('Stack trace:', error.stack);
 
       // Check for specific Puppeteer protocol errors
-      if (error.message && error.message.includes('Protocol error') && error.message.includes('Target closed')) {
+      if (
+        error.message &&
+        error.message.includes('Protocol error') &&
+        error.message.includes('Target closed')
+      ) {
         this.logger.error('Chrome browser crashed or failed to start properly.');
-        this.logger.log('This is often due to missing dependencies or resource constraints in Docker.');
-        
+        this.logger.log(
+          'This is often due to missing dependencies or resource constraints in Docker.',
+        );
+
         // Try to clean up any stuck processes
         await ChromeCleanupUtil.cleanup();
       }
@@ -142,10 +148,12 @@ export class WhatsAppWebService
           this.logger.log('WhatsApp Web client initialized successfully on retry');
         } catch (retryError) {
           this.logger.error('Failed to initialize WhatsApp Web client on retry:', retryError);
-          
+
           // If it's still a protocol error, don't keep retrying
           if (retryError.message && retryError.message.includes('Protocol error')) {
-            this.logger.error('Chrome continues to crash. Please check Docker logs and system resources.');
+            this.logger.error(
+              'Chrome continues to crash. Please check Docker logs and system resources.',
+            );
           }
         }
       }, 10000); // Retry after 10 seconds
@@ -187,14 +195,14 @@ export class WhatsAppWebService
     // Authentication success
     this.client.on('authenticated', async () => {
       this.logger.log('✅ WhatsApp Web authenticated successfully');
-      
+
       // In headless environments, sometimes the ready event doesn't fire immediately
       // Set a fallback timer, but give the normal ready event a chance first
       setTimeout(() => {
         if (!this.isReady) {
           this.logger.warn('⚠️ Ready event not fired after authentication, forcing ready state...');
           this.isReady = true;
-          
+
           // Try to get client info
           try {
             const info = this.client.info;
@@ -205,7 +213,7 @@ export class WhatsAppWebService
           } catch (e) {
             this.logger.debug('Client info not available yet');
           }
-          
+
           this.logger.log('✅ WhatsApp Web client is READY (forced)!');
           this.logger.log('🎉 Bot is now accepting messages');
         }
@@ -221,12 +229,12 @@ export class WhatsAppWebService
     this.client.on('ready', async () => {
       this.isReady = true;
       const info = this.client.info;
-      
+
       this.logger.log('🚀 WhatsApp Web client is READY!');
       this.logger.log(`📞 Connected phone: ${info?.wid?.user || 'Unknown'}`);
       this.logger.log(`👤 Bot name: ${info?.pushname || 'Unknown'}`);
       this.logger.log('✅ Now accepting messages');
-      
+
       // Log the actual state when ready fires
       try {
         const state = await this.client.getState();
@@ -235,7 +243,7 @@ export class WhatsAppWebService
         this.logger.error('Could not get state on ready:', e.message);
       }
     });
-    
+
     // Remote session saved (might indicate successful connection)
     this.client.on('remote_session_saved', () => {
       this.logger.log('💾 Remote session saved successfully');
@@ -257,9 +265,9 @@ export class WhatsAppWebService
     // Message handling
     this.client.on('message', async (msg: Message) => {
       this.logger.debug(`📥 Raw message received from ${msg.from}: "${msg.body}"`);
-      
+
       let responseTarget: string = msg.from; // Default to sender
-      
+
       try {
         // Ignore messages during startup grace period
         if (this.isInGracePeriod) {
@@ -276,22 +284,22 @@ export class WhatsAppWebService
         if (!msg.from.endsWith('@c.us') && !msg.from.endsWith('@g.us')) {
           return;
         }
-        
+
         // For group messages, we'll need to handle them differently
         const isGroupMessage = msg.from.endsWith('@g.us');
-        
+
         // For group messages, only respond if mentioned or message starts with "!"
         if (isGroupMessage) {
           const botInfo = await this.client.info;
           const botId = botInfo.wid._serialized;
-          const isMentioned = msg.mentionedIds?.some(id => id === botId);
+          const isMentioned = msg.mentionedIds?.some((id) => id === botId);
           const startsWithBang = msg.body.trim().startsWith('!');
-          
+
           if (!isMentioned && !startsWithBang) {
             // Ignore group messages that don't mention us or start with !
             return;
           }
-          
+
           // If message starts with !, remove the ! prefix
           if (startsWithBang) {
             msg.body = msg.body.trim().substring(1).trim();
@@ -407,7 +415,10 @@ export class WhatsAppWebService
               } else {
                 // No pending request, just save the contact
                 const response = await this.whatsappService.processCloudMessage({
-                  from: isGroupMessage && msg.author ? msg.author.replace(/@c\.us|@lid|@s\.whatsapp\.net/g, '') : msg.from.replace('@c.us', ''),
+                  from:
+                    isGroupMessage && msg.author
+                      ? msg.author.replace(/@c\.us|@lid|@s\.whatsapp\.net/g, '')
+                      : msg.from.replace('@c.us', ''),
                   text: `contacts add ${fullName.replace(/\s+/g, '_')} ${phoneNumber}`,
                   messageId: msg.id._serialized,
                   timestamp: msg.timestamp.toString(),
@@ -483,7 +494,10 @@ export class WhatsAppWebService
 
             // Process the transcribed text as a regular message
             const response = await this.whatsappService.processCloudMessage({
-              from: isGroupMessage && msg.author ? msg.author.replace(/@c\.us|@lid|@s\.whatsapp\.net/g, '') : msg.from.replace('@c.us', ''),
+              from:
+                isGroupMessage && msg.author
+                  ? msg.author.replace(/@c\.us|@lid|@s\.whatsapp\.net/g, '')
+                  : msg.from.replace('@c.us', ''),
               text: transcribedText,
               messageId: msg.id._serialized,
               timestamp: msg.timestamp.toString(),
@@ -546,7 +560,7 @@ export class WhatsAppWebService
         // Log incoming message
         const contact = await msg.getContact();
         let phoneNumber: string;
-        
+
         if (isGroupMessage) {
           // For group messages, extract sender from author field
           // Handle different ID formats (@c.us, @lid, etc)
@@ -561,7 +575,9 @@ export class WhatsAppWebService
           // For direct messages
           phoneNumber = msg.from.replace('@c.us', '');
           responseTarget = msg.from; // Send response back to the individual
-          this.logger.log(`📨 Incoming message from ${phoneNumber} (${contact.pushname || 'No name'}): "${msg.body}"`);
+          this.logger.log(
+            `📨 Incoming message from ${phoneNumber} (${contact.pushname || 'No name'}): "${msg.body}"`,
+          );
         }
 
         // Process regular text messages
@@ -577,18 +593,32 @@ export class WhatsAppWebService
         // Send response if we have one
         if (response) {
           // For group messages, check if this is a sensitive command that should be sent as DM
-          const sensitiveCommands = ['link', 'verify', 'unlink', 'balance', 'history', 'send', 'receive', 'pay'];
-          const commandMatch = msg.body.trim().toLowerCase().match(/^(\w+)/);
+          const sensitiveCommands = [
+            'link',
+            'verify',
+            'unlink',
+            'balance',
+            'history',
+            'send',
+            'receive',
+            'pay',
+          ];
+          const commandMatch = msg.body
+            .trim()
+            .toLowerCase()
+            .match(/^(\w+)/);
           const command = commandMatch ? commandMatch[1] : '';
           let shouldSendDM = isGroupMessage && sensitiveCommands.includes(command);
-          
+
           if (shouldSendDM) {
             // Check if we can send DM to this user
             if (msg.author && msg.author.includes('@lid')) {
               // @lid format users can't receive DMs - respond in group with privacy warning
-              this.logger.warn(`Cannot send DM to @lid format: ${msg.author}. Responding in group with privacy notice.`);
+              this.logger.warn(
+                `Cannot send DM to @lid format: ${msg.author}. Responding in group with privacy notice.`,
+              );
               responseTarget = msg.from;
-              
+
               // Add privacy notice to the response
               if (typeof response === 'string') {
                 response = `⚠️ *Privacy Notice*: This response contains sensitive information. Consider using the bot in a private chat.\n\n${response}`;
@@ -600,25 +630,32 @@ export class WhatsAppWebService
               try {
                 // First check if we have a session for this user
                 const userSession = await this.sessionService.getSessionByWhatsappId(phoneNumber);
-                
+
                 if (userSession && userSession.whatsappId) {
                   // Use the session's WhatsApp ID
-                  responseTarget = userSession.whatsappId.includes('@') ? userSession.whatsappId : userSession.whatsappId + '@c.us';
+                  responseTarget = userSession.whatsappId.includes('@')
+                    ? userSession.whatsappId
+                    : userSession.whatsappId + '@c.us';
                 } else {
                   // Construct standard WhatsApp DM address
                   responseTarget = phoneNumber + '@c.us';
                 }
-                
-                this.logger.log(`🔒 Sending private response to ${responseTarget} for sensitive command: ${command}`);
-                
+
+                this.logger.log(
+                  `🔒 Sending private response to ${responseTarget} for sensitive command: ${command}`,
+                );
+
                 // Send a brief acknowledgment to the group
                 const displayName = contact.pushname || phoneNumber;
-                await this.sendMessage(msg.from, `✅ @${displayName} I've sent you a private message with the response.`);
+                await this.sendMessage(
+                  msg.from,
+                  `✅ @${displayName} I've sent you a private message with the response.`,
+                );
               } catch (error) {
                 this.logger.error(`Error sending DM: ${error.message}`);
                 // Fallback to group response with privacy notice
                 responseTarget = msg.from;
-                
+
                 if (typeof response === 'string') {
                   response = `⚠️ *Privacy Notice*: Unable to send DM. This response contains sensitive information.\n\n${response}`;
                 } else if (typeof response === 'object' && 'text' in response) {
@@ -627,33 +664,38 @@ export class WhatsAppWebService
               }
             }
           }
-          
-          this.logger.log(`💬 Sending response to ${shouldSendDM ? 'DM' : (isGroupMessage ? 'group' : phoneNumber)}...`);
-          
+
+          this.logger.log(
+            `💬 Sending response to ${shouldSendDM ? 'DM' : isGroupMessage ? 'group' : phoneNumber}...`,
+          );
+
           // Check if response is an object with text property
           if (typeof response === 'object' && 'text' in response) {
             // Send voice note if voice buffer is present
             if (response.voice) {
               this.logger.log(`🎤 Sending voice note to ${phoneNumber}`);
-              
+
               // For voice-only mode or long responses, send a placeholder immediately
-              const isVoiceOnly = (response as any).voiceOnly === true || (!response.text || response.text.trim() === '');
+              const isVoiceOnly =
+                (response as any).voiceOnly === true ||
+                !response.text ||
+                response.text.trim() === '';
               const responseLength = response.text ? response.text.length : 0;
               const isLongResponse = responseLength > 500;
-              
+
               if (isVoiceOnly || isLongResponse) {
                 // Send placeholder text immediately
-                const placeholder = isVoiceOnly 
+                const placeholder = isVoiceOnly
                   ? '🎤 *Voice message incoming...*\n\n_Processing your response. The voice note will arrive shortly._'
                   : `📝 *Response ready*\n\n_Generating voice note (${Math.ceil(responseLength / 1000)}k characters)..._`;
-                
+
                 await this.sendMessage(responseTarget, placeholder);
                 this.logger.log(`📨 Sent placeholder message for voice generation`);
               }
-              
+
               // Send the voice note
               await this.sendVoiceNote(responseTarget, response.voice);
-              
+
               // Send text if not voice-only mode and not already sent placeholder
               if (!isVoiceOnly && !isLongResponse && response.text.trim() !== '') {
                 await this.sendMessage(responseTarget, response.text);
@@ -661,16 +703,22 @@ export class WhatsAppWebService
             }
             // Send image with caption if media is present
             else if (response.media) {
-              this.logger.log(`🖼️ Sending image with caption to ${isGroupMessage ? 'group' : phoneNumber}`);
+              this.logger.log(
+                `🖼️ Sending image with caption to ${isGroupMessage ? 'group' : phoneNumber}`,
+              );
               await this.sendImage(responseTarget, response.media, response.text);
             } else {
               // Just send text if no media
-              this.logger.log(`📤 Sending text message to ${isGroupMessage ? 'group' : phoneNumber}: "${response.text.substring(0, 50)}${response.text.length > 50 ? '...' : ''}"`);
+              this.logger.log(
+                `📤 Sending text message to ${isGroupMessage ? 'group' : phoneNumber}: "${response.text.substring(0, 50)}${response.text.length > 50 ? '...' : ''}"`,
+              );
               await this.sendMessage(responseTarget, response.text);
             }
           } else if (typeof response === 'string') {
             // Simple text response
-            this.logger.log(`📤 Sending text message to ${isGroupMessage ? 'group' : phoneNumber}: "${response.substring(0, 50)}${response.length > 50 ? '...' : ''}"`);
+            this.logger.log(
+              `📤 Sending text message to ${isGroupMessage ? 'group' : phoneNumber}: "${response.substring(0, 50)}${response.length > 50 ? '...' : ''}"`,
+            );
             await this.sendMessage(responseTarget, response);
           } else {
             this.logger.warn(`Unexpected response format: ${JSON.stringify(response)}`);
@@ -678,7 +726,9 @@ export class WhatsAppWebService
 
           // Mark message as read
           await msg.getChat().then((chat) => chat.sendSeen());
-          this.logger.log(`✅ Response sent successfully to ${isGroupMessage ? `group (from ${phoneNumber})` : phoneNumber}`);
+          this.logger.log(
+            `✅ Response sent successfully to ${isGroupMessage ? `group (from ${phoneNumber})` : phoneNumber}`,
+          );
         } else {
           this.logger.warn(`⚠️ No response generated for message from ${phoneNumber}`);
         }
@@ -730,20 +780,22 @@ export class WhatsAppWebService
     let lastLoadingPercent = '';
     let loadingStuckCount = 0;
     let loading100Count = 0;
-    
+
     this.client.on('loading_screen', (percent, message) => {
       this.logger.log(`⏳ Loading: ${percent}% - ${message}`);
-      
+
       // Check if loading reached 100%
       if (percent === '100' && !this.isReady) {
         loading100Count++;
-        
+
         // If at 100% for multiple events but not ready
         if (loading100Count >= 3) {
-          this.logger.warn('⚠️ WhatsApp at 100% loading but ready event not fired, forcing ready state...');
-          
+          this.logger.warn(
+            '⚠️ WhatsApp at 100% loading but ready event not fired, forcing ready state...',
+          );
+
           this.isReady = true;
-          
+
           try {
             const info = this.client.info;
             this.logger.log('🚀 WhatsApp Web client is READY (forced from 100% loading)!');
@@ -752,20 +804,20 @@ export class WhatsAppWebService
           } catch (e) {
             this.logger.debug('Client info not available:', e.message);
           }
-          
+
           this.logger.log('✅ Now accepting messages');
         }
       }
-      
+
       // Check if loading is stuck at 99%
       if (percent === '99' && percent === lastLoadingPercent) {
         loadingStuckCount++;
-        
+
         // If stuck at 99% for 3 consecutive events, force ready state
         if (loadingStuckCount >= 3 && !this.isReady) {
           this.logger.warn('⚠️ WhatsApp stuck at 99% loading, forcing ready state...');
           this.isReady = true;
-          
+
           setTimeout(async () => {
             try {
               const info = this.client.info;
@@ -773,7 +825,7 @@ export class WhatsAppWebService
               this.logger.log(`📞 Connected phone: ${info?.wid?.user || 'Unknown'}`);
               this.logger.log(`👤 Bot name: ${info?.pushname || 'Unknown'}`);
               this.logger.log('✅ Now accepting messages');
-              
+
               // Also log the client state
               const state = await this.client.getState();
               this.logger.log(`📊 Client state: ${state}`);
@@ -785,7 +837,7 @@ export class WhatsAppWebService
       } else {
         loadingStuckCount = 0;
       }
-      
+
       lastLoadingPercent = percent;
     });
 
@@ -1120,7 +1172,7 @@ export class WhatsAppWebService
       } catch (stateError) {
         this.logger.warn('Could not get client state, attempting to send anyway...');
       }
-      
+
       if (state && state !== 'CONNECTED') {
         this.logger.error(`Cannot send message, client state is: ${state}`);
         this.isReady = false; // Reset ready state

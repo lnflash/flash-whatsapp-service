@@ -81,7 +81,10 @@ export class SpeechService {
   /**
    * Transcribe using Google Cloud Speech
    */
-  private async transcribeWithGoogle(audioBuffer: Buffer, mimeType: string): Promise<string | null> {
+  private async transcribeWithGoogle(
+    audioBuffer: Buffer,
+    mimeType: string,
+  ): Promise<string | null> {
     if (!this.speechClient) {
       return null;
     }

@@ -72,7 +72,9 @@ class CircuitBreaker {
 
     if (this.failureCount >= this.options.failureThreshold!) {
       this.state = CircuitState.OPEN;
-      this.logger.warn(`Circuit breaker ${this.name} is now OPEN after ${this.failureCount} failures`);
+      this.logger.warn(
+        `Circuit breaker ${this.name} is now OPEN after ${this.failureCount} failures`,
+      );
     }
   }
 

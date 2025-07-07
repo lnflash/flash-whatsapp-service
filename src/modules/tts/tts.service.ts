@@ -51,7 +51,9 @@ export class TtsService {
       }
     } else {
       this.provider = 'google-tts-api';
-      this.logger.log('ℹ️ Using free TTS API (200 char limit). For better voice quality, configure GOOGLE_CLOUD_KEYFILE');
+      this.logger.log(
+        'ℹ️ Using free TTS API (200 char limit). For better voice quality, configure GOOGLE_CLOUD_KEYFILE',
+      );
     }
   }
 
@@ -67,7 +69,9 @@ export class TtsService {
       const cleanedText = this.cleanTextForTTS(text);
       const startTime = Date.now();
 
-      this.logger.debug(`🎤 Starting TTS generation for ${cleanedText.length} characters using ${this.provider}`);
+      this.logger.debug(
+        `🎤 Starting TTS generation for ${cleanedText.length} characters using ${this.provider}`,
+      );
 
       let buffer: Buffer;
       if (this.provider === 'google-cloud' && this.googleCloudClient) {
@@ -213,7 +217,9 @@ export class TtsService {
                 const voiceKeywords = ['voice', 'audio', 'speak', 'say it', 'tell me'];
                 const lowerText = text.toLowerCase();
                 const hasKeyword = voiceKeywords.some((keyword) => lowerText.includes(keyword));
-                this.logger.debug(`Voice check for user ${whatsappId}: AI response=${isAiResponse}, has keyword=${hasKeyword}`);
+                this.logger.debug(
+                  `Voice check for user ${whatsappId}: AI response=${isAiResponse}, has keyword=${hasKeyword}`,
+                );
                 return hasKeyword;
               }
               return false;
