@@ -114,9 +114,9 @@ export class BalanceTemplate {
     const greeting = data.userName ? `Hi ${data.userName}! ` : '';
     const amount = data.fiatBalance.toFixed(2);
     const currency = data.fiatCurrency === 'USD' ? 'dollars' : data.fiatCurrency;
-    
+
     let message = `${greeting}Your Flash balance is ${amount} ${currency}.`;
-    
+
     // Add contextual tips
     if (data.fiatBalance === 0) {
       message += ' Your balance is empty. To add funds, say "receive" followed by the amount.';
@@ -125,7 +125,7 @@ export class BalanceTemplate {
     } else if (data.fiatBalance > 100) {
       message += ' You have a healthy balance!';
     }
-    
+
     return message;
   }
 
@@ -142,7 +142,7 @@ export class BalanceTemplate {
     }
 
     const now = new Date();
-    
+
     // Format in Jamaica timezone (EST/EDT)
     const jamaicaOptions: Intl.DateTimeFormatOptions = {
       timeZone: 'America/Jamaica',

@@ -107,11 +107,11 @@ export class PaymentConfirmationService {
   formatPaymentSuccessForVoice(amount: number, recipient: string, newBalance?: string): string {
     const amountStr = amount.toFixed(2);
     let message = `Payment sent successfully! You sent ${amountStr} dollars to ${recipient}.`;
-    
+
     if (newBalance) {
       message += ` Your new balance is ${newBalance}.`;
     }
-    
+
     return message;
   }
 
@@ -120,15 +120,15 @@ export class PaymentConfirmationService {
    */
   formatPaymentErrorForVoice(error: string): string {
     if (error.includes('balance') || error.includes('Insufficient')) {
-      return 'Payment failed. You don\'t have enough balance. Try adding funds to your account.';
+      return "Payment failed. You don't have enough balance. Try adding funds to your account.";
     } else if (error.includes('not found') || error.includes('Username')) {
       return 'Payment failed. The recipient was not found. Please check the username and try again.';
     } else if (error.includes('limit')) {
-      return 'Payment failed. You\'ve reached your transaction limit. Please wait or contact support.';
+      return "Payment failed. You've reached your transaction limit. Please wait or contact support.";
     } else if (error.includes('inactive') || error.includes('restricted')) {
-      return 'Payment failed. There\'s an account restriction. Please contact support for help.';
+      return "Payment failed. There's an account restriction. Please contact support for help.";
     }
-    
+
     return 'Payment failed. Something went wrong. Please try again later.';
   }
 }

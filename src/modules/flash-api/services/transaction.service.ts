@@ -149,14 +149,15 @@ export class TransactionService {
 
     // Format date - createdAt is in seconds, convert to milliseconds
     const date = new Date(parseInt(tx.createdAt) * 1000);
-    const dateStr = date.toLocaleString('en-US', {
-      timeZone: 'America/Jamaica',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    }) + ' EST';
+    const dateStr =
+      date.toLocaleString('en-US', {
+        timeZone: 'America/Jamaica',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      }) + ' EST';
 
     // Format amounts
     let amountStr = '';
@@ -237,10 +238,10 @@ export class TransactionService {
    */
   private groupTransactionsByDate(edges: TransactionEdge[]): Record<string, TransactionEdge[]> {
     const groups: Record<string, TransactionEdge[]> = {};
-    
+
     // Get current timestamp and create dates for comparison
     const now = new Date();
-    
+
     // Create dates at midnight in Jamaica timezone for today and yesterday
     const todayFormatter = new Intl.DateTimeFormat('en-US', {
       timeZone: 'America/Jamaica',
@@ -248,21 +249,21 @@ export class TransactionService {
       month: 'numeric',
       day: 'numeric',
     });
-    
+
     const todayParts = todayFormatter.formatToParts(now);
-    const todayYear = parseInt(todayParts.find(p => p.type === 'year')?.value || '0');
-    const todayMonth = parseInt(todayParts.find(p => p.type === 'month')?.value || '0') - 1; // 0-based
-    const todayDay = parseInt(todayParts.find(p => p.type === 'day')?.value || '0');
+    const todayYear = parseInt(todayParts.find((p) => p.type === 'year')?.value || '0');
+    const todayMonth = parseInt(todayParts.find((p) => p.type === 'month')?.value || '0') - 1; // 0-based
+    const todayDay = parseInt(todayParts.find((p) => p.type === 'day')?.value || '0');
 
     for (const edge of edges) {
       const txDate = new Date(parseInt(edge.node.createdAt) * 1000);
-      
+
       // Get transaction date parts in Jamaica timezone
       const txParts = todayFormatter.formatToParts(txDate);
-      const txYear = parseInt(txParts.find(p => p.type === 'year')?.value || '0');
-      const txMonth = parseInt(txParts.find(p => p.type === 'month')?.value || '0') - 1; // 0-based
-      const txDay = parseInt(txParts.find(p => p.type === 'day')?.value || '0');
-      
+      const txYear = parseInt(txParts.find((p) => p.type === 'year')?.value || '0');
+      const txMonth = parseInt(txParts.find((p) => p.type === 'month')?.value || '0') - 1; // 0-based
+      const txDay = parseInt(txParts.find((p) => p.type === 'day')?.value || '0');
+
       let dateGroup: string;
 
       // Compare dates using year, month, day components
@@ -288,46 +289,51 @@ export class TransactionService {
     return groups;
   }
 
-
   /**
    * Format detailed transaction information
    */
-  async formatDetailedTransaction(tx: Transaction, authToken: string): Promise<string> {
+  async formatDetailedTransaction(tx: Transaction, _authToken: string): Promise<string> {
     const direction = tx.direction === 'SEND' ? '📤 SENT' : '📥 RECEIVED';
-    const status = tx.status === 'SUCCESS' ? '✅ Confirmed' : tx.status === 'PENDING' ? '⏳ Pending' : '❌ Failed';
-    
+    const status =
+      tx.status === 'SUCCESS'
+        ? '✅ Confirmed'
+        : tx.status === 'PENDING'
+          ? '⏳ Pending'
+          : '❌ Failed';
+
     // Format date with full details
     const date = new Date(parseInt(tx.createdAt) * 1000);
-    const fullDate = date.toLocaleString('en-US', {
-      timeZone: 'America/Jamaica',
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: true,
-    }) + ' EST';
+    const fullDate =
+      date.toLocaleString('en-US', {
+        timeZone: 'America/Jamaica',
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+      }) + ' EST';
 
     // Format amounts with more detail
     let primaryAmount = '';
     let secondaryAmount = '';
     let fee = '';
-    
+
     if (tx.settlementCurrency === 'BTC') {
       const btcAmount = tx.settlementAmount / 100000000;
       const satsAmount = tx.settlementAmount;
       primaryAmount = `${btcAmount.toFixed(8)} BTC`;
       primaryAmount += `\n💎 ${satsAmount.toLocaleString()} sats`;
-      
+
       if (tx.settlementDisplayAmount && tx.settlementDisplayCurrency) {
         secondaryAmount = `\n💵 ${tx.settlementDisplayAmount} ${tx.settlementDisplayCurrency}`;
       }
     } else {
       const usdAmount = parseFloat(tx.settlementAmount.toString());
       primaryAmount = `$${usdAmount.toFixed(2)} USD`;
-      
+
       if (tx.settlementPrice) {
         const btcEquivalent = this.calculateBtcEquivalent(usdAmount * 100, tx.settlementPrice);
         if (btcEquivalent) {
@@ -351,7 +357,7 @@ export class TransactionService {
     let message = `📄 *Transaction Details*\n\n`;
     message += `${direction}\n`;
     message += `━━━━━━━━━━━━━━━━\n\n`;
-    
+
     message += `💰 *Amount:*\n${primaryAmount}${secondaryAmount}${fee}\n\n`;
     message += `📅 *Date:*\n${fullDate}\n\n`;
     message += `🔖 *Status:* ${status}\n\n`;
@@ -397,7 +403,7 @@ export class TransactionService {
       month: 'long',
       day: 'numeric',
     });
-    
+
     let amount = '';
     if (tx.settlementCurrency === 'BTC') {
       const sats = tx.settlementAmount;
@@ -411,7 +417,7 @@ export class TransactionService {
     }
 
     let message = `You ${direction} ${amount} on ${dateStr}`;
-    
+
     if (tx.memo) {
       message += `. The memo says: ${tx.memo}`;
     }
