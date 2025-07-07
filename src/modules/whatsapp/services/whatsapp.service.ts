@@ -38,6 +38,7 @@ import { AdminSettingsService, VoiceMode } from './admin-settings.service';
 import { TtsService } from '../../tts/tts.service';
 import { PaymentConfirmationService } from './payment-confirmation.service';
 import { UserVoiceSettingsService, UserVoiceMode } from './user-voice-settings.service';
+import { VoiceResponseService } from './voice-response.service';
 // import { WhatsAppCloudService } from './whatsapp-cloud.service'; // Disabled for prototype branch
 
 @Injectable()
@@ -67,6 +68,7 @@ export class WhatsappService {
     private readonly ttsService: TtsService,
     private readonly paymentConfirmationService: PaymentConfirmationService,
     private readonly userVoiceSettingsService: UserVoiceSettingsService,
+    private readonly voiceResponseService: VoiceResponseService,
     // private readonly whatsAppCloudService: WhatsAppCloudService, // Disabled for prototype branch
     @Inject(forwardRef(() => WhatsAppWebService))
     private readonly whatsappWebService?: WhatsAppWebService,
@@ -138,7 +140,7 @@ export class WhatsappService {
       }
 
       // Handle the command
-      const response = await this.handleCommand(command, whatsappId, phoneNumber, session);
+      const response = await this.handleCommand(command, whatsappId, phoneNumber, session, messageData.isVoiceCommand);
 
       // Check if voice response is requested
       // Mark as AI response if it comes from unknown command (likely AI handled)
@@ -203,16 +205,24 @@ export class WhatsappService {
 
         if (useVoice) {
           try {
-            // Convert hints to TTS-friendly format for voice
+            // Generate natural voice response based on command type
             let voiceText = finalText;
-            if (finalText.includes('💡')) {
-              const parts = finalText.split('💡');
-              if (parts.length > 1) {
-                const beforeHint = parts[0];
-                const hintPart = parts[1].trim();
-                const ttsFriendlyHint = this.makeTtsFriendlyHint(hintPart);
-                voiceText = `${beforeHint}💡 ${ttsFriendlyHint}`;
-              }
+            
+            // For command responses, use natural language generation
+            if (command && command.type !== CommandType.UNKNOWN) {
+              voiceText = await this.voiceResponseService.generateNaturalVoiceResponse(
+                command.type,
+                finalText,
+                command.args,
+                {
+                  userName: session?.profileName,
+                  isVoiceInput: messageData.isVoiceCommand || false,
+                  originalResponse: finalText,
+                }
+              );
+            } else {
+              // For AI responses, clean up for voice
+              voiceText = this.cleanTextForVoice(finalText);
             }
 
             const audioBuffer = await this.ttsService.textToSpeech(voiceText);
@@ -262,6 +272,7 @@ export class WhatsappService {
     whatsappId: string,
     phoneNumber: string,
     session: UserSession | null,
+    isVoiceInput?: boolean,
   ): Promise<string | { text: string; media?: Buffer; voice?: Buffer; voiceOnly?: boolean }> {
     try {
       // Check if user has a pending payment confirmation
@@ -516,7 +527,12 @@ export class WhatsappService {
             }
 
             // Otherwise, use AI to respond
-            return this.handleAiQuery(command.rawText, session);
+            const shouldUseVoice = await this.ttsService.shouldUseVoice(
+              command.rawText,
+              true,
+              session.whatsappId,
+            );
+            return this.handleAiQuery(command.rawText, session, shouldUseVoice);
           } else {
             return this.getUnknownCommandMessage(session);
           }
@@ -1031,7 +1047,12 @@ _This limitation is due to WhatsApp's privacy features._`;
 
           // Answer the pending question
           try {
-            const aiResponse = await this.handleAiQuery(pendingQuestion, session);
+            const shouldUseVoice = await this.ttsService.shouldUseVoice(
+              pendingQuestion,
+              true,
+              session.whatsappId,
+            );
+            const aiResponse = await this.handleAiQuery(pendingQuestion, session, shouldUseVoice);
             return `Thank you for providing your consent! 🎉\n\nNow, regarding your question: "${pendingQuestion}"\n\n${aiResponse}`;
           } catch (error) {
             this.logger.error(
@@ -1063,7 +1084,7 @@ _This limitation is due to WhatsApp's privacy features._`;
   /**
    * Handle AI query using Maple AI
    */
-  private async handleAiQuery(query: string, session: UserSession): Promise<string> {
+  private async handleAiQuery(query: string, session: UserSession, isVoiceMode: boolean = false): Promise<string> {
     try {
       if (!session.consentGiven) {
         // Store the pending question for after consent is given
@@ -1081,6 +1102,7 @@ _This limitation is due to WhatsApp's privacy features._`;
         whatsappId: session.whatsappId,
         isVerified: session.isVerified,
         consentGiven: session.consentGiven,
+        isVoiceMode: isVoiceMode,
       };
 
       const response = await this.geminiAiService.processQuery(query, context);
@@ -4204,6 +4226,21 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
     }
 
     return message;
+  }
+
+  /**
+   * Clean text for voice output
+   */
+  private cleanTextForVoice(text: string): string {
+    return text
+      .replace(/[❌✅⚡💰💸🎉🔊🔇🎤💡📱]/g, '') // Remove emojis
+      .replace(/\*([^*]+)\*/g, '$1') // Remove markdown bold
+      .replace(/_([^_]+)_/g, '$1') // Remove markdown italic
+      .replace(/`([^`]+)`/g, "'$1'") // Replace backticks with quotes
+      .replace(/\n+/g, '. ') // Replace newlines with periods
+      .replace(/\s+/g, ' ') // Normalize spaces
+      .replace(/\.\s*\./g, '.') // Remove double periods
+      .trim();
   }
 
   /**

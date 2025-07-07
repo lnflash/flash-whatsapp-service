@@ -39,6 +39,11 @@ export default () => ({
     apiKey: process.env.GEMINI_API_KEY,
   },
 
+  // ElevenLabs TTS Configuration
+  elevenLabs: {
+    apiKey: process.env.ELEVENLABS_API_KEY,
+  },
+
   // Security
   security: {
     jwtSecret: process.env.JWT_SECRET,

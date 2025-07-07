@@ -183,7 +183,34 @@ export class CommandParserService {
       lowerText.includes('i want to know my balance') ||
       lowerText.includes('tell me my balance') ||
       lowerText.includes('what\'s my balance') ||
-      lowerText.includes('whats my balance')
+      lowerText.includes('whats my balance') ||
+      lowerText.includes('do i have any money') ||
+      lowerText.includes('show balance') ||
+      lowerText.includes('display balance') ||
+      lowerText.includes('account balance') ||
+      lowerText.includes('wallet status') ||
+      lowerText.includes('how much is in my account') ||
+      lowerText.includes('how much is in my wallet') ||
+      lowerText.includes('what do i have') ||
+      lowerText.includes('how much can i spend') ||
+      lowerText.includes('available balance') ||
+      lowerText.includes('current balance') ||
+      lowerText.includes('flash balance') ||
+      lowerText.includes('my funds') ||
+      lowerText.includes('check funds') ||
+      lowerText.includes('show me how much') ||
+      lowerText.includes('let me know my balance') ||
+      lowerText.includes('i need to know my balance') ||
+      lowerText.includes('can you tell me my balance') ||
+      lowerText.includes('please check my balance') ||
+      lowerText.includes('balance please') ||
+      lowerText.includes('how much money do i have') ||
+      lowerText.includes('what is my wallet balance') ||
+      lowerText === 'balance' ||
+      lowerText === 'bal' ||
+      lowerText === 'money' ||
+      lowerText === 'funds' ||
+      lowerText === '$'
     ) {
       return { type: CommandType.BALANCE, args: {}, rawText: text };
     }
@@ -196,7 +223,40 @@ export class CommandParserService {
       lowerText.includes('how much is bitcoin') ||
       lowerText.includes('what is bitcoin worth') ||
       lowerText.includes('current bitcoin price') ||
-      lowerText.includes('check the price')
+      lowerText.includes('check the price') ||
+      lowerText.includes('bitcoin rate') ||
+      lowerText.includes('btc rate') ||
+      lowerText.includes('bitcoin value') ||
+      lowerText.includes('btc value') ||
+      lowerText.includes('bitcoin cost') ||
+      lowerText.includes('btc cost') ||
+      lowerText.includes('bitcoin exchange rate') ||
+      lowerText.includes('btc exchange rate') ||
+      lowerText.includes('show me the price') ||
+      lowerText.includes('tell me the price') ||
+      lowerText.includes('what\'s bitcoin at') ||
+      lowerText.includes('whats bitcoin at') ||
+      lowerText.includes('bitcoin trading at') ||
+      lowerText.includes('btc trading at') ||
+      lowerText.includes('how expensive is bitcoin') ||
+      lowerText.includes('bitcoin market price') ||
+      lowerText.includes('btc market price') ||
+      lowerText.includes('bitcoin quote') ||
+      lowerText.includes('btc quote') ||
+      lowerText.includes('price check') ||
+      lowerText.includes('rate check') ||
+      lowerText.includes('bitcoin ticker') ||
+      lowerText.includes('btc ticker') ||
+      lowerText.includes('current rate') ||
+      lowerText.includes('today\'s price') ||
+      lowerText.includes('todays price') ||
+      lowerText.includes('latest price') ||
+      lowerText.includes('market rate') ||
+      lowerText.includes('exchange price') ||
+      lowerText === 'price' ||
+      lowerText === 'rate' ||
+      lowerText === 'btc' ||
+      lowerText === 'bitcoin'
     ) {
       return { type: CommandType.PRICE, args: {}, rawText: text };
     }
@@ -209,7 +269,45 @@ export class CommandParserService {
       lowerText === 'i need help' ||
       lowerText === 'can you help me' ||
       lowerText === 'what can you do' ||
-      lowerText === 'show me what you can do'
+      lowerText === 'show me what you can do' ||
+      lowerText.includes('need assistance') ||
+      lowerText.includes('need some help') ||
+      lowerText.includes('help me out') ||
+      lowerText.includes('assist me') ||
+      lowerText.includes('i\'m confused') ||
+      lowerText.includes('im confused') ||
+      lowerText.includes('i\'m lost') ||
+      lowerText.includes('im lost') ||
+      lowerText.includes('don\'t understand') ||
+      lowerText.includes('dont understand') ||
+      lowerText.includes('how does this work') ||
+      lowerText.includes('how do i use this') ||
+      lowerText.includes('what are the commands') ||
+      lowerText.includes('show commands') ||
+      lowerText.includes('list commands') ||
+      lowerText.includes('available commands') ||
+      lowerText.includes('what can i do') ||
+      lowerText.includes('what are my options') ||
+      lowerText.includes('show me options') ||
+      lowerText.includes('tell me what to do') ||
+      lowerText.includes('guide me') ||
+      lowerText.includes('instructions') ||
+      lowerText.includes('how to use') ||
+      lowerText.includes('tutorial') ||
+      lowerText.includes('get started') ||
+      lowerText.includes('getting started') ||
+      lowerText.includes('where do i start') ||
+      lowerText.includes('what should i do') ||
+      lowerText.includes('menu') ||
+      lowerText.includes('main menu') ||
+      lowerText.includes('show menu') ||
+      lowerText === 'help' ||
+      lowerText === 'h' ||
+      lowerText === '?' ||
+      lowerText === 'info' ||
+      lowerText === 'commands' ||
+      lowerText === 'options' ||
+      lowerText === 'start'
     ) {
       return { type: CommandType.HELP, args: {}, rawText: text };
     }
@@ -223,16 +321,45 @@ export class CommandParserService {
       /transfer\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?to\s+(\w+)/i,
       /give\s+(\w+)\s+(\d+(?:\.\d+)?)\s+(?:dollars?)?/i,
       /give\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?to\s+(\w+)/i,
+      /i want to send\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?to\s+(\w+)/i,
+      /i need to send\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?to\s+(\w+)/i,
+      /i\'d like to send\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?to\s+(\w+)/i,
+      /id like to send\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?to\s+(\w+)/i,
+      /can i send\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?to\s+(\w+)/i,
+      /can you send\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?to\s+(\w+)/i,
+      /help me send\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?to\s+(\w+)/i,
+      /i want to pay\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?to\s+(\w+)/i,
+      /i need to pay\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?to\s+(\w+)/i,
+      /i owe\s+(\w+)\s+(\d+(?:\.\d+)?)\s+(?:dollars?)?/i,
+      /pay back\s+(\w+)\s+(\d+(?:\.\d+)?)\s+(?:dollars?)?/i,
+      /send\s+(\w+)\s+\$(\d+(?:\.\d+)?)/i, // "send john $10"
+      /pay\s+(\w+)\s+\$(\d+(?:\.\d+)?)/i, // "pay john $10"
+      /zap\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?to\s+(\w+)/i,
+      /shoot\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?to\s+(\w+)/i,
+      /wire\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?to\s+(\w+)/i,
+      /forward\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?to\s+(\w+)/i,
+      /(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?for\s+(\w+)/i, // "10 for john"
+      /(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?to\s+(\w+)/i, // "10 to john"
     ];
 
     for (const pattern of sendPatterns) {
       const match = text.match(pattern);
       if (match) {
         let amount = match[1];
-        const recipient = match[2];
+        let recipient = match[2];
+
+        // Handle patterns where order might be reversed
+        const patternStr = pattern.toString();
+        if (patternStr.includes('i owe') || patternStr.includes('pay back') || 
+            patternStr.includes('send\\s+(\\w+)\\s+\\$') || patternStr.includes('pay\\s+(\\w+)\\s+\\$')) {
+          // For these patterns, recipient comes first
+          recipient = match[1];
+          amount = match[2];
+        }
 
         // Convert word numbers to digits
         const wordNumbers: Record<string, string> = {
+          zero: '0',
           one: '1',
           two: '2',
           three: '3',
@@ -243,12 +370,42 @@ export class CommandParserService {
           eight: '8',
           nine: '9',
           ten: '10',
+          eleven: '11',
+          twelve: '12',
+          thirteen: '13',
+          fourteen: '14',
+          fifteen: '15',
+          sixteen: '16',
+          seventeen: '17',
+          eighteen: '18',
+          nineteen: '19',
           twenty: '20',
           thirty: '30',
           forty: '40',
           fifty: '50',
+          sixty: '60',
+          seventy: '70',
+          eighty: '80',
+          ninety: '90',
           hundred: '100',
           thousand: '1000',
+          million: '1000000',
+          // Common combinations
+          'twenty-five': '25',
+          'twentyfive': '25',
+          'fifty-five': '55',
+          'fiftyfive': '55',
+          'a hundred': '100',
+          'one hundred': '100',
+          'five hundred': '500',
+          'a thousand': '1000',
+          'one thousand': '1000',
+          // Colloquial terms
+          buck: '1',
+          bucks: '1',
+          dollar: '1',
+          dollars: '1',
+          grand: '1000',
         };
 
         if (wordNumbers[amount.toLowerCase()]) {
@@ -266,15 +423,35 @@ export class CommandParserService {
     // Request variations
     const requestPatterns = [
       /(?:please\s+)?request\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?from\s+(\w+)/i,
-      /(?:please\s+)?ask\s+(\w+)\s+for\s+(\d+(?:\.\d+)?)\s+(?:dollars?)?/i,
+      /(?:please\s+)?ask\s+(\w+)\s+for\s+(\d+(?:\.\d+)?)\s*(?:dollars?)?/i,
       /(?:can you\s+)?request\s+(\d+(?:\.\d+)?)\s+from\s+(\w+)/i,
+      /i want to request\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?from\s+(\w+)/i,
+      /i need to request\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?from\s+(\w+)/i,
+      /i\'d like to request\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?from\s+(\w+)/i,
+      /id like to request\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?from\s+(\w+)/i,
+      /can i request\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?from\s+(\w+)/i,
+      /help me request\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?from\s+(\w+)/i,
+      /(\w+)\s+owes me\s+(\d+(?:\.\d+)?)\s+(?:dollars?)?/i, // "john owes me 10"
+      /charge\s+(\w+)\s+(\d+(?:\.\d+)?)\s+(?:dollars?)?/i,
+      /bill\s+(\w+)\s+(\d+(?:\.\d+)?)\s+(?:dollars?)?/i,
+      /invoice\s+(\w+)\s+for\s+(\d+(?:\.\d+)?)\s+(?:dollars?)?/i,
+      /collect\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?from\s+(\w+)/i,
+      /get\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?from\s+(\w+)/i,
+      /need\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?from\s+(\w+)/i,
+      /want\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?from\s+(\w+)/i,
+      /expecting\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?from\s+(\w+)/i,
+      /waiting for\s+(\d+(?:\.\d+)?)\s+(?:dollars?\s+)?from\s+(\w+)/i,
     ];
 
     for (const pattern of requestPatterns) {
-      const match = text.match(pattern);
+      const match = lowerText.match(pattern);
       if (match) {
         let amount, username;
-        if (pattern.toString().includes('ask')) {
+        const patternStr = pattern.toString();
+        if (patternStr.includes('ask') || patternStr.includes('owes me') || 
+            patternStr.includes('charge') || patternStr.includes('bill') || 
+            patternStr.includes('invoice')) {
+          // For these patterns, recipient comes first
           username = match[1];
           amount = match[2];
         } else {
@@ -296,8 +473,44 @@ export class CommandParserService {
       lowerText.includes('connect my account') ||
       lowerText.includes('link my flash') ||
       lowerText.includes('connect to flash') ||
+      lowerText.includes('setup my account') ||
+      lowerText.includes('set up my account') ||
+      lowerText.includes('authenticate me') ||
+      lowerText.includes('auth me') ||
+      lowerText.includes('sign me up') ||
+      lowerText.includes('register me') ||
+      lowerText.includes('register my account') ||
+      lowerText.includes('create my account') ||
+      lowerText.includes('activate my account') ||
+      lowerText.includes('i want to link') ||
+      lowerText.includes('i need to link') ||
+      lowerText.includes('help me link') ||
+      lowerText.includes('help me connect') ||
+      lowerText.includes('i want to connect') ||
+      lowerText.includes('i need to connect') ||
+      lowerText.includes('can you link me') ||
+      lowerText.includes('can you connect me') ||
+      lowerText.includes('please link') ||
+      lowerText.includes('please connect') ||
+      lowerText.includes('link up') ||
+      lowerText.includes('hook me up') ||
+      lowerText.includes('get me connected') ||
+      lowerText.includes('join flash') ||
+      lowerText.includes('join the network') ||
+      lowerText.includes('add my flash account') ||
+      lowerText.includes('add flash account') ||
+      lowerText.includes('connect wallet') ||
+      lowerText.includes('link wallet') ||
+      lowerText.includes('setup wallet') ||
+      lowerText.includes('configure my account') ||
       lowerText === 'link me' ||
-      lowerText === 'connect me'
+      lowerText === 'connect me' ||
+      lowerText === 'link' ||
+      lowerText === 'connect' ||
+      lowerText === 'setup' ||
+      lowerText === 'register' ||
+      lowerText === 'authenticate' ||
+      lowerText === 'auth'
     ) {
       return { type: CommandType.LINK, args: {}, rawText: text };
     }
@@ -308,7 +521,50 @@ export class CommandParserService {
       lowerText.includes('transaction history') ||
       lowerText.includes('show my transactions') ||
       lowerText.includes('recent transactions') ||
-      lowerText.includes('payment history')
+      lowerText.includes('payment history') ||
+      lowerText.includes('my transactions') ||
+      lowerText.includes('list transactions') ||
+      lowerText.includes('display transactions') ||
+      lowerText.includes('check history') ||
+      lowerText.includes('check transactions') ||
+      lowerText.includes('view history') ||
+      lowerText.includes('view transactions') ||
+      lowerText.includes('see history') ||
+      lowerText.includes('see transactions') ||
+      lowerText.includes('past transactions') ||
+      lowerText.includes('previous transactions') ||
+      lowerText.includes('transaction log') ||
+      lowerText.includes('payment log') ||
+      lowerText.includes('activity log') ||
+      lowerText.includes('my activity') ||
+      lowerText.includes('account activity') ||
+      lowerText.includes('wallet activity') ||
+      lowerText.includes('recent activity') ||
+      lowerText.includes('show activity') ||
+      lowerText.includes('what did i send') ||
+      lowerText.includes('what did i receive') ||
+      lowerText.includes('what have i sent') ||
+      lowerText.includes('what have i received') ||
+      lowerText.includes('my payments') ||
+      lowerText.includes('show payments') ||
+      lowerText.includes('list payments') ||
+      lowerText.includes('payment record') ||
+      lowerText.includes('transaction record') ||
+      lowerText.includes('spending history') ||
+      lowerText.includes('earning history') ||
+      lowerText.includes('money history') ||
+      lowerText.includes('funds history') ||
+      lowerText.includes('bitcoin history') ||
+      lowerText.includes('btc history') ||
+      lowerText.includes('flash history') ||
+      lowerText === 'history' ||
+      lowerText === 'hist' ||
+      lowerText === 'transactions' ||
+      lowerText === 'tx' ||
+      lowerText === 'txs' ||
+      lowerText === 'activity' ||
+      lowerText === 'log' ||
+      lowerText === 'records'
     ) {
       return { type: CommandType.HISTORY, args: {}, rawText: text };
     }
@@ -319,7 +575,46 @@ export class CommandParserService {
       lowerText.includes('receive payment') ||
       lowerText.includes('get paid') ||
       lowerText.includes('request money') ||
-      lowerText.includes('create invoice')
+      lowerText.includes('create invoice') ||
+      lowerText.includes('generate invoice') ||
+      lowerText.includes('make invoice') ||
+      lowerText.includes('create payment request') ||
+      lowerText.includes('generate payment request') ||
+      lowerText.includes('request payment') ||
+      lowerText.includes('ask for money') ||
+      lowerText.includes('ask for payment') ||
+      lowerText.includes('i want to receive') ||
+      lowerText.includes('i need to receive') ||
+      lowerText.includes('help me receive') ||
+      lowerText.includes('let me receive') ||
+      lowerText.includes('can i receive') ||
+      lowerText.includes('how to receive') ||
+      lowerText.includes('receive funds') ||
+      lowerText.includes('accept payment') ||
+      lowerText.includes('accept money') ||
+      lowerText.includes('collect payment') ||
+      lowerText.includes('collect money') ||
+      lowerText.includes('get money') ||
+      lowerText.includes('get funds') ||
+      lowerText.includes('invoice me') ||
+      lowerText.includes('bill someone') ||
+      lowerText.includes('charge someone') ||
+      lowerText.includes('payment link') ||
+      lowerText.includes('payment code') ||
+      lowerText.includes('qr code') ||
+      lowerText.includes('generate qr') ||
+      lowerText.includes('create qr') ||
+      lowerText.includes('show qr') ||
+      lowerText.includes('display qr') ||
+      lowerText.includes('lightning invoice') ||
+      lowerText.includes('ln invoice') ||
+      lowerText.includes('bolt11') ||
+      lowerText === 'receive' ||
+      lowerText === 'recv' ||
+      lowerText === 'invoice' ||
+      lowerText === 'inv' ||
+      lowerText === 'qr' ||
+      lowerText === 'collect'
     ) {
       // Try to extract amount if mentioned
       const amountMatch = text.match(/(\d+(?:\.\d+)?)/);
@@ -331,6 +626,254 @@ export class CommandParserService {
         };
       }
       return { type: CommandType.RECEIVE, args: {}, rawText: text };
+    }
+
+    // Contacts variations
+    if (
+      lowerText.includes('my contacts') ||
+      lowerText.includes('show contacts') ||
+      lowerText.includes('list contacts') ||
+      lowerText.includes('view contacts') ||
+      lowerText.includes('see contacts') ||
+      lowerText.includes('address book') ||
+      lowerText.includes('phone book') ||
+      lowerText.includes('contact list') ||
+      lowerText.includes('saved contacts') ||
+      lowerText.includes('add contact') ||
+      lowerText.includes('add a contact') ||
+      lowerText.includes('save contact') ||
+      lowerText.includes('save a contact') ||
+      lowerText.includes('new contact') ||
+      lowerText.includes('create contact') ||
+      lowerText.includes('store contact') ||
+      lowerText.includes('add phone number') ||
+      lowerText.includes('save phone number') ||
+      lowerText.includes('add number') ||
+      lowerText.includes('save number') ||
+      lowerText.includes('remove contact') ||
+      lowerText.includes('delete contact') ||
+      lowerText.includes('erase contact') ||
+      lowerText.includes('clear contact') ||
+      lowerText.includes('manage contacts') ||
+      lowerText.includes('contact management') ||
+      lowerText.includes('who are my contacts') ||
+      lowerText.includes('show me contacts') ||
+      lowerText.includes('i want to add a contact') ||
+      lowerText.includes('i need to add a contact') ||
+      lowerText.includes('help me add a contact') ||
+      lowerText === 'contacts' ||
+      lowerText === 'contact' ||
+      lowerText === 'addressbook' ||
+      lowerText === 'phonebook'
+    ) {
+      return { type: CommandType.CONTACTS, args: {}, rawText: text };
+    }
+
+    // Username variations
+    if (
+      lowerText.includes('set username') ||
+      lowerText.includes('change username') ||
+      lowerText.includes('update username') ||
+      lowerText.includes('modify username') ||
+      lowerText.includes('edit username') ||
+      lowerText.includes('pick username') ||
+      lowerText.includes('choose username') ||
+      lowerText.includes('select username') ||
+      lowerText.includes('create username') ||
+      lowerText.includes('make username') ||
+      lowerText.includes('my username') ||
+      lowerText.includes('check username') ||
+      lowerText.includes('view username') ||
+      lowerText.includes('see username') ||
+      lowerText.includes('show username') ||
+      lowerText.includes('what is my username') ||
+      lowerText.includes('whats my username') ||
+      lowerText.includes('change my name') ||
+      lowerText.includes('update my name') ||
+      lowerText.includes('set my name') ||
+      lowerText.includes('i want to change my username') ||
+      lowerText.includes('i need to change my username') ||
+      lowerText.includes('help me change my username') ||
+      lowerText.includes('can i change my username') ||
+      lowerText.includes('how to change username') ||
+      lowerText.includes('username available') ||
+      lowerText.includes('is username taken') ||
+      lowerText.includes('check if username') ||
+      lowerText === 'username' ||
+      lowerText === 'user' ||
+      lowerText === 'name' ||
+      lowerText === 'handle' ||
+      lowerText === 'alias'
+    ) {
+      return { type: CommandType.USERNAME, args: {}, rawText: text };
+    }
+
+    // Voice settings variations
+    if (
+      lowerText.includes('voice settings') ||
+      lowerText.includes('voice mode') ||
+      lowerText.includes('voice options') ||
+      lowerText.includes('voice preferences') ||
+      lowerText.includes('audio settings') ||
+      lowerText.includes('audio mode') ||
+      lowerText.includes('speech settings') ||
+      lowerText.includes('turn on voice') ||
+      lowerText.includes('turn off voice') ||
+      lowerText.includes('enable voice') ||
+      lowerText.includes('disable voice') ||
+      lowerText.includes('activate voice') ||
+      lowerText.includes('deactivate voice') ||
+      lowerText.includes('voice on') ||
+      lowerText.includes('voice off') ||
+      lowerText.includes('voice only') ||
+      lowerText.includes('only voice') ||
+      lowerText.includes('just voice') ||
+      lowerText.includes('voice status') ||
+      lowerText.includes('check voice') ||
+      lowerText.includes('voice help') ||
+      lowerText.includes('stop talking') ||
+      lowerText.includes('start talking') ||
+      lowerText.includes('speak to me') ||
+      lowerText.includes('dont speak') ||
+      lowerText.includes('no voice') ||
+      lowerText.includes('mute voice') ||
+      lowerText.includes('unmute voice') ||
+      lowerText.includes('i want voice') ||
+      lowerText.includes('i dont want voice') ||
+      lowerText.includes('text only') ||
+      lowerText.includes('no audio') ||
+      lowerText === 'voice' ||
+      lowerText === 'audio' ||
+      lowerText === 'speech' ||
+      lowerText === 'tts'
+    ) {
+      return { type: CommandType.VOICE, args: {}, rawText: text };
+    }
+
+    // Pending payments variations
+    if (
+      lowerText.includes('pending payments') ||
+      lowerText.includes('pending transactions') ||
+      lowerText.includes('unclaimed payments') ||
+      lowerText.includes('unclaimed money') ||
+      lowerText.includes('waiting payments') ||
+      lowerText.includes('outstanding payments') ||
+      lowerText.includes('claim payment') ||
+      lowerText.includes('claim money') ||
+      lowerText.includes('claim funds') ||
+      lowerText.includes('collect pending') ||
+      lowerText.includes('pending sent') ||
+      lowerText.includes('pending received') ||
+      lowerText.includes('payments i sent') ||
+      lowerText.includes('payments i received') ||
+      lowerText.includes('check pending') ||
+      lowerText.includes('view pending') ||
+      lowerText.includes('see pending') ||
+      lowerText.includes('show pending') ||
+      lowerText.includes('list pending') ||
+      lowerText.includes('my pending') ||
+      lowerText.includes('pending balance') ||
+      lowerText.includes('pending funds') ||
+      lowerText.includes('uncollected payments') ||
+      lowerText.includes('unredeemed payments') ||
+      lowerText.includes('payments waiting') ||
+      lowerText.includes('money waiting') ||
+      lowerText === 'pending' ||
+      lowerText === 'claim' ||
+      lowerText === 'unclaimed'
+    ) {
+      return { type: CommandType.PENDING, args: {}, rawText: text };
+    }
+
+    // Pay/confirmation variations
+    if (
+      lowerText.includes('confirm payment') ||
+      lowerText.includes('cancel payment') ||
+      lowerText.includes('confirm transaction') ||
+      lowerText.includes('cancel transaction') ||
+      lowerText.includes('approve payment') ||
+      lowerText.includes('reject payment') ||
+      lowerText.includes('pay confirm') ||
+      lowerText.includes('pay cancel') ||
+      lowerText.includes('payment confirmation') ||
+      lowerText.includes('transaction confirmation') ||
+      lowerText.includes('verify payment') ||
+      lowerText.includes('verify transaction') ||
+      lowerText.includes('complete payment') ||
+      lowerText.includes('finish payment') ||
+      lowerText.includes('finalize payment') ||
+      lowerText.includes('abort payment') ||
+      lowerText.includes('stop payment') ||
+      lowerText.includes('yes confirm') ||
+      lowerText.includes('no cancel') ||
+      lowerText === 'pay' ||
+      lowerText === 'confirm' ||
+      lowerText === 'cancel' ||
+      lowerText === 'yes' ||
+      lowerText === 'no' ||
+      lowerText === 'approve' ||
+      lowerText === 'reject'
+    ) {
+      return { type: CommandType.PAY, args: {}, rawText: text };
+    }
+
+    // Unlink variations
+    if (
+      lowerText.includes('unlink account') ||
+      lowerText.includes('disconnect account') ||
+      lowerText.includes('remove account') ||
+      lowerText.includes('delete account') ||
+      lowerText.includes('logout') ||
+      lowerText.includes('log out') ||
+      lowerText.includes('sign out') ||
+      lowerText.includes('signout') ||
+      lowerText.includes('disconnect me') ||
+      lowerText.includes('unlink me') ||
+      lowerText.includes('remove me') ||
+      lowerText.includes('i want to unlink') ||
+      lowerText.includes('i need to unlink') ||
+      lowerText.includes('help me unlink') ||
+      lowerText.includes('can you unlink me') ||
+      lowerText.includes('please unlink') ||
+      lowerText.includes('deactivate account') ||
+      lowerText.includes('close account') ||
+      lowerText === 'unlink' ||
+      lowerText === 'disconnect' ||
+      lowerText === 'logout' ||
+      lowerText === 'signout'
+    ) {
+      return { type: CommandType.UNLINK, args: {}, rawText: text };
+    }
+
+    // Refresh variations
+    if (
+      lowerText === 'refresh' ||
+      lowerText === 'reload' ||
+      lowerText === 'update' ||
+      lowerText === 'sync' ||
+      lowerText.includes('refresh balance') ||
+      lowerText.includes('update balance') ||
+      lowerText.includes('sync balance') ||
+      lowerText.includes('reload balance') ||
+      lowerText.includes('refresh data') ||
+      lowerText.includes('update data') ||
+      lowerText.includes('sync data') ||
+      lowerText.includes('reload data')
+    ) {
+      return { type: CommandType.REFRESH, args: {}, rawText: text };
+    }
+
+    // Admin variations (be careful with these)
+    if (
+      lowerText.includes('admin help') ||
+      lowerText.includes('admin status') ||
+      lowerText.includes('admin settings') ||
+      lowerText.includes('admin mode') ||
+      lowerText.includes('admin panel') ||
+      lowerText.includes('admin commands') ||
+      lowerText === 'admin'
+    ) {
+      return { type: CommandType.ADMIN, args: {}, rawText: text };
     }
 
     return { type: CommandType.UNKNOWN, args: {}, rawText: text };
@@ -539,19 +1082,41 @@ export class CommandParserService {
       sen: 'send',
       sedn: 'send',
       sned: 'send',
+      sand: 'send',
+      sed: 'send',
+      sende: 'send',
+      sendd: 'send',
+      transfer: 'send',
+      wire: 'send',
+      zap: 'send',
 
       // Receive command variations
       recieve: 'receive',
       recive: 'receive',
       recv: 'receive',
       rec: 'receive',
+      receve: 'receive',
+      receiv: 'receive',
+      invoice: 'receive',
+      inv: 'receive',
+      qr: 'receive',
+      collect: 'receive',
 
       // Balance shortcuts
       bal: 'balance',
       balnce: 'balance',
       balanc: 'balance',
       balalce: 'balance',
+      ballance: 'balance',
+      balence: 'balance',
+      blance: 'balance',
+      blaance: 'balance',
+      money: 'balance',
+      funds: 'balance',
+      wallet: 'balance',
       $: 'balance',
+      '$$': 'balance',
+      '$$$': 'balance',
 
       // History shortcuts
       hist: 'history',
@@ -559,36 +1124,113 @@ export class CommandParserService {
       histroy: 'history',
       txs: 'history',
       tx: 'history',
+      transactions: 'history',
+      trans: 'history',
+      log: 'history',
+      logs: 'history',
+      activity: 'history',
+      activities: 'history',
+      records: 'history',
 
       // Price shortcuts
       btc: 'price',
+      bitcoin: 'price',
       rate: 'price',
       rates: 'price',
+      exchange: 'price',
+      market: 'price',
+      value: 'price',
+      cost: 'price',
+      worth: 'price',
 
       // Contact variations
       contact: 'contacts',
       contacs: 'contacts',
       contcts: 'contacts',
+      cntacts: 'contacts',
+      conts: 'contacts',
+      addressbook: 'contacts',
+      phonebook: 'contacts',
+      directory: 'contacts',
 
       // Link variations
       conect: 'link',
       connect: 'link',
       lnk: 'link',
+      llink: 'link',
+      linnk: 'link',
+      setup: 'link',
+      auth: 'link',
+      authenticate: 'link',
+      register: 'link',
+      join: 'link',
 
       // Request variations
       req: 'request',
       requst: 'request',
       rquest: 'request',
+      requets: 'request',
+      requeset: 'request',
 
       // Help variations
       hlp: 'help',
       halp: 'help',
       hepl: 'help',
+      hellp: 'help',
+      hhelp: 'help',
+      info: 'help',
+      information: 'help',
+      commands: 'help',
+      menu: 'help',
+      options: 'help',
+      '?': 'help',
+      '??': 'help',
+      h: 'help',
 
       // Username variations
       user: 'username',
       usrname: 'username',
       uname: 'username',
+      usernme: 'username',
+      usrnam: 'username',
+      name: 'username',
+      handle: 'username',
+      alias: 'username',
+
+      // Voice variations
+      audio: 'voice',
+      speech: 'voice',
+      tts: 'voice',
+      speak: 'voice',
+      sound: 'voice',
+      vocie: 'voice',
+      voic: 'voice',
+      vioce: 'voice',
+
+      // Pending variations
+      pendng: 'pending',
+      pnding: 'pending',
+      pendign: 'pending',
+      claim: 'pending',
+      unclaimed: 'pending',
+      waiting: 'pending',
+      outstanding: 'pending',
+
+      // Refresh variations
+      reload: 'refresh',
+      update: 'refresh',
+      sync: 'refresh',
+      refesh: 'refresh',
+      refrsh: 'refresh',
+      refres: 'refresh',
+
+      // Unlink variations
+      logout: 'unlink',
+      signout: 'unlink',
+      disconnect: 'unlink',
+      unlnk: 'unlink',
+      unlik: 'unlink',
+      remove: 'unlink',
 
       // Help navigation
       more: 'help more',

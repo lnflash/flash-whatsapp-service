@@ -24,6 +24,7 @@ import { SupportModeService } from './support-mode.service';
 import { TtsService } from '../../tts/tts.service';
 import { PaymentConfirmationService } from './payment-confirmation.service';
 import { UserVoiceSettingsService } from './user-voice-settings.service';
+import { VoiceResponseService } from './voice-response.service';
 import { PaymentSendResult, WalletCurrency } from '../../flash-api/services/payment.service';
 
 describe('WhatsappService', () => {
@@ -242,6 +243,12 @@ describe('WhatsappService', () => {
           useValue: {
             getUserVoiceMode: jest.fn().mockResolvedValue('on'),
             setUserVoiceMode: jest.fn(),
+          },
+        },
+        {
+          provide: VoiceResponseService,
+          useValue: {
+            generateNaturalVoiceResponse: jest.fn().mockResolvedValue('This is a natural voice response'),
           },
         },
       ],

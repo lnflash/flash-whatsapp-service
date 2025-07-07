@@ -75,8 +75,8 @@ export class GeminiAiService {
         return this.getFallbackResponse(query);
       }
 
-      // Check cache first
-      const cacheKey = `ai:query:${this.hashString(query)}`;
+      // Check cache first (include voice mode in cache key)
+      const cacheKey = `ai:query:${this.hashString(query)}:${context.isVoiceMode ? 'voice' : 'text'}`;
       const cachedResponse = await this.redisService.get(cacheKey);
 
       if (cachedResponse) {
@@ -131,6 +131,18 @@ export class GeminiAiService {
             .join('\n\n')}`
         : '';
 
+    // Different instructions for voice mode
+    const voiceModeInstructions = context.isVoiceMode ? `
+VOICE MODE INSTRUCTIONS:
+- You are responding to a VOICE message, so make your response conversational and natural
+- Speak as if having a friendly phone conversation
+- Don't use symbols like asterisks, backticks, or emojis
+- Don't mention typing or written commands - instead say things like "just say" or "you can ask me to"
+- Use complete sentences and natural speech patterns
+- Be warm, friendly, and conversational
+- Example: Instead of "Type 'balance' to check your balance", say "Just say balance and I'll tell you how much money you have"
+` : '';
+
     return `You are Pulse, a WhatsApp bot that helps users with their Bitcoin wallet and payment needs in the Caribbean.
 
 YOUR IDENTITY:
@@ -145,12 +157,14 @@ Style: ${CONVERSATION_CONTEXT.personality.style}
 
 IMPORTANT RULES:
 ${CONVERSATION_CONTEXT.important_rules.map((rule) => `- ${rule}`).join('\n')}
+${voiceModeInstructions}
 
 CURRENT USER CONTEXT:
 - Authenticated: ${context.userId ? 'Yes' : 'No'}
 - Has given AI consent: ${context.consentGiven ? 'Yes' : 'No'}
 - Phone: ${context.phoneNumber || 'Not provided'}
 - Last command used: ${context.lastCommand || 'None'}
+- Response Mode: ${context.isVoiceMode ? 'VOICE (conversational)' : 'TEXT (written)'}
 
 AVAILABLE COMMANDS:
 ${commandReference}
@@ -173,13 +187,13 @@ Instructions:
 3. For the "receive" command, ALWAYS remind users it's USD only (not BTC)
 4. Prioritize CLARITY and UNDERSTANDING - provide complete explanations
 5. Be helpful and informative, explaining things clearly
-6. For commands, show examples and explain what they do
+6. ${context.isVoiceMode ? 'Speak naturally - avoid technical jargon and command syntax' : 'For commands, show examples and explain what they do'}
 7. For typos like "sent" instead of "send", explain the correct usage
 8. Provide COMPLETE responses - do NOT truncate or cut off mid-sentence
 9. Responses can be as long as needed to fully answer the question
 10. For technical topics like Lightning Addresses, match the complexity level to the user's question
 
-Please provide a clear, complete, and helpful response:`;
+Please provide a ${context.isVoiceMode ? 'natural, conversational' : 'clear, complete, and helpful'} response:`;
   }
 
   /**
