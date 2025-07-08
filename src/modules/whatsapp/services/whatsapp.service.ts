@@ -426,6 +426,9 @@ export class WhatsappService {
         case CommandType.VOICE:
           return this.handleVoiceCommand(command, whatsappId);
 
+        case CommandType.SETTINGS:
+          return this.handleSettingsCommand(command, whatsappId, session);
+
         case CommandType.ADMIN:
           return this.handleAdminCommand(command, whatsappId, phoneNumber);
 
@@ -1229,6 +1232,7 @@ Need a new code? Type \`link\` again.`;
 3️⃣ Receive - Get paid
 
 Type a number for details or:
+• \`settings\` - View your settings
 • \`more\` - See all commands
 • \`support\` - Get help
 
@@ -1264,6 +1268,7 @@ Type a number for details or:
 
 🎙️ *Voice & Settings:*
 • \`voice on/off/only\` - Voice settings
+• \`settings\` - View all your settings
 • \`vybz\` - Earn sats
 • \`pending\` - View pending payments
 
@@ -3763,6 +3768,114 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
     } catch (error) {
       this.logger.error(`Error handling voice command: ${error.message}`);
       return '❌ Failed to update voice settings. Please try again.';
+    }
+  }
+
+  /**
+   * Handle settings command - display all user settings
+   */
+  private async handleSettingsCommand(
+    command: ParsedCommand,
+    whatsappId: string,
+    session: UserSession | null,
+  ): Promise<string> {
+    try {
+      let settingsMessage = '⚙️ *Your Settings*\n\n';
+
+      // Account Settings
+      settingsMessage += '👤 *Account*\n';
+      if (session && session.isVerified) {
+        settingsMessage += `✅ Linked to Flash account\n`;
+        
+        // Get username and currency info
+        if (session.flashUserId && session.flashAuthToken) {
+          // Get username
+          const username = await this.usernameService.getUsername(session.flashAuthToken);
+          if (username) {
+            settingsMessage += `📛 Username: @${username}\n`;
+          } else {
+            settingsMessage += `📛 Username: Not set\n`;
+            settingsMessage += `   → Type \`username [new_username]\` to set one\n`;
+          }
+          
+          // Get balance for currency display
+          const balance = await this.balanceService.getUserBalance(
+            session.flashUserId,
+            session.flashAuthToken,
+          );
+          
+          if (balance?.fiatCurrency) {
+            settingsMessage += `💱 Currency: ${balance.fiatCurrency}\n`;
+          }
+        }
+        
+        settingsMessage += `📱 Phone: ${session.phoneNumber}\n`;
+      } else {
+        settingsMessage += `❌ Not linked to Flash\n`;
+        settingsMessage += `   → Type \`link\` to connect your account\n`;
+      }
+
+      settingsMessage += '\n';
+
+      // Voice Settings
+      settingsMessage += '🔊 *Voice Settings*\n';
+      const userVoiceMode = await this.userVoiceSettingsService.getUserVoiceMode(whatsappId);
+      const userVoice = await this.userVoiceSettingsService.getUserVoice(whatsappId);
+      
+      if (userVoiceMode) {
+        settingsMessage += `Mode: ${this.userVoiceSettingsService.formatVoiceMode(userVoiceMode)}\n`;
+      } else {
+        const adminMode = await this.adminSettingsService.getVoiceMode();
+        settingsMessage += `Mode: Default (${adminMode})\n`;
+      }
+      
+      const voiceName = userVoice || 'terri-ann';
+      const voiceDisplay = voiceName === 'terri-ann' ? 'Terri-Ann' : 
+                          voiceName === 'patience' ? 'Patience' : 'Dean';
+      settingsMessage += `Voice: ${voiceDisplay}\n`;
+      settingsMessage += `   → Type \`voice help\` for voice options\n`;
+
+      settingsMessage += '\n';
+
+      // AI Support Settings
+      settingsMessage += '🤖 *AI Support*\n';
+      if (session && session.consentGiven) {
+        settingsMessage += `✅ AI assistance enabled\n`;
+        settingsMessage += `   → Type \`consent no\` to disable\n`;
+      } else {
+        settingsMessage += `❌ AI assistance disabled\n`;
+        settingsMessage += `   → Type \`consent yes\` to enable\n`;
+      }
+
+      settingsMessage += '\n';
+
+      // Notification Settings (future feature placeholder)
+      settingsMessage += '🔔 *Notifications*\n';
+      settingsMessage += `Payment alerts: ✅ Enabled\n`;
+      settingsMessage += `Transaction updates: ✅ Enabled\n`;
+
+      settingsMessage += '\n';
+
+      // Privacy Settings
+      settingsMessage += '🔒 *Privacy*\n';
+      if (session && session.isVerified) {
+        settingsMessage += `Session security: ✅ Active\n`;
+        settingsMessage += `   → Type \`unlink\` to disconnect\n`;
+      }
+
+      settingsMessage += '\n';
+
+      // Quick Actions
+      settingsMessage += '⚡ *Quick Actions*\n';
+      settingsMessage += `• \`username [new]\` - Change username\n`;
+      settingsMessage += `• \`voice status\` - Voice settings\n`;
+      settingsMessage += `• \`consent yes/no\` - AI support\n`;
+      settingsMessage += `• \`help\` - View all commands\n`;
+
+      return settingsMessage.trim();
+    } catch (error) {
+      this.logger.error(`Error handling settings command: ${error.message}`);
+      return '❌ Failed to retrieve settings. Please try again.';
     }
   }
 

@@ -20,6 +20,7 @@ export enum CommandType {
   ADMIN = 'admin',
   PENDING = 'pending',
   VOICE = 'voice',
+  SETTINGS = 'settings',
   UNKNOWN = 'unknown',
 }
 
@@ -75,6 +76,7 @@ export class CommandParserService {
     },
     { type: CommandType.PENDING, pattern: /^pending(?:\s+(sent|received|claim))?(?:\s+(.+))?$/i },
     { type: CommandType.VOICE, pattern: /^voice(?:\s+(on|off|only|status|help|1|2|3))?$/i },
+    { type: CommandType.SETTINGS, pattern: /^settings?$/i },
   ];
 
   /**
@@ -874,6 +876,33 @@ export class CommandParserService {
       lowerText === 'admin'
     ) {
       return { type: CommandType.ADMIN, args: {}, rawText: text };
+    }
+
+    // Settings variations
+    if (
+      lowerText === 'settings' ||
+      lowerText === 'setting' ||
+      lowerText === 'preferences' ||
+      lowerText === 'preference' ||
+      lowerText === 'config' ||
+      lowerText === 'configuration' ||
+      lowerText.includes('my settings') ||
+      lowerText.includes('show settings') ||
+      lowerText.includes('view settings') ||
+      lowerText.includes('check settings') ||
+      lowerText.includes('current settings') ||
+      lowerText.includes('my preferences') ||
+      lowerText.includes('show preferences') ||
+      lowerText.includes('view preferences') ||
+      lowerText.includes('my configuration') ||
+      lowerText.includes('show configuration') ||
+      lowerText.includes('what are my settings') ||
+      lowerText.includes('show me my settings') ||
+      lowerText.includes('i want to see my settings') ||
+      lowerText.includes('display my settings') ||
+      lowerText.includes('list my settings')
+    ) {
+      return { type: CommandType.SETTINGS, args: {}, rawText: text };
     }
 
     return { type: CommandType.UNKNOWN, args: {}, rawText: text };

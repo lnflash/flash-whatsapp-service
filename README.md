@@ -153,6 +153,7 @@ Users can send these commands to the WhatsApp bot:
 - `consent yes/no` - Manage AI support consent
 - `voice on/off/only/status` - Manage voice response settings
 - `voice 1/2/3` - Select voice: Terri-Ann, Patience, or Dean
+- `settings` - View all your settings and preferences
 - `help` - Show available commands
 
 ### Admin Commands

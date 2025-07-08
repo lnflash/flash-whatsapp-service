@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support for ELEVENLABS_VOICE_ID2 and ELEVENLABS_VOICE_ID3 environment variables
 - User-specific voice preference storage in Redis
 - Voice selection information in voice status command
+- Comprehensive settings menu with `settings` command
+- Natural language support for settings command (my settings, show settings, etc.)
 
 ## [2.0.0] - 2025-01-03
 
