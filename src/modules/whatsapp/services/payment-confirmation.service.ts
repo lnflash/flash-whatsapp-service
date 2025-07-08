@@ -85,6 +85,24 @@ export class PaymentConfirmationService {
   }
 
   /**
+   * Check if a message is a confirmation
+   */
+  isConfirmation(message: string): boolean {
+    const lowerMessage = message.toLowerCase().trim();
+    const confirmWords = ['yes', 'y', 'ok', 'okay', 'confirm', 'pay', 'send'];
+    return confirmWords.includes(lowerMessage);
+  }
+
+  /**
+   * Check if a message is a cancellation
+   */
+  isCancellation(message: string): boolean {
+    const lowerMessage = message.toLowerCase().trim();
+    const cancelWords = ['no', 'n', 'cancel', 'stop', 'abort'];
+    return cancelWords.includes(lowerMessage);
+  }
+
+  /**
    * Format payment details for confirmation message
    */
   formatPaymentDetails(command: ParsedCommand): string {
@@ -92,7 +110,29 @@ export class PaymentConfirmationService {
 
     if (command.type === 'send') {
       const recipient = args.recipient || args.username || args.phoneNumber || 'unknown';
-      return `Send $${args.amount} to ${recipient}${args.memo ? ` with memo: "${args.memo}"` : ''}`;
+      let details = '';
+      
+      // Add recipient info
+      if (args.username) {
+        details += `📤 *To*: @${args.username}\n`;
+      } else if (args.phoneNumber) {
+        details += `📤 *To*: ${args.phoneNumber}\n`;
+      } else if (args.recipient) {
+        details += `📤 *To*: ${args.recipient}\n`;
+      }
+      
+      // Add amount
+      details += `💵 *Amount*: $${args.amount} USD\n`;
+      
+      // Add memo if present
+      if (args.memo) {
+        details += `📝 *Memo*: "${args.memo}"\n`;
+      }
+      
+      // Add fees notice
+      details += `\n⚡ *Network*: Lightning (instant, no fees)`;
+      
+      return details;
     } else if (command.type === 'request') {
       const from = args.username || args.phoneNumber || 'unknown';
       return `Request $${args.amount} from ${from}`;

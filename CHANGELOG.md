@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Voice selection information in voice status command
 - Comprehensive settings menu with `settings` command
 - Natural language support for settings command (my settings, show settings, etc.)
+- Mandatory payment confirmation for all send commands with detailed summary
+- Support for "pay", "yes", "y", "ok", "confirm" as confirmation words
+- Enhanced payment confirmation display with recipient, amount, memo, and network info
 
 ## [2.0.0] - 2025-01-03
 

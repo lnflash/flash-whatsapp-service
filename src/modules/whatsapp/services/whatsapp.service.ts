@@ -279,49 +279,23 @@ export class WhatsappService {
       const pendingPayment = await this.paymentConfirmationService.getPendingPayment(whatsappId);
       if (pendingPayment) {
         // Check if this is a confirmation response
-        const confirmText = command.rawText.toLowerCase().trim();
-        // Flexible positive confirmations
-        const positiveResponses = [
-          'yes',
-          'y',
-          'ok',
-          'okay',
-          'sure',
-          'confirm',
-          'pay',
-          'send',
-          'go',
-          'proceed',
-          'yep',
-          'yeah',
-          'yup',
-        ];
-        const negativeResponses = [
-          'no',
-          'n',
-          'cancel',
-          'stop',
-          'abort',
-          'nope',
-          'nah',
-          'exit',
-          'quit',
-          'nevermind',
-          'forget it',
-        ];
+        const confirmText = command.rawText;
 
-        if (positiveResponses.includes(confirmText)) {
+        if (this.paymentConfirmationService.isConfirmation(confirmText)) {
           // Clear the pending payment and execute it
           await this.paymentConfirmationService.clearPendingPayment(whatsappId);
 
           // Execute the original command
           const originalCommand = pendingPayment.command;
+          // Mark as already confirmed to prevent infinite loop
+          originalCommand.args.requiresConfirmation = 'false';
+          
           if (originalCommand.type === CommandType.SEND) {
             return this.handleSendCommand(originalCommand, whatsappId, session);
           } else if (originalCommand.type === CommandType.REQUEST) {
             return this.handleRequestCommand(originalCommand, whatsappId, session);
           }
-        } else if (negativeResponses.includes(confirmText)) {
+        } else if (this.paymentConfirmationService.isCancellation(confirmText)) {
           // Cancel the pending payment
           await this.paymentConfirmationService.clearPendingPayment(whatsappId);
           return '❌ Payment cancelled.';
@@ -348,7 +322,7 @@ export class WhatsappService {
             return `🔄 Amount updated!\n\n${updatedDetails}\n\n✅ Type "yes" or "ok" to confirm\n❌ Type "no" or "cancel" to cancel`;
           }
 
-          return `⏳ You have a pending payment:\n\n${details}\n\n✅ Type "yes" or "ok" to confirm\n❌ Type "no" or "cancel" to cancel\n✏️ Or enter a new amount (e.g., "25")`;
+          return `⏳ *Pending Payment*\n\n${details}\n\n✅ Type *yes*, *ok*, or *pay* to confirm\n❌ Type *no* or *cancel* to cancel\n✏️ Or enter a new amount (e.g., "25")`;
         }
       }
 
@@ -358,18 +332,6 @@ export class WhatsappService {
         return lockdownMessage;
       }
 
-      // Check if this is a voice payment command that requires confirmation
-      if (command.args.requiresConfirmation === 'true') {
-        const details = this.paymentConfirmationService.formatPaymentDetails(command);
-        await this.paymentConfirmationService.storePendingPayment(
-          whatsappId,
-          phoneNumber,
-          command,
-          session?.sessionId,
-        );
-
-        return `🎤 Voice Payment Confirmation Required\n\n${details}\n\n✅ Type "yes" or "ok" to confirm\n❌ Type "no" or "cancel" to cancel\n✏️ Or enter a new amount (e.g., "25")\n\n⏱️ This request will expire in 5 minutes.`;
-      }
 
       switch (command.type) {
         case CommandType.HELP:
@@ -397,6 +359,23 @@ export class WhatsappService {
           return this.handlePriceCommand(whatsappId, session);
 
         case CommandType.SEND:
+          // Check if send command needs confirmation
+          if (command.args.requiresConfirmation !== 'false') {
+            command.args.requiresConfirmation = 'true';
+            // Store the command for confirmation
+            const details = this.paymentConfirmationService.formatPaymentDetails(command);
+            await this.paymentConfirmationService.storePendingPayment(
+              whatsappId,
+              phoneNumber,
+              command,
+              session?.sessionId,
+            );
+            
+            const isVoiceCommand = command.args.isVoiceCommand === 'true';
+            const header = isVoiceCommand ? '🎤 *Voice Payment Confirmation*' : '💸 *Payment Confirmation*';
+            
+            return `${header}\n\n${details}\n\n✅ Type *yes*, *ok*, or *pay* to confirm\n❌ Type *no* or *cancel* to cancel\n✏️ Or enter a new amount (e.g., "25")\n\n⏱️ This request will expire in 5 minutes.`;
+          }
           return this.handleSendCommand(command, whatsappId, session);
 
         case CommandType.RECEIVE:
@@ -1526,6 +1505,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
         return parsedResult.error;
       }
       const amount = parsedResult.amount!;
+
 
       // Determine recipient type
       let targetUsername = command.args.username;

@@ -34,6 +34,7 @@ This service uses WhatsApp Web.js to provide a seamless integration between Flas
 ## Features
 
 - ✅ Phone number-based account linking with OTP verification
+- ✅ Payment confirmation for all send commands with detailed summary
 - ✅ Real-time balance checking with automatic currency conversion
 - ✅ Smart caching (30-second TTL) with manual refresh option
 - ✅ Multi-currency support (USD, JMD, EUR, etc.)
@@ -142,7 +143,7 @@ Users can send these commands to the WhatsApp bot:
 - `receive [amount] [memo]` - Create USD Lightning invoice
 - `request [amount] from [target]` - Request payment (username/phone/contact)
 - `pay` - Pay detected Lightning invoices (with confirm/cancel options)
-- `send [amount] to [target]` - Send payment to username/phone/contact
+- `send [amount] to [target]` - Send payment to username/phone/contact (requires confirmation)
 - `contacts` - Manage saved contacts
 - `history` - View recent transaction history
 - `pending` - View and manage pending payments (sent/received/claim)

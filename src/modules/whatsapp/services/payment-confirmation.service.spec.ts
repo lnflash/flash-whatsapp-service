@@ -169,7 +169,10 @@ describe('PaymentConfirmationService', () => {
   describe('formatPaymentDetails', () => {
     it('should format send command details', () => {
       const result = service.formatPaymentDetails(mockCommand);
-      expect(result).toBe('Send $10 to alice with memo: "test payment"');
+      expect(result).toContain('📤 *To*: alice');
+      expect(result).toContain('💵 *Amount*: $10 USD');
+      expect(result).toContain('📝 *Memo*: "test payment"');
+      expect(result).toContain('⚡ *Network*: Lightning');
     });
 
     it('should format send command without memo', () => {
@@ -179,7 +182,10 @@ describe('PaymentConfirmationService', () => {
         args: argsWithoutMemo,
       };
       const result = service.formatPaymentDetails(commandNoMemo);
-      expect(result).toBe('Send $10 to alice');
+      expect(result).toContain('📤 *To*: alice');
+      expect(result).toContain('💵 *Amount*: $10 USD');
+      expect(result).not.toContain('📝 *Memo*:');
+      expect(result).toContain('⚡ *Network*: Lightning');
     });
 
     it('should format request command details', () => {
@@ -203,6 +209,44 @@ describe('PaymentConfirmationService', () => {
       };
       const result = service.formatPaymentDetails(unknownCommand);
       expect(result).toBe('Unknown payment');
+    });
+  });
+
+  describe('isConfirmation', () => {
+    it('should return true for confirmation words', () => {
+      expect(service.isConfirmation('yes')).toBe(true);
+      expect(service.isConfirmation('YES')).toBe(true);
+      expect(service.isConfirmation('y')).toBe(true);
+      expect(service.isConfirmation('ok')).toBe(true);
+      expect(service.isConfirmation('okay')).toBe(true);
+      expect(service.isConfirmation('confirm')).toBe(true);
+      expect(service.isConfirmation('pay')).toBe(true);
+      expect(service.isConfirmation('send')).toBe(true);
+    });
+
+    it('should return false for non-confirmation words', () => {
+      expect(service.isConfirmation('no')).toBe(false);
+      expect(service.isConfirmation('cancel')).toBe(false);
+      expect(service.isConfirmation('maybe')).toBe(false);
+      expect(service.isConfirmation('hello')).toBe(false);
+    });
+  });
+
+  describe('isCancellation', () => {
+    it('should return true for cancellation words', () => {
+      expect(service.isCancellation('no')).toBe(true);
+      expect(service.isCancellation('NO')).toBe(true);
+      expect(service.isCancellation('n')).toBe(true);
+      expect(service.isCancellation('cancel')).toBe(true);
+      expect(service.isCancellation('stop')).toBe(true);
+      expect(service.isCancellation('abort')).toBe(true);
+    });
+
+    it('should return false for non-cancellation words', () => {
+      expect(service.isCancellation('yes')).toBe(false);
+      expect(service.isCancellation('ok')).toBe(false);
+      expect(service.isCancellation('maybe')).toBe(false);
+      expect(service.isCancellation('hello')).toBe(false);
     });
   });
 
