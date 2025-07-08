@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2025-07-08
+
+### Added
+- Natural language voice responses for all commands powered by AI
+- ElevenLabs integration for ultra-realistic voice synthesis in voice-only mode
+- Transaction details view with voice narration (`history <transaction_id>`)
+- 200+ natural language pattern variations for command recognition
+- Voice response service to transform technical outputs into conversational language
+- Support for voice mode context in Gemini AI responses
+- Automatic provider selection (ElevenLabs for voice-only users, Google Cloud for others)
+
+### Changed
+- Voice-only mode now provides natural, conversational responses instead of reading command output
+- Enhanced NLP patterns with extensive word-to-number conversion
+- Improved typo correction for common command mistakes
+- TTS service now accepts WhatsApp ID for provider selection
+
+### Fixed
+- Critical bug where voice-only users heard instruction hints instead of actual command responses
+- Voice response preservation to prevent regeneration
+- Transaction ID formatting in history command
+- Auth token validation in getTransactionDetails
+
 ## [0.4.1] - 2025-06-29
 
 ### Added

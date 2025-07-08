@@ -49,10 +49,13 @@ This service uses WhatsApp Web.js to provide a seamless integration between Flas
 - ✅ Human support handoff with intelligent routing
 - ✅ Anonymous tip sending via DM
 - ✅ Group tip splitting for Flash users
-- ✅ Voice note support with Speech-to-Text
-- ✅ Natural language command processing
+- ✅ Voice note support with Speech-to-Text (Whisper AI / Google Cloud)
+- ✅ Natural language command processing with 200+ pattern variations
 - ✅ User-specific voice settings (on/off/only modes)
 - ✅ Payment confirmation for voice commands
+- ✅ Natural language voice responses powered by AI
+- ✅ ElevenLabs integration for ultra-realistic voice synthesis
+- ✅ Transaction details with voice narration
 
 ## Prerequisites
 
@@ -168,6 +171,12 @@ FLASH_API_KEY=your_auth_token_here
 
 # Google Gemini AI
 GEMINI_API_KEY=your_gemini_key_here
+
+# Voice Services
+ELEVENLABS_API_KEY=your_elevenlabs_key_here  # Optional: For ultra-realistic voice
+ELEVENLABS_VOICE_ID=EXAVITQu4vr4xnSDxMaL     # Optional: Default is Sarah voice
+OPENAI_API_KEY=your_openai_key_here          # Optional: For Whisper speech-to-text
+GOOGLE_CLOUD_KEYFILE=/path/to/keyfile.json   # Optional: For Google Cloud TTS/STT
 
 # Redis
 REDIS_HOST=localhost
@@ -308,6 +317,35 @@ Send tips anonymously through direct messages:
 - `tip @alice 10 great job!` - Include a message with tip
 - `tip group "Flash Users" 20` - Split $20 among all Flash users in the group
 - `tip group "Dev Team" 50 thanks everyone` - Group tip with message
+
+## Voice Features
+
+Pulse supports advanced voice interactions for a more natural user experience:
+
+### Voice Input (Speech-to-Text):
+- **Whisper AI**: Primary provider for accurate transcription (requires OpenAI API key)
+- **Google Cloud Speech**: Automatic fallback when Whisper is unavailable
+- **Natural Language**: Understands commands in conversational style
+  - "Send ten dollars to alice" → `send 10 to alice`
+  - "What's my balance?" → `balance`
+  - "I want to receive twenty five dollars" → `receive 25`
+
+### Voice Output (Text-to-Speech):
+- **ElevenLabs**: Ultra-realistic AI voices for voice-only mode users
+- **Google Cloud TTS**: High-quality Chirp3-HD voices as fallback
+- **Free TTS API**: Basic voice for users without premium services
+
+### Voice Modes:
+- `voice status` - Check current voice settings
+- `voice on` - Enable voice for AI responses with keywords
+- `voice off` - Disable all voice responses
+- `voice only` - Receive only voice responses (no text)
+
+### Natural Language Processing:
+- 200+ command pattern variations
+- Typo correction and smart suggestions
+- Context-aware responses
+- Transaction details with voice narration
 
 ## Push Notifications
 
