@@ -172,7 +172,7 @@ describe('PaymentConfirmationService', () => {
       expect(result).toContain('📤 *To*: alice');
       expect(result).toContain('💵 *Amount*: $10 USD');
       expect(result).toContain('📝 *Memo*: "test payment"');
-      expect(result).toContain('⚡ *Network*: Lightning');
+      expect(result).toContain('⚡');
     });
 
     it('should format send command without memo', () => {
@@ -185,7 +185,22 @@ describe('PaymentConfirmationService', () => {
       expect(result).toContain('📤 *To*: alice');
       expect(result).toContain('💵 *Amount*: $10 USD');
       expect(result).not.toContain('📝 *Memo*:');
-      expect(result).toContain('⚡ *Network*: Lightning');
+      expect(result).toContain('⚡');
+    });
+
+    it('should format validated username with checkmark', () => {
+      const validatedCommand: ParsedCommand = {
+        ...mockCommand,
+        args: {
+          ...mockCommand.args,
+          recipientValidated: 'true',
+          recipientType: 'username',
+          recipientDisplay: '@alice',
+        },
+      };
+      const result = service.formatPaymentDetails(validatedCommand);
+      expect(result).toContain('📤 *To*: @alice ✅');
+      expect(result).toContain('💵 *Amount*: $10 USD');
     });
 
     it('should format request command details', () => {

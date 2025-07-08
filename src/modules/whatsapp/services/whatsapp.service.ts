@@ -361,8 +361,20 @@ export class WhatsappService {
         case CommandType.SEND:
           // Check if send command needs confirmation
           if (command.args.requiresConfirmation !== 'false') {
+            // Validate recipient before asking for confirmation
+            const validationResult = await this.validateSendRecipient(command, session);
+            if (validationResult.error) {
+              return validationResult.error;
+            }
+            
             command.args.requiresConfirmation = 'true';
-            // Store the command for confirmation
+            // Store the command for confirmation with validation info
+            if (validationResult.recipientInfo) {
+              command.args.recipientValidated = 'true';
+              command.args.recipientType = validationResult.recipientInfo.type;
+              command.args.recipientDisplay = validationResult.recipientInfo.display;
+            }
+            
             const details = this.paymentConfirmationService.formatPaymentDetails(command);
             await this.paymentConfirmationService.storePendingPayment(
               whatsappId,
@@ -1477,6 +1489,129 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
 
       // Generic error message for unexpected errors
       return { text: 'Failed to create invoice. Please try again later.' };
+    }
+  }
+
+  /**
+   * Validate send recipient before confirmation
+   */
+  private async validateSendRecipient(
+    command: ParsedCommand,
+    session: UserSession | null,
+  ): Promise<{ 
+    error?: string; 
+    recipientInfo?: { 
+      type: string; 
+      display: string; 
+      walletId?: string;
+    } 
+  }> {
+    try {
+      // Check if user has a linked account
+      if (!session || !session.isVerified || !session.flashAuthToken) {
+        return { error: this.getNotLinkedMessage() };
+      }
+
+      // Parse amount
+      const amountStr = command.args.amount;
+      if (!amountStr) {
+        return { error: 'Please specify amount in USD. Usage: send [amount] to [recipient]' };
+      }
+
+      const parsedResult = parseAndValidateAmount(amountStr);
+      if (parsedResult.error) {
+        return { error: parsedResult.error };
+      }
+
+      // Determine recipient type
+      const targetUsername = command.args.username;
+      const targetPhone = command.args.phoneNumber;
+      const lightningAddress = command.args.recipient;
+
+      // Check if it's a Lightning invoice
+      if (lightningAddress?.startsWith('lnbc')) {
+        return { 
+          recipientInfo: { 
+            type: 'lightning_invoice', 
+            display: 'Lightning Invoice' 
+          } 
+        };
+      }
+
+      // Check if it's a Lightning address
+      if (lightningAddress?.includes('@')) {
+        return { 
+          recipientInfo: { 
+            type: 'lightning_address', 
+            display: lightningAddress 
+          } 
+        };
+      }
+
+      // Check if it's a saved contact
+      if (targetUsername || lightningAddress) {
+        const possibleContactName = targetUsername || lightningAddress;
+        const contactsKey = `contacts:${session.whatsappId}`;
+        const savedContacts = await this.redisService.get(contactsKey);
+
+        if (savedContacts) {
+          const contacts = JSON.parse(savedContacts);
+          const contactKey = possibleContactName.toLowerCase();
+
+          if (contacts[contactKey]) {
+            const contactInfo = contacts[contactKey];
+            const contactPhone = typeof contactInfo === 'string' ? contactInfo : contactInfo.phone;
+            return { 
+              recipientInfo: { 
+                type: 'contact', 
+                display: `${possibleContactName} (${contactPhone})` 
+              } 
+            };
+          }
+        }
+      }
+
+      // Check if it's a username
+      if (targetUsername) {
+        try {
+          // Verify username exists
+          const walletCheck = await this.flashApiService.executeQuery<any>(
+            ACCOUNT_DEFAULT_WALLET_QUERY,
+            { username: targetUsername },
+            session.flashAuthToken,
+          );
+
+          if (walletCheck?.accountDefaultWallet?.id) {
+            return { 
+              recipientInfo: { 
+                type: 'username', 
+                display: `@${targetUsername}`,
+                walletId: walletCheck.accountDefaultWallet.id
+              } 
+            };
+          } else {
+            return { error: `❌ Username @${targetUsername} not found.\n\n💡 Tips:\n• Check the spelling\n• Ask them to set a username\n• Use their phone number instead` };
+          }
+        } catch (error) {
+          this.logger.error(`Error validating username: ${error.message}`);
+          return { error: `❌ Unable to verify username @${targetUsername}. Please try again.` };
+        }
+      }
+
+      // Check if it's a phone number
+      if (targetPhone) {
+        return { 
+          recipientInfo: { 
+            type: 'phone', 
+            display: targetPhone 
+          } 
+        };
+      }
+
+      return { error: 'Please specify a valid recipient:\n• @username (Flash user)\n• Lightning invoice (lnbc...)\n• Lightning address (user@domain.com)' };
+    } catch (error) {
+      this.logger.error(`Error validating recipient: ${error.message}`);
+      return { error: '❌ Failed to validate recipient. Please try again.' };
     }
   }
 

@@ -109,11 +109,16 @@ export class PaymentConfirmationService {
     const { args } = command;
 
     if (command.type === 'send') {
-      const recipient = args.recipient || args.username || args.phoneNumber || 'unknown';
       let details = '';
       
-      // Add recipient info
-      if (args.username) {
+      // Add recipient info with validation status
+      if (args.recipientValidated === 'true' && args.recipientDisplay) {
+        details += `📤 *To*: ${args.recipientDisplay}`;
+        if (args.recipientType === 'username') {
+          details += ' ✅';
+        }
+        details += '\n';
+      } else if (args.username) {
         details += `📤 *To*: @${args.username}\n`;
       } else if (args.phoneNumber) {
         details += `📤 *To*: ${args.phoneNumber}\n`;
@@ -129,8 +134,18 @@ export class PaymentConfirmationService {
         details += `📝 *Memo*: "${args.memo}"\n`;
       }
       
-      // Add fees notice
-      details += `\n⚡ *Network*: Lightning (instant, no fees)`;
+      // Add type-specific info
+      if (args.recipientType === 'phone') {
+        details += `\n📱 *Type*: Phone number (will create pending payment)`;
+      } else if (args.recipientType === 'contact') {
+        details += `\n👤 *Type*: Saved contact`;
+      } else if (args.recipientType === 'lightning_invoice') {
+        details += `\n⚡ *Type*: Lightning invoice`;
+      } else if (args.recipientType === 'lightning_address') {
+        details += `\n⚡ *Type*: Lightning address`;
+      } else {
+        details += `\n⚡ *Network*: Lightning (instant, no fees)`;
+      }
       
       return details;
     } else if (command.type === 'request') {

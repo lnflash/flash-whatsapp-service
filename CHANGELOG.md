@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Mandatory payment confirmation for all send commands with detailed summary
 - Support for "pay", "yes", "y", "ok", "confirm" as confirmation words
 - Enhanced payment confirmation display with recipient, amount, memo, and network info
+- Username validation before payment confirmation (prevents sending to non-existent users)
+- Recipient type indicators in confirmation (username ✅, phone, contact, lightning)
 
 ## [2.0.0] - 2025-01-03
 
