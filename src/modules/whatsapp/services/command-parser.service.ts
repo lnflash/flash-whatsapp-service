@@ -98,7 +98,7 @@ export class CommandParserService {
       }
 
       // Check if this is specifically a voice settings command first
-      const voiceSettingsPattern = /^voice\s*(on|off|only|status|help)?$/i;
+      const voiceSettingsPattern = /^voice\s*(on|off|only|status|help|1|2|3)?$/i;
       if (voiceSettingsPattern.test(trimmedText)) {
         // Don't strip the prefix for voice settings commands
         // Let it fall through to be matched by the VOICE command pattern
