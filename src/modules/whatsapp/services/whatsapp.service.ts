@@ -38,6 +38,7 @@ import { AdminSettingsService, VoiceMode } from './admin-settings.service';
 import { TtsService } from '../../tts/tts.service';
 import { PaymentConfirmationService } from './payment-confirmation.service';
 import { UserVoiceSettingsService, UserVoiceMode } from './user-voice-settings.service';
+import { VoiceResponseService } from './voice-response.service';
 // import { WhatsAppCloudService } from './whatsapp-cloud.service'; // Disabled for prototype branch
 
 @Injectable()
@@ -67,6 +68,7 @@ export class WhatsappService {
     private readonly ttsService: TtsService,
     private readonly paymentConfirmationService: PaymentConfirmationService,
     private readonly userVoiceSettingsService: UserVoiceSettingsService,
+    private readonly voiceResponseService: VoiceResponseService,
     // private readonly whatsAppCloudService: WhatsAppCloudService, // Disabled for prototype branch
     @Inject(forwardRef(() => WhatsAppWebService))
     private readonly whatsappWebService?: WhatsAppWebService,
@@ -138,7 +140,7 @@ export class WhatsappService {
       }
 
       // Handle the command
-      const response = await this.handleCommand(command, whatsappId, phoneNumber, session);
+      const response = await this.handleCommand(command, whatsappId, phoneNumber, session, messageData.isVoiceCommand);
 
       // Check if voice response is requested
       // Mark as AI response if it comes from unknown command (likely AI handled)
@@ -168,7 +170,7 @@ export class WhatsappService {
               }
             }
 
-            const audioBuffer = await this.ttsService.textToSpeech(voiceText);
+            const audioBuffer = await this.ttsService.textToSpeech(voiceText, 'en', whatsappId);
 
             // If voice-only mode, return with empty text
             if (shouldSendVoiceOnly) {
@@ -184,6 +186,18 @@ export class WhatsappService {
 
         return finalText;
       } else if (response && typeof response === 'object' && 'text' in response) {
+        // If response already has voice, don't regenerate it
+        if (response.voice) {
+          // For voice-only mode, return as is without modifying
+          if (response.voiceOnly) {
+            return response;
+          }
+          // Just add hint to text if not in voice-only mode
+          const finalText = this.addHint(response.text, session, command);
+          return { ...response, text: finalText };
+        }
+
+        // Response doesn't have voice yet, process normally
         const finalText = this.addHint(response.text, session, command);
 
         // Check for forceVoice flag or normal voice conditions
@@ -191,19 +205,27 @@ export class WhatsappService {
 
         if (useVoice) {
           try {
-            // Convert hints to TTS-friendly format for voice
+            // Generate natural voice response based on command type
             let voiceText = finalText;
-            if (finalText.includes('💡')) {
-              const parts = finalText.split('💡');
-              if (parts.length > 1) {
-                const beforeHint = parts[0];
-                const hintPart = parts[1].trim();
-                const ttsFriendlyHint = this.makeTtsFriendlyHint(hintPart);
-                voiceText = `${beforeHint}💡 ${ttsFriendlyHint}`;
-              }
+            
+            // For command responses, use natural language generation
+            if (command && command.type !== CommandType.UNKNOWN) {
+              voiceText = await this.voiceResponseService.generateNaturalVoiceResponse(
+                command.type,
+                finalText,
+                command.args,
+                {
+                  userName: session?.profileName,
+                  isVoiceInput: messageData.isVoiceCommand || false,
+                  originalResponse: finalText,
+                }
+              );
+            } else {
+              // For AI responses, clean up for voice
+              voiceText = this.cleanTextForVoice(finalText);
             }
 
-            const audioBuffer = await this.ttsService.textToSpeech(voiceText);
+            const audioBuffer = await this.ttsService.textToSpeech(voiceText, 'en', whatsappId);
 
             // If voice-only mode, return with empty text
             if (shouldSendVoiceOnly) {
@@ -250,6 +272,7 @@ export class WhatsappService {
     whatsappId: string,
     phoneNumber: string,
     session: UserSession | null,
+    isVoiceInput?: boolean,
   ): Promise<string | { text: string; media?: Buffer; voice?: Buffer; voiceOnly?: boolean }> {
     try {
       // Check if user has a pending payment confirmation
@@ -258,9 +281,35 @@ export class WhatsappService {
         // Check if this is a confirmation response
         const confirmText = command.rawText.toLowerCase().trim();
         // Flexible positive confirmations
-        const positiveResponses = ['yes', 'y', 'ok', 'okay', 'sure', 'confirm', 'pay', 'send', 'go', 'proceed', 'yep', 'yeah', 'yup'];
-        const negativeResponses = ['no', 'n', 'cancel', 'stop', 'abort', 'nope', 'nah', 'exit', 'quit', 'nevermind', 'forget it'];
-        
+        const positiveResponses = [
+          'yes',
+          'y',
+          'ok',
+          'okay',
+          'sure',
+          'confirm',
+          'pay',
+          'send',
+          'go',
+          'proceed',
+          'yep',
+          'yeah',
+          'yup',
+        ];
+        const negativeResponses = [
+          'no',
+          'n',
+          'cancel',
+          'stop',
+          'abort',
+          'nope',
+          'nah',
+          'exit',
+          'quit',
+          'nevermind',
+          'forget it',
+        ];
+
         if (positiveResponses.includes(confirmText)) {
           // Clear the pending payment and execute it
           await this.paymentConfirmationService.clearPendingPayment(whatsappId);
@@ -294,10 +343,11 @@ export class WhatsappService {
               updatedCommand,
               pendingPayment.sessionId,
             );
-            const updatedDetails = this.paymentConfirmationService.formatPaymentDetails(updatedCommand);
+            const updatedDetails =
+              this.paymentConfirmationService.formatPaymentDetails(updatedCommand);
             return `🔄 Amount updated!\n\n${updatedDetails}\n\n✅ Type "yes" or "ok" to confirm\n❌ Type "no" or "cancel" to cancel`;
           }
-          
+
           return `⏳ You have a pending payment:\n\n${details}\n\n✅ Type "yes" or "ok" to confirm\n❌ Type "no" or "cancel" to cancel\n✏️ Or enter a new amount (e.g., "25")`;
         }
       }
@@ -353,7 +403,7 @@ export class WhatsappService {
           return this.handleReceiveCommand(command, whatsappId, session);
 
         case CommandType.HISTORY:
-          return this.handleHistoryCommand(whatsappId, session);
+          return this.handleHistoryCommand(command, whatsappId, session);
 
         case CommandType.REQUEST:
           return this.handleRequestCommand(command, whatsappId, session);
@@ -477,7 +527,12 @@ export class WhatsappService {
             }
 
             // Otherwise, use AI to respond
-            return this.handleAiQuery(command.rawText, session);
+            const shouldUseVoice = await this.ttsService.shouldUseVoice(
+              command.rawText,
+              true,
+              session.whatsappId,
+            );
+            return this.handleAiQuery(command.rawText, session, shouldUseVoice);
           } else {
             return this.getUnknownCommandMessage(session);
           }
@@ -603,7 +658,7 @@ _This limitation is due to WhatsApp's privacy features._`;
           whatsappId: updatedSession.whatsappId,
           authToken: updatedSession.flashAuthToken,
         });
-        
+
         // Fetch and store username mapping for efficient lookups
         try {
           const username = await this.usernameService.getUsername(updatedSession.flashAuthToken);
@@ -684,7 +739,7 @@ _This limitation is due to WhatsApp's privacy features._`;
   private async handleBalanceCommand(
     whatsappId: string,
     session: UserSession | null,
-  ): Promise<string> {
+  ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
     try {
       if (!session) {
         return this.getNotLinkedMessage();
@@ -741,14 +796,39 @@ _This limitation is due to WhatsApp's privacy features._`;
         }
       }
 
-      // Format and return the balance message using the template
-      return this.balanceTemplate.generateBalanceMessage({
+      // Format the balance data
+      const balanceData = {
         btcBalance: balanceInfo.btcBalance,
         fiatBalance: displayBalance,
         fiatCurrency: displayCurrency,
         lastUpdated: balanceInfo.lastUpdated,
         userName: session.profileName,
-      });
+      };
+
+      // Generate text message
+      const textMessage = this.balanceTemplate.generateBalanceMessage(balanceData);
+
+      // Check if voice response is needed
+      const shouldUseVoice = await this.ttsService.shouldUseVoice(
+        'balance',
+        false,
+        session.whatsappId,
+      );
+
+      if (shouldUseVoice) {
+        const voiceText = this.balanceTemplate.generateVoiceBalanceMessage(balanceData);
+        const audioBuffer = await this.ttsService.textToSpeech(voiceText, 'en', whatsappId);
+
+        const shouldSendVoiceOnly = await this.ttsService.shouldSendVoiceOnly(session.whatsappId);
+
+        return {
+          text: shouldSendVoiceOnly ? '' : textMessage,
+          voice: audioBuffer,
+          voiceOnly: shouldSendVoiceOnly,
+        };
+      }
+
+      return textMessage;
     } catch (error) {
       this.logger.error(`Error handling balance command: ${error.message}`, error.stack);
 
@@ -967,7 +1047,12 @@ _This limitation is due to WhatsApp's privacy features._`;
 
           // Answer the pending question
           try {
-            const aiResponse = await this.handleAiQuery(pendingQuestion, session);
+            const shouldUseVoice = await this.ttsService.shouldUseVoice(
+              pendingQuestion,
+              true,
+              session.whatsappId,
+            );
+            const aiResponse = await this.handleAiQuery(pendingQuestion, session, shouldUseVoice);
             return `Thank you for providing your consent! 🎉\n\nNow, regarding your question: "${pendingQuestion}"\n\n${aiResponse}`;
           } catch (error) {
             this.logger.error(
@@ -999,7 +1084,7 @@ _This limitation is due to WhatsApp's privacy features._`;
   /**
    * Handle AI query using Maple AI
    */
-  private async handleAiQuery(query: string, session: UserSession): Promise<string> {
+  private async handleAiQuery(query: string, session: UserSession, isVoiceMode: boolean = false): Promise<string> {
     try {
       if (!session.consentGiven) {
         // Store the pending question for after consent is given
@@ -1017,6 +1102,7 @@ _This limitation is due to WhatsApp's privacy features._`;
         whatsappId: session.whatsappId,
         isVerified: session.isVerified,
         consentGiven: session.consentGiven,
+        isVoiceMode: isVoiceMode,
       };
 
       const response = await this.geminiAiService.processQuery(query, context);
@@ -1091,13 +1177,13 @@ _This limitation is due to WhatsApp's privacy features._`;
     // Check if a category or navigation was requested
     if (command?.args?.category) {
       const category = command.args.category;
-      
+
       // Handle numbered navigation
       if (category === '1') return this.getCategoryHelp('wallet');
       if (category === '2') return this.getCategoryHelp('send');
       if (category === '3') return this.getCategoryHelp('receive');
       if (category === 'more') return this.getFullHelpMenu(session);
-      
+
       // Handle regular categories
       return this.getCategoryHelp(category);
     }
@@ -1417,7 +1503,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
     command: ParsedCommand,
     whatsappId: string,
     session: UserSession | null,
-  ): Promise<string> {
+  ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
     try {
       // Check if user has a linked account
       if (!session || !session.isVerified || !session.flashAuthToken) {
@@ -1558,32 +1644,61 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
             } catch (e) {
               // Ignore balance fetch errors in success message
             }
-            
-            return `✅ Payment sent successfully!\n\n💸 Amount: $${amount.toFixed(2)} USD\n⚡ To: ${lightningAddress.substring(0, 30)}...\n📍 Transaction: #${txId}\n💰 New balance: ${balanceDisplay}\n\n💡 Tip: Save this invoice for future payments`;
+
+            const textMessage = `✅ Payment sent successfully!\n\n💸 Amount: $${amount.toFixed(2)} USD\n⚡ To: ${lightningAddress.substring(0, 30)}...\n📍 Transaction: #${txId}\n💰 New balance: ${balanceDisplay}\n\n💡 Tip: Save this invoice for future payments`;
+
+            // Check if voice response is needed
+            const shouldUseVoice = await this.ttsService.shouldUseVoice(
+              command.rawText,
+              command.args.isVoiceCommand === 'true',
+              session.whatsappId,
+            );
+
+            if (shouldUseVoice) {
+              const voiceText = this.paymentConfirmationService.formatPaymentSuccessForVoice(
+                amount,
+                lightningAddress.substring(0, 20),
+                balanceDisplay,
+              );
+              const audioBuffer = await this.ttsService.textToSpeech(voiceText, 'en', whatsappId);
+
+              const shouldSendVoiceOnly = await this.ttsService.shouldSendVoiceOnly(
+                session.whatsappId,
+              );
+
+              return {
+                text: shouldSendVoiceOnly ? '' : textMessage,
+                voice: audioBuffer,
+                voiceOnly: shouldSendVoiceOnly,
+              };
+            }
+
+            return textMessage;
           } else {
             const errorMessage = result?.errors?.[0]?.message || 'Unknown error';
 
-            // Provide more helpful error messages
-            if (errorMessage.includes('Account is inactive')) {
-              return `❌ Payment blocked: Account restricted\n\n🔒 Your account has temporary restrictions\n\n💉 Next steps:\n→ Type 'support' to chat with an agent\n→ Email support@flashapp.me\n→ Reference: #ERR${Date.now().toString().slice(-6)}`;
-            } else if (errorMessage.includes('Insufficient balance')) {
-              // Get current balance for display
+            // Get current balance for display if needed
             let balanceDisplay = 'Check balance for details';
-            try {
-              const balanceInfo = await this.balanceService.getUserBalance(
-                session.flashUserId!,
-                session.flashAuthToken,
-              );
-              balanceDisplay = `$${balanceInfo.fiatBalance.toFixed(2)} ${balanceInfo.fiatCurrency}`;
-            } catch (e) {
-              // Ignore balance fetch errors in success message
-            }
-              return `❌ Payment failed: Insufficient balance\n\n💰 You need: $${amount.toFixed(2)} USD\n💳 You have: ${balanceDisplay}\n\n🔄 Next steps:\n→ Type 'receive ${amount}' to request funds\n→ Ask someone to send you money\n→ Add funds in the Flash app`;
-            } else if (errorMessage.includes('limit')) {
-              return `❌ Payment failed: Transaction limit reached\n\n📏 Daily/monthly limit exceeded\n\n💡 Next steps:\n→ Wait 24 hours for daily limit reset\n→ Check limits in Flash app\n→ Type 'support' for limit increase\n→ Reference: #LMT${Date.now().toString().slice(-6)}`;
+            if (errorMessage.includes('Insufficient balance')) {
+              try {
+                const balanceInfo = await this.balanceService.getUserBalance(
+                  session.flashUserId!,
+                  session.flashAuthToken,
+                );
+                balanceDisplay = `$${balanceInfo.fiatBalance.toFixed(2)} ${balanceInfo.fiatCurrency}`;
+              } catch (e) {
+                // Ignore balance fetch errors
+              }
             }
 
-            return `❌ Payment failed: ${errorMessage}`;
+            return this.generatePaymentErrorResponse(
+              errorMessage,
+              command,
+              session,
+              amount,
+              lightningAddress,
+              balanceDisplay,
+            );
           }
         } catch (error) {
           this.logger.error(`Lightning payment error: ${error.message}`);
@@ -1622,57 +1737,66 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
               // Send notification to recipient if they have WhatsApp linked
               try {
                 // Use optimized lookup by username
-                const recipientSession = await this.sessionService.getSessionByUsername(targetUsername);
-                
-                if (recipientSession && recipientSession.flashUserId && recipientSession.flashAuthToken) {
+                const recipientSession =
+                  await this.sessionService.getSessionByUsername(targetUsername);
+
+                if (
+                  recipientSession &&
+                  recipientSession.flashUserId &&
+                  recipientSession.flashAuthToken
+                ) {
                   // Found the recipient! Send them a notification
-                  const senderUsername = await this.usernameService.getUsername(session.flashAuthToken) || 'Someone';
-                      
-                      let recipientMessage = `💰 *Payment Received!*\n\n`;
-                      recipientMessage += `Amount: *$${amount.toFixed(2)} USD*\n`;
-                      recipientMessage += `From: *@${senderUsername}*\n`;
-                      if (command.args.memo) {
-                        recipientMessage += `Memo: _${command.args.memo}_\n`;
-                      }
-                      recipientMessage += `\n✅ Payment confirmed instantly`;
-                      
-                      // Get recipient's updated balance
-                      if (recipientSession.flashUserId) {
-                        await this.balanceService.clearBalanceCache(recipientSession.flashUserId);
-                        const balance = await this.balanceService.getUserBalance(
-                          recipientSession.flashUserId,
-                          recipientSession.flashAuthToken,
-                        );
-                        
-                        if (balance.fiatBalance > 0 || balance.btcBalance === 0) {
-                          recipientMessage += `\n💼 New balance: *$${balance.fiatBalance.toFixed(2)} USD*`;
-                        }
-                      }
-                      
-                      // Send the notification
-                      if (this.whatsappWebService?.isClientReady()) {
-                        await this.whatsappWebService.sendMessage(recipientSession.whatsappId, recipientMessage);
-                      }
+                  const senderUsername =
+                    (await this.usernameService.getUsername(session.flashAuthToken)) || 'Someone';
+
+                  let recipientMessage = `💰 *Payment Received!*\n\n`;
+                  recipientMessage += `Amount: *$${amount.toFixed(2)} USD*\n`;
+                  recipientMessage += `From: *@${senderUsername}*\n`;
+                  if (command.args.memo) {
+                    recipientMessage += `Memo: _${command.args.memo}_\n`;
+                  }
+                  recipientMessage += `\n✅ Payment confirmed instantly`;
+
+                  // Get recipient's updated balance
+                  if (recipientSession.flashUserId) {
+                    await this.balanceService.clearBalanceCache(recipientSession.flashUserId);
+                    const balance = await this.balanceService.getUserBalance(
+                      recipientSession.flashUserId,
+                      recipientSession.flashAuthToken,
+                    );
+
+                    if (balance.fiatBalance > 0 || balance.btcBalance === 0) {
+                      recipientMessage += `\n💼 New balance: *$${balance.fiatBalance.toFixed(2)} USD*`;
+                    }
+                  }
+
+                  // Send the notification
+                  if (this.whatsappWebService?.isClientReady()) {
+                    await this.whatsappWebService.sendMessage(
+                      recipientSession.whatsappId,
+                      recipientMessage,
+                    );
+                  }
                 }
               } catch (error) {
                 // Log error but don't fail the payment
                 this.logger.error(`Error sending recipient notification: ${error.message}`);
               }
-              
+
               // Generate transaction ID
               const txId = `TX${Date.now().toString().slice(-8)}`;
               // Get current balance for display
-            let balanceDisplay = 'Check balance for details';
-            try {
-              const balanceInfo = await this.balanceService.getUserBalance(
-                session.flashUserId!,
-                session.flashAuthToken,
-              );
-              balanceDisplay = `$${balanceInfo.fiatBalance.toFixed(2)} ${balanceInfo.fiatCurrency}`;
-            } catch (e) {
-              // Ignore balance fetch errors in success message
-            }
-              
+              let balanceDisplay = 'Check balance for details';
+              try {
+                const balanceInfo = await this.balanceService.getUserBalance(
+                  session.flashUserId!,
+                  session.flashAuthToken,
+                );
+                balanceDisplay = `$${balanceInfo.fiatBalance.toFixed(2)} ${balanceInfo.fiatCurrency}`;
+              } catch (e) {
+                // Ignore balance fetch errors in success message
+              }
+
               let successMsg = `✅ Payment sent to @${targetUsername}!\n\n`;
               successMsg += `💸 Amount: $${amount.toFixed(2)} USD\n`;
               if (command.args.memo) {
@@ -1681,33 +1805,68 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
               successMsg += `📍 Transaction: #${txId}\n`;
               successMsg += `💰 New balance: ${balanceDisplay}\n\n`;
               successMsg += `💡 Tip: Request it back with "request ${amount} from ${targetUsername}"`;
+
+              // Check if voice response is needed
+              const shouldUseVoice = await this.ttsService.shouldUseVoice(
+                command.rawText,
+                command.args.isVoiceCommand === 'true',
+                session.whatsappId,
+              );
+
+              if (shouldUseVoice) {
+                const voiceText = this.paymentConfirmationService.formatPaymentSuccessForVoice(
+                  amount,
+                  `@${targetUsername}`,
+                  balanceDisplay,
+                );
+                const audioBuffer = await this.ttsService.textToSpeech(voiceText, 'en', whatsappId);
+
+                const shouldSendVoiceOnly = await this.ttsService.shouldSendVoiceOnly(
+                  session.whatsappId,
+                );
+
+                return {
+                  text: shouldSendVoiceOnly ? '' : successMsg,
+                  voice: audioBuffer,
+                  voiceOnly: shouldSendVoiceOnly,
+                };
+              }
+
+              return successMsg;
             } else {
               const errorMessage = result?.errors?.[0]?.message || 'Unknown error';
 
-              // Provide more helpful error messages
-              if (errorMessage.includes('Account is inactive')) {
-                return `❌ Payment blocked: Account issue\n\n🔍 Possible reasons:\n• @${targetUsername}'s account is restricted\n• Your account has limitations\n\n💡 Next steps:\n→ Verify recipient username is correct\n→ Type 'support' for help\n→ Reference: #ACC${Date.now().toString().slice(-6)}`;
-              } else if (errorMessage.includes('Insufficient balance')) {
-                // Get current balance for display
-            let balanceDisplay = 'Check balance for details';
-            try {
-              const balanceInfo = await this.balanceService.getUserBalance(
-                session.flashUserId!,
-                session.flashAuthToken,
-              );
-              balanceDisplay = `$${balanceInfo.fiatBalance.toFixed(2)} ${balanceInfo.fiatCurrency}`;
-            } catch (e) {
-              // Ignore balance fetch errors in success message
-            }
-                return `❌ Payment failed: Insufficient balance\n\n💰 You need: $${amount.toFixed(2)} USD\n💳 You have: ${balanceDisplay}\n\n🔄 Next steps:\n→ Type 'receive ${amount}' to request funds\n→ Ask @${targetUsername} to request payment instead\n→ Add funds in the Flash app`;
-              } else if (errorMessage.includes('limit')) {
-                return `❌ Payment failed: Transaction limit reached\n\n📏 Daily/monthly limit exceeded\n\n💡 Next steps:\n→ Wait 24 hours for daily limit reset\n→ Check limits in Flash app\n→ Type 'support' for limit increase\n→ Reference: #LMT${Date.now().toString().slice(-6)}`;
+              // Get current balance for display if needed
+              let balanceDisplay = 'Check balance for details';
+              if (errorMessage.includes('Insufficient balance')) {
+                try {
+                  const balanceInfo = await this.balanceService.getUserBalance(
+                    session.flashUserId!,
+                    session.flashAuthToken,
+                  );
+                  balanceDisplay = `$${balanceInfo.fiatBalance.toFixed(2)} ${balanceInfo.fiatCurrency}`;
+                } catch (e) {
+                  // Ignore balance fetch errors
+                }
               }
 
-              return `❌ Payment failed: ${errorMessage}`;
+              return this.generatePaymentErrorResponse(
+                errorMessage,
+                command,
+                session,
+                amount,
+                `@${targetUsername}`,
+                balanceDisplay,
+              );
             }
           } else {
-            return `❌ Username @${targetUsername} not found\n\n🔍 Possible issues:\n• Typo in username\n• User hasn't set a username yet\n• Account doesn't exist\n\n💡 Next steps:\n→ Double-check the spelling\n→ Ask for their phone number instead\n→ Use 'contacts add' to save them`;
+            return this.generatePaymentErrorResponse(
+              `Username @${targetUsername} not found`,
+              command,
+              session,
+              amount,
+              `@${targetUsername}`,
+            );
           }
         } catch (error) {
           this.logger.error(`Username payment error: ${error.message}`);
@@ -1921,13 +2080,19 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
    * Handle history command - show recent transactions
    */
   private async handleHistoryCommand(
+    command: ParsedCommand,
     whatsappId: string,
     session: UserSession | null,
-  ): Promise<string> {
+  ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
     try {
       // Check if user has a linked account
       if (!session || !session.isVerified || !session.flashAuthToken || !session.flashUserId) {
-        return 'Please link your Flash account first to view transaction history. Type "link" to get started.';
+        return this.getNotLinkedMessage();
+      }
+
+      // Check if a specific transaction ID was requested
+      if (command.args.transactionId) {
+        return this.getTransactionDetails(command.args.transactionId, session);
       }
 
       // Get recent transactions
@@ -1952,6 +2117,121 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
     } catch (error) {
       this.logger.error(`Error handling history command: ${error.message}`, error.stack);
       return '❌ Failed to fetch transaction history. Please try again later.';
+    }
+  }
+
+  /**
+   * Generate payment error response with optional voice
+   */
+  private async generatePaymentErrorResponse(
+    errorMessage: string,
+    command: ParsedCommand,
+    session: UserSession,
+    amount?: number,
+    recipient?: string,
+    balanceDisplay?: string,
+  ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
+    let textResponse: string;
+
+    if (errorMessage.includes('Insufficient balance')) {
+      textResponse = `❌ Payment failed: Insufficient balance\n\n💰 You need: $${amount?.toFixed(2)} USD\n💳 You have: ${balanceDisplay || 'Check balance for details'}\n\n🔄 Next steps:\n→ Type 'receive ${amount}' to request funds\n→ ${recipient ? `Ask ${recipient} to request payment instead` : 'Ask someone to send you money'}\n→ Add funds in the Flash app`;
+    } else if (errorMessage.includes('limit')) {
+      textResponse = `❌ Payment failed: Transaction limit reached\n\n📏 Daily/monthly limit exceeded\n\n💡 Next steps:\n→ Wait 24 hours for daily limit reset\n→ Check limits in Flash app\n→ Type 'support' for limit increase\n→ Reference: #LMT${Date.now().toString().slice(-6)}`;
+    } else if (errorMessage.includes('Account is inactive')) {
+      textResponse = `❌ Payment blocked: Account restricted\n\n🔒 Your account has temporary restrictions\n\n💉 Next steps:\n→ Type 'support' to chat with an agent\n→ Email support@flashapp.me\n→ Reference: #ERR${Date.now().toString().slice(-6)}`;
+    } else if (errorMessage.includes('not found') || errorMessage.includes('Username')) {
+      textResponse = `❌ ${errorMessage}\n\n🔍 Possible issues:\n• Typo in username\n• User hasn't set a username yet\n• Account doesn't exist\n\n💡 Next steps:\n→ Double-check the spelling\n→ Ask for their phone number instead\n→ Use 'contacts add' to save them`;
+    } else {
+      textResponse = `❌ Payment failed: ${errorMessage}`;
+    }
+
+    // Check if voice response is needed
+    const shouldUseVoice = await this.ttsService.shouldUseVoice(
+      command.rawText,
+      command.args.isVoiceCommand === 'true',
+      session.whatsappId,
+    );
+
+    if (shouldUseVoice) {
+      const voiceText = this.paymentConfirmationService.formatPaymentErrorForVoice(errorMessage);
+      const audioBuffer = await this.ttsService.textToSpeech(voiceText, 'en', session.whatsappId);
+
+      const shouldSendVoiceOnly = await this.ttsService.shouldSendVoiceOnly(session.whatsappId);
+
+      return {
+        text: shouldSendVoiceOnly ? '' : textResponse,
+        voice: audioBuffer,
+        voiceOnly: shouldSendVoiceOnly,
+      };
+    }
+
+    return textResponse;
+  }
+
+  /**
+   * Get detailed information about a specific transaction
+   */
+  private async getTransactionDetails(
+    transactionId: string,
+    session: UserSession,
+  ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
+    try {
+      // Ensure we have auth token
+      if (!session.flashAuthToken) {
+        return '❌ Authentication required. Please try again.';
+      }
+
+      // First, try to find the transaction in recent history
+      const transactions = await this.transactionService.getRecentTransactions(
+        session.flashAuthToken,
+        50, // Look through more transactions
+      );
+
+      if (!transactions || !transactions.edges) {
+        return '❌ Unable to fetch transaction details. Please try again later.';
+      }
+
+      // Search for the transaction by ID
+      const txEdge = transactions.edges.find((edge) => {
+        // Transaction IDs could be the full ID or a shortened version
+        return edge.node.id.includes(transactionId) || edge.node.id.endsWith(transactionId);
+      });
+
+      if (!txEdge) {
+        return `❌ Transaction #${transactionId} not found.\n\n💡 Tips:\n• Check the transaction ID\n• Try "history" to see recent transactions\n• Transaction might be too old`;
+      }
+
+      // Format detailed transaction information
+      const tx = txEdge.node;
+      const detailsText = await this.transactionService.formatDetailedTransaction(
+        tx,
+        session.flashAuthToken,
+      );
+
+      // Check if voice response is needed
+      const shouldUseVoice = await this.ttsService.shouldUseVoice(
+        `history ${transactionId}`,
+        false,
+        session.whatsappId,
+      );
+
+      if (shouldUseVoice) {
+        const voiceText = this.transactionService.formatTransactionForVoice(tx);
+        const audioBuffer = await this.ttsService.textToSpeech(voiceText, 'en', session.whatsappId);
+
+        const shouldSendVoiceOnly = await this.ttsService.shouldSendVoiceOnly(session.whatsappId);
+
+        return {
+          text: shouldSendVoiceOnly ? '' : detailsText,
+          voice: audioBuffer,
+          voiceOnly: shouldSendVoiceOnly,
+        };
+      }
+
+      return detailsText;
+    } catch (error) {
+      this.logger.error(`Error getting transaction details: ${error.message}`, error.stack);
+      return '❌ Failed to fetch transaction details. Please try again later.';
     }
   }
 
@@ -2672,7 +2952,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
       // Note: We need to check both formats as the request might be stored with @c.us suffix
       let pendingRequestKey = `pending_request:${whatsappId}`;
       let pendingRequest = await this.redisService.getEncrypted(pendingRequestKey);
-      
+
       // If not found, try with @c.us suffix (for requests sent via phone number)
       if (!pendingRequest) {
         // Extract just the number part from whatsappId (remove any existing @c.us)
@@ -2709,10 +2989,14 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
 
             // Notify the requester
             if (pendingRequest.requesterWhatsappId && this.whatsappWebService?.isClientReady()) {
-              const payerUsername = await this.usernameService.getUsername(session.flashAuthToken) || 'Someone';
+              const payerUsername =
+                (await this.usernameService.getUsername(session.flashAuthToken)) || 'Someone';
               const successNotification = `✅ *Payment Received!*\n\n@${payerUsername} has paid your request for $${pendingRequest.amount.toFixed(2)} USD.\n\nThe payment has been confirmed and added to your balance.`;
-              
-              await this.whatsappWebService.sendMessage(pendingRequest.requesterWhatsappId, successNotification);
+
+              await this.whatsappWebService.sendMessage(
+                pendingRequest.requesterWhatsappId,
+                successNotification,
+              );
             }
 
             return `✅ Payment sent successfully!\n\nAmount: $${pendingRequest.amount.toFixed(2)} USD\nTo: @${pendingRequest.requesterUsername}\n\nThe payment has been confirmed.`;
@@ -3865,7 +4149,7 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
 
         // Convert to speech
         try {
-          const audioBuffer = await this.ttsService.textToSpeech(cleanedText);
+          const audioBuffer = await this.ttsService.textToSpeech(cleanedText, 'en', whatsappId);
 
           // Send voice note
           await this.whatsappWebService.sendVoiceNote(whatsappId, audioBuffer);
@@ -3942,6 +4226,21 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
     }
 
     return message;
+  }
+
+  /**
+   * Clean text for voice output
+   */
+  private cleanTextForVoice(text: string): string {
+    return text
+      .replace(/[❌✅⚡💰💸🎉🔊🔇🎤💡📱]/g, '') // Remove emojis
+      .replace(/\*([^*]+)\*/g, '$1') // Remove markdown bold
+      .replace(/_([^_]+)_/g, '$1') // Remove markdown italic
+      .replace(/`([^`]+)`/g, "'$1'") // Replace backticks with quotes
+      .replace(/\n+/g, '. ') // Replace newlines with periods
+      .replace(/\s+/g, ' ') // Normalize spaces
+      .replace(/\.\s*\./g, '.') // Remove double periods
+      .trim();
   }
 
   /**

@@ -48,9 +48,9 @@ export class ChromeCleanupUtil {
 
     try {
       await Promise.all([
-        this.killChromeProcesses(), 
+        this.killChromeProcesses(),
         this.cleanupSessionDirectories(),
-        this.cleanupChromeLocks()
+        this.cleanupChromeLocks(),
       ]);
 
       logger.log('Chrome cleanup completed successfully');
@@ -294,7 +294,7 @@ export class ChromeCleanupUtil {
       path.join(process.cwd(), 'whatsapp-sessions'),
       path.join(process.cwd(), 'whatsapp-sessions-new'),
       '/app/whatsapp-sessions', // Docker path
-      '/app/whatsapp-sessions-new'
+      '/app/whatsapp-sessions-new',
     ];
 
     let totalDeleted = 0;
@@ -303,14 +303,14 @@ export class ChromeCleanupUtil {
       try {
         // Check if directory exists
         await fs.access(sessionPath);
-        
+
         // Find all subdirectories
         const entries = await fs.readdir(sessionPath);
-        
+
         for (const entry of entries) {
           const entryPath = path.join(sessionPath, entry);
           const stat = await fs.stat(entryPath);
-          
+
           if (stat.isDirectory()) {
             // Check for lock files in this directory
             for (const lockFile of lockFiles) {

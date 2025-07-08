@@ -575,7 +575,7 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
           // On first poll after startup, check if transaction is recent (within last 5 minutes)
           if (isFirstPollForUser) {
             const txTime = new Date(tx.createdAt).getTime();
-            const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+            const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
             if (txTime < fiveMinutesAgo) {
               this.logger.debug(`Skipping old transaction from ${tx.createdAt} on first poll`);
               continue;
@@ -593,8 +593,10 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
           this.logger.debug(`Skipping duplicate notification for transaction ${tx.id}`);
           continue;
         }
-        
-        this.logger.log(`Processing new payment notification for transaction ${tx.id} from ${tx.createdAt}`);
+
+        this.logger.log(
+          `Processing new payment notification for transaction ${tx.id} from ${tx.createdAt}`,
+        );
 
         // Get sender information
         const senderName =
@@ -656,13 +658,15 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
       // Update last processed transaction ID in Redis
       if (transactions.edges.length > 0) {
         const latestTxId = transactions.edges[0].node.id;
-        
+
         // Only update if we actually processed transactions or if this is the first poll
         if (newReceiveTransactions.length > 0 || isFirstPollForUser) {
           await this.setLastTransactionId(whatsappId, latestTxId);
-          
+
           if (isFirstPollForUser && newReceiveTransactions.length === 0) {
-            this.logger.debug(`First poll for ${whatsappId}: No new transactions, setting baseline at ${latestTxId}`);
+            this.logger.debug(
+              `First poll for ${whatsappId}: No new transactions, setting baseline at ${latestTxId}`,
+            );
           }
         }
       }
@@ -736,7 +740,7 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
       const key = `${this.lastTxPrefix}${whatsappId}`;
       // Store for 30 days
       await this.redisService.set(key, transactionId, 30 * 24 * 60 * 60);
-      
+
       // Also store the timestamp of when we last processed transactions
       const timestampKey = `${this.lastTxPrefix}timestamp:${whatsappId}`;
       await this.redisService.set(timestampKey, new Date().toISOString(), 30 * 24 * 60 * 60);

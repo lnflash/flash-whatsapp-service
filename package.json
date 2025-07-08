@@ -46,6 +46,7 @@
   ],
   "author": "Flash Engineering Team",
   "dependencies": {
+    "@elevenlabs/elevenlabs-js": "^2.5.0",
     "@google-cloud/speech": "^7.1.0",
     "@google-cloud/text-to-speech": "^6.1.0",
     "@google/generative-ai": "^0.24.1",

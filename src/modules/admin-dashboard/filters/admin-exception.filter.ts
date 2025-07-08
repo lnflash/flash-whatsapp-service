@@ -34,24 +34,21 @@ export class AdminExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
-      message = typeof exceptionResponse === 'string' 
-        ? exceptionResponse 
-        : (exceptionResponse as any).message || message;
+      message =
+        typeof exceptionResponse === 'string'
+          ? exceptionResponse
+          : (exceptionResponse as any).message || message;
       details = (exceptionResponse as any).details || {};
     } else if (exception instanceof Error) {
       message = exception.message;
-      
+
       // Log full error for debugging but don't expose to client
-      this.logger.error(
-        `Admin error: ${exception.message}`,
-        exception.stack,
-        {
-          url: request.url,
-          method: request.method,
-          body: request.body,
-          user: (request as any).user?.phoneNumber,
-        }
-      );
+      this.logger.error(`Admin error: ${exception.message}`, exception.stack, {
+        url: request.url,
+        method: request.method,
+        body: request.body,
+        user: (request as any).user?.phoneNumber,
+      });
     }
 
     // Sanitize error message for client
@@ -73,13 +70,7 @@ export class AdminExceptionFilter implements ExceptionFilter {
 
   private sanitizeErrorMessage(message: string): string {
     // Remove sensitive information from error messages
-    const sensitivePatterns = [
-      /auth.*token/i,
-      /password/i,
-      /secret/i,
-      /key/i,
-      /credential/i,
-    ];
+    const sensitivePatterns = [/auth.*token/i, /password/i, /secret/i, /key/i, /credential/i];
 
     let sanitized = message;
     for (const pattern of sensitivePatterns) {

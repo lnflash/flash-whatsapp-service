@@ -2,6 +2,7 @@ import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as googleTTS from 'google-tts-api';
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
+import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 import {
   AdminSettingsService,
   VoiceMode as _VoiceMode,
@@ -11,7 +12,7 @@ import {
   UserVoiceMode,
 } from '../whatsapp/services/user-voice-settings.service';
 
-export type TtsProvider = 'google-tts-api' | 'google-cloud';
+export type TtsProvider = 'google-tts-api' | 'google-cloud' | 'elevenlabs';
 
 interface GoogleCloudVoiceConfig {
   languageCode: string;
@@ -24,6 +25,8 @@ export class TtsService {
   private readonly logger = new Logger(TtsService.name);
   private readonly provider: TtsProvider;
   private googleCloudClient?: TextToSpeechClient;
+  private elevenLabsClient?: ElevenLabsClient;
+  private readonly elevenLabsVoiceId: string;
 
   constructor(
     private readonly adminSettingsService: AdminSettingsService,
@@ -31,27 +34,48 @@ export class TtsService {
     @Inject(forwardRef(() => UserVoiceSettingsService))
     private readonly userVoiceSettingsService?: UserVoiceSettingsService,
   ) {
-    // Check if Google Cloud credentials are configured
-    const googleCloudKeyFile = this.configService.get<string>('GOOGLE_CLOUD_KEYFILE');
-    const googleApplicationCredentials = this.configService.get<string>(
-      'GOOGLE_APPLICATION_CREDENTIALS',
-    );
-
-    if (googleCloudKeyFile || googleApplicationCredentials) {
+    // Check if ElevenLabs is configured
+    const elevenLabsApiKey = this.configService.get<string>('elevenLabs.apiKey');
+    this.elevenLabsVoiceId = this.configService.get<string>('elevenLabs.voiceId') || 'EXAVITQu4vr4xnSDxMaL'; // Default to Sarah voice
+    
+    if (elevenLabsApiKey) {
       try {
-        // Initialize Google Cloud client
-        this.googleCloudClient = new TextToSpeechClient({
-          keyFilename: googleCloudKeyFile,
+        // Initialize ElevenLabs client
+        this.elevenLabsClient = new ElevenLabsClient({
+          apiKey: elevenLabsApiKey,
         });
-        this.provider = 'google-cloud';
-        this.logger.log('✅ Google Cloud TTS initialized successfully');
+        this.provider = 'elevenlabs';
+        this.logger.log('✅ ElevenLabs TTS initialized successfully');
       } catch (error) {
-        this.logger.warn('Failed to initialize Google Cloud TTS, falling back to free API:', error);
-        this.provider = 'google-tts-api';
+        this.logger.warn('Failed to initialize ElevenLabs TTS:', error);
       }
-    } else {
-      this.provider = 'google-tts-api';
-      this.logger.log('ℹ️ Using free TTS API (200 char limit). For better voice quality, configure GOOGLE_CLOUD_KEYFILE');
+    }
+    
+    // Fall back to Google Cloud if ElevenLabs not available
+    if (this.provider !== 'elevenlabs') {
+      const googleCloudKeyFile = this.configService.get<string>('GOOGLE_CLOUD_KEYFILE');
+      const googleApplicationCredentials = this.configService.get<string>(
+        'GOOGLE_APPLICATION_CREDENTIALS',
+      );
+
+      if (googleCloudKeyFile || googleApplicationCredentials) {
+        try {
+          // Initialize Google Cloud client
+          this.googleCloudClient = new TextToSpeechClient({
+            keyFilename: googleCloudKeyFile,
+          });
+          this.provider = 'google-cloud';
+          this.logger.log('✅ Google Cloud TTS initialized successfully');
+        } catch (error) {
+          this.logger.warn('Failed to initialize Google Cloud TTS, falling back to free API:', error);
+          this.provider = 'google-tts-api';
+        }
+      } else {
+        this.provider = 'google-tts-api';
+        this.logger.log(
+          'ℹ️ Using free TTS API (200 char limit). For better voice quality, configure GOOGLE_CLOUD_KEYFILE',
+        );
+      }
     }
   }
 
@@ -59,18 +83,34 @@ export class TtsService {
    * Convert text to speech and return audio buffer
    * @param text - Text to convert to speech
    * @param language - Language code (default: 'en')
+   * @param whatsappId - Optional WhatsApp ID to check if user is in voice-only mode
    * @returns Buffer containing audio data
    */
-  async textToSpeech(text: string, language: string = 'en'): Promise<Buffer> {
+  async textToSpeech(text: string, language: string = 'en', whatsappId?: string): Promise<Buffer> {
     try {
       // Clean the text first to get accurate length
       const cleanedText = this.cleanTextForTTS(text);
       const startTime = Date.now();
+      
+      // Determine which provider to use
+      let provider = this.provider;
+      
+      // Use ElevenLabs for voice-only mode if available
+      if (whatsappId && this.elevenLabsClient) {
+        const isVoiceOnly = await this.shouldSendVoiceOnly(whatsappId);
+        if (isVoiceOnly) {
+          provider = 'elevenlabs';
+        }
+      }
 
-      this.logger.debug(`🎤 Starting TTS generation for ${cleanedText.length} characters using ${this.provider}`);
+      this.logger.debug(
+        `🎤 Starting TTS generation for ${cleanedText.length} characters using ${provider}`,
+      );
 
       let buffer: Buffer;
-      if (this.provider === 'google-cloud' && this.googleCloudClient) {
+      if (provider === 'elevenlabs' && this.elevenLabsClient) {
+        buffer = await this.textToSpeechElevenLabs(cleanedText);
+      } else if (provider === 'google-cloud' && this.googleCloudClient) {
         buffer = await this.textToSpeechGoogleCloud(cleanedText, language);
       } else {
         buffer = await this.textToSpeechFreeApi(cleanedText, language);
@@ -213,7 +253,9 @@ export class TtsService {
                 const voiceKeywords = ['voice', 'audio', 'speak', 'say it', 'tell me'];
                 const lowerText = text.toLowerCase();
                 const hasKeyword = voiceKeywords.some((keyword) => lowerText.includes(keyword));
-                this.logger.debug(`Voice check for user ${whatsappId}: AI response=${isAiResponse}, has keyword=${hasKeyword}`);
+                this.logger.debug(
+                  `Voice check for user ${whatsappId}: AI response=${isAiResponse}, has keyword=${hasKeyword}`,
+                );
                 return hasKeyword;
               }
               return false;
@@ -323,10 +365,69 @@ export class TtsService {
   }
 
   /**
+   * Use ElevenLabs Text-to-Speech (high quality, natural voices)
+   */
+  private async textToSpeechElevenLabs(text: string): Promise<Buffer> {
+    if (!this.elevenLabsClient) {
+      throw new Error('ElevenLabs client not initialized');
+    }
+
+    try {
+      // ElevenLabs has a 5000 character limit per request
+      const maxLength = 5000;
+      const truncatedText = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+
+      // Generate audio using ElevenLabs
+      const audio = await this.elevenLabsClient.textToSpeech.convert(this.elevenLabsVoiceId, {
+        text: truncatedText,
+        modelId: 'eleven_multilingual_v2', // Best quality model
+        voiceSettings: {
+          stability: 0.5,
+          similarityBoost: 0.75,
+          style: 0.5,
+          useSpeakerBoost: true,
+        },
+      });
+
+      // Convert the async iterable to a buffer
+      const chunks: Uint8Array[] = [];
+      for await (const chunk of audio) {
+        chunks.push(chunk);
+      }
+      
+      // Combine all chunks into a single buffer
+      const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+      const buffer = Buffer.alloc(totalLength);
+      let offset = 0;
+      
+      for (const chunk of chunks) {
+        buffer.set(chunk, offset);
+        offset += chunk.length;
+      }
+
+      return buffer;
+    } catch (error) {
+      this.logger.error('ElevenLabs TTS error:', error);
+      // Fall back to Google Cloud
+      if (this.googleCloudClient) {
+        this.logger.warn('Falling back to Google Cloud TTS');
+        return this.textToSpeechGoogleCloud(text, 'en');
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Get current TTS provider info
    */
   getProviderInfo(): { provider: TtsProvider; quality: string; limits: string } {
-    if (this.provider === 'google-cloud') {
+    if (this.provider === 'elevenlabs') {
+      return {
+        provider: 'elevenlabs',
+        quality: 'Ultra-realistic (ElevenLabs AI voices)',
+        limits: 'Up to 5,000 characters per request',
+      };
+    } else if (this.provider === 'google-cloud') {
       return {
         provider: 'google-cloud',
         quality: 'Premium (Chirp3-HD voices)',

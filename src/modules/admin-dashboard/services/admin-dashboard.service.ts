@@ -153,8 +153,10 @@ export class AdminDashboardService {
     };
 
     this.logger.log(`Sending announcement to ${sessions.length} sessions`);
-    sessions.forEach(s => {
-      this.logger.log(`Session: ${s.whatsappId}, phoneNumber: ${s.phoneNumber}, flashUserId: ${s.flashUserId}`);
+    sessions.forEach((s) => {
+      this.logger.log(
+        `Session: ${s.whatsappId}, phoneNumber: ${s.phoneNumber}, flashUserId: ${s.flashUserId}`,
+      );
     });
 
     // Check WhatsApp status first

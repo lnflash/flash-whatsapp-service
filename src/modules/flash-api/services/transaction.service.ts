@@ -149,14 +149,15 @@ export class TransactionService {
 
     // Format date - createdAt is in seconds, convert to milliseconds
     const date = new Date(parseInt(tx.createdAt) * 1000);
-    const dateStr = date.toLocaleString('en-US', {
-      timeZone: 'America/Jamaica',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    }) + ' EST';
+    const dateStr =
+      date.toLocaleString('en-US', {
+        timeZone: 'America/Jamaica',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      }) + ' EST';
 
     // Format amounts
     let amountStr = '';
@@ -182,8 +183,11 @@ export class TransactionService {
       }
     }
 
+    // Extract short transaction ID (last 8 chars)
+    const shortTxId = tx.id.slice(-8);
+
     // Build transaction line
-    let txLine = `${status} ${direction} ${amountStr}\n   ${dateStr}`;
+    let txLine = `${status} ${direction} ${amountStr}\n   ${dateStr} • #${shortTxId}`;
 
     // Add memo if present
     if (tx.memo) {
@@ -234,10 +238,10 @@ export class TransactionService {
    */
   private groupTransactionsByDate(edges: TransactionEdge[]): Record<string, TransactionEdge[]> {
     const groups: Record<string, TransactionEdge[]> = {};
-    
+
     // Get current timestamp and create dates for comparison
     const now = new Date();
-    
+
     // Create dates at midnight in Jamaica timezone for today and yesterday
     const todayFormatter = new Intl.DateTimeFormat('en-US', {
       timeZone: 'America/Jamaica',
@@ -245,21 +249,21 @@ export class TransactionService {
       month: 'numeric',
       day: 'numeric',
     });
-    
+
     const todayParts = todayFormatter.formatToParts(now);
-    const todayYear = parseInt(todayParts.find(p => p.type === 'year')?.value || '0');
-    const todayMonth = parseInt(todayParts.find(p => p.type === 'month')?.value || '0') - 1; // 0-based
-    const todayDay = parseInt(todayParts.find(p => p.type === 'day')?.value || '0');
+    const todayYear = parseInt(todayParts.find((p) => p.type === 'year')?.value || '0');
+    const todayMonth = parseInt(todayParts.find((p) => p.type === 'month')?.value || '0') - 1; // 0-based
+    const todayDay = parseInt(todayParts.find((p) => p.type === 'day')?.value || '0');
 
     for (const edge of edges) {
       const txDate = new Date(parseInt(edge.node.createdAt) * 1000);
-      
+
       // Get transaction date parts in Jamaica timezone
       const txParts = todayFormatter.formatToParts(txDate);
-      const txYear = parseInt(txParts.find(p => p.type === 'year')?.value || '0');
-      const txMonth = parseInt(txParts.find(p => p.type === 'month')?.value || '0') - 1; // 0-based
-      const txDay = parseInt(txParts.find(p => p.type === 'day')?.value || '0');
-      
+      const txYear = parseInt(txParts.find((p) => p.type === 'year')?.value || '0');
+      const txMonth = parseInt(txParts.find((p) => p.type === 'month')?.value || '0') - 1; // 0-based
+      const txDay = parseInt(txParts.find((p) => p.type === 'day')?.value || '0');
+
       let dateGroup: string;
 
       // Compare dates using year, month, day components
@@ -285,6 +289,166 @@ export class TransactionService {
     return groups;
   }
 
+  /**
+   * Format detailed transaction information
+   */
+  async formatDetailedTransaction(tx: Transaction, _authToken: string): Promise<string> {
+    const direction = tx.direction === 'SEND' ? '📤 SENT' : '📥 RECEIVED';
+    const status =
+      tx.status === 'SUCCESS'
+        ? '✅ Confirmed'
+        : tx.status === 'PENDING'
+          ? '⏳ Pending'
+          : '❌ Failed';
+
+    // Format date with full details
+    const date = new Date(parseInt(tx.createdAt) * 1000);
+    const fullDate =
+      date.toLocaleString('en-US', {
+        timeZone: 'America/Jamaica',
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+      }) + ' EST';
+
+    // Format amounts with more detail
+    let primaryAmount = '';
+    let secondaryAmount = '';
+    let fee = '';
+
+    if (tx.settlementCurrency === 'BTC') {
+      const btcAmount = tx.settlementAmount / 100000000;
+      const satsAmount = tx.settlementAmount;
+      primaryAmount = `${btcAmount.toFixed(8)} BTC`;
+      primaryAmount += `\n💎 ${satsAmount.toLocaleString()} sats`;
+
+      if (tx.settlementDisplayAmount && tx.settlementDisplayCurrency) {
+        secondaryAmount = `\n💵 ${tx.settlementDisplayAmount} ${tx.settlementDisplayCurrency}`;
+      }
+    } else {
+      const usdAmount = parseFloat(tx.settlementAmount.toString());
+      primaryAmount = `$${usdAmount.toFixed(2)} USD`;
+
+      if (tx.settlementPrice) {
+        const btcEquivalent = this.calculateBtcEquivalent(usdAmount * 100, tx.settlementPrice);
+        if (btcEquivalent) {
+          secondaryAmount = `\n₿ ${btcEquivalent}`;
+        }
+      }
+    }
+
+    // Format fee if present
+    if (tx.settlementFee && tx.settlementFee > 0) {
+      if (tx.settlementCurrency === 'BTC') {
+        const feeSats = tx.settlementFee;
+        fee = `\n⚡ Fee: ${feeSats} sats`;
+      } else {
+        const feeAmount = parseFloat(tx.settlementFee.toString());
+        fee = `\n⚡ Fee: $${feeAmount.toFixed(2)}`;
+      }
+    }
+
+    // Build detailed message
+    let message = `📄 *Transaction Details*\n\n`;
+    message += `${direction}\n`;
+    message += `━━━━━━━━━━━━━━━━\n\n`;
+
+    message += `💰 *Amount:*\n${primaryAmount}${secondaryAmount}${fee}\n\n`;
+    message += `📅 *Date:*\n${fullDate}\n\n`;
+    message += `🔖 *Status:* ${status}\n\n`;
+    message += `🆔 *Transaction ID:*\n#${tx.id}\n\n`;
+
+    // Add memo if present
+    if (tx.memo) {
+      message += `📝 *Memo:*\n"${tx.memo}"\n\n`;
+    }
+
+    // Add counterparty info
+    const counterparty = this.getCounterpartyInfo(tx);
+    if (counterparty) {
+      message += `👤 *${tx.direction === 'SEND' ? 'Sent to' : 'Received from'}:*\n${counterparty}\n\n`;
+    }
+
+    // Add payment method info
+    if (tx.settlementVia) {
+      const paymentMethod = this.getPaymentMethodInfo(tx.settlementVia);
+      if (paymentMethod) {
+        message += `💳 *Payment Method:*\n${paymentMethod}\n\n`;
+      }
+    }
+
+    // Add current BTC price if available
+    if (tx.settlementPrice && tx.settlementPrice.formattedAmount) {
+      message += `📈 *BTC Price at Time:*\n${tx.settlementPrice.formattedAmount}\n\n`;
+    }
+
+    message += `💡 Type "history" to see all transactions`;
+
+    return message;
+  }
+
+  /**
+   * Format transaction for voice output
+   */
+  formatTransactionForVoice(tx: Transaction): string {
+    const direction = tx.direction === 'SEND' ? 'sent' : 'received';
+    const date = new Date(parseInt(tx.createdAt) * 1000);
+    const dateStr = date.toLocaleDateString('en-US', {
+      timeZone: 'America/Jamaica',
+      month: 'long',
+      day: 'numeric',
+    });
+
+    let amount = '';
+    if (tx.settlementCurrency === 'BTC') {
+      const sats = tx.settlementAmount;
+      amount = `${sats.toLocaleString()} sats`;
+      if (tx.settlementDisplayAmount) {
+        amount += ` or about ${tx.settlementDisplayAmount} ${tx.settlementDisplayCurrency}`;
+      }
+    } else {
+      const usd = parseFloat(tx.settlementAmount.toString());
+      amount = `${usd.toFixed(2)} dollars`;
+    }
+
+    let message = `You ${direction} ${amount} on ${dateStr}`;
+
+    if (tx.memo) {
+      message += `. The memo says: ${tx.memo}`;
+    }
+
+    const counterparty = this.getCounterpartyInfo(tx);
+    if (counterparty) {
+      const preposition = tx.direction === 'SEND' ? 'to' : 'from';
+      message += `. This was ${preposition} ${counterparty}`;
+    }
+
+    message += `. The transaction ID ends with ${tx.id.slice(-4)}.`;
+
+    return message;
+  }
+
+  /**
+   * Get payment method information
+   */
+  private getPaymentMethodInfo(settlementVia: any): string | null {
+    if (!settlementVia) return null;
+
+    if (settlementVia.__typename === 'SettlementViaLn') {
+      return '⚡ Lightning Network';
+    } else if (settlementVia.__typename === 'SettlementViaIntraLedger') {
+      return '🏦 Flash Internal Transfer';
+    } else if (settlementVia.__typename === 'SettlementViaOnChain') {
+      return '⛓️ On-chain Bitcoin';
+    }
+
+    return null;
+  }
 
   /**
    * Calculate BTC equivalent from USD amount and price

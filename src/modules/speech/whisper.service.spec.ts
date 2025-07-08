@@ -64,7 +64,7 @@ describe('WhisperService', () => {
     it('should transcribe audio successfully', async () => {
       const mockAudioBuffer = Buffer.from('mock audio data');
       const mockTranscription = 'Hello, this is a test message';
-      
+
       // Mock fs operations
       (fs.promises.mkdir as jest.Mock).mockResolvedValue(undefined);
       (fs.promises.writeFile as jest.Mock).mockResolvedValue(undefined);
@@ -73,7 +73,7 @@ describe('WhisperService', () => {
 
       // Mock OpenAI transcription
       mockCreate.mockResolvedValue(mockTranscription);
-      
+
       const result = await service.speechToText(mockAudioBuffer, 'audio/ogg; codecs=opus');
 
       expect(result).toBe(mockTranscription);
@@ -105,15 +105,15 @@ describe('WhisperService', () => {
       }).compile();
 
       const testService = testModule.get<WhisperService>(WhisperService);
-      
+
       const result = await testService.speechToText(Buffer.from('test'), 'audio/ogg');
-      
+
       expect(result).toBeNull();
     });
 
     it('should handle transcription errors gracefully', async () => {
       const mockAudioBuffer = Buffer.from('mock audio data');
-      
+
       // Mock fs operations
       (fs.promises.mkdir as jest.Mock).mockResolvedValue(undefined);
       (fs.promises.writeFile as jest.Mock).mockResolvedValue(undefined);
@@ -122,7 +122,7 @@ describe('WhisperService', () => {
 
       // Mock OpenAI transcription error
       mockCreate.mockRejectedValue(new Error('API Error'));
-      
+
       const result = await service.speechToText(mockAudioBuffer, 'audio/ogg; codecs=opus');
 
       expect(result).toBeNull();

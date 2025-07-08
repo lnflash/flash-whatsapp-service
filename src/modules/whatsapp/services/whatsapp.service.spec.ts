@@ -24,6 +24,7 @@ import { SupportModeService } from './support-mode.service';
 import { TtsService } from '../../tts/tts.service';
 import { PaymentConfirmationService } from './payment-confirmation.service';
 import { UserVoiceSettingsService } from './user-voice-settings.service';
+import { VoiceResponseService } from './voice-response.service';
 import { PaymentSendResult, WalletCurrency } from '../../flash-api/services/payment.service';
 
 describe('WhatsappService', () => {
@@ -244,6 +245,12 @@ describe('WhatsappService', () => {
             setUserVoiceMode: jest.fn(),
           },
         },
+        {
+          provide: VoiceResponseService,
+          useValue: {
+            generateNaturalVoiceResponse: jest.fn().mockResolvedValue('This is a natural voice response'),
+          },
+        },
       ],
     }).compile();
 
@@ -315,7 +322,9 @@ describe('WhatsappService', () => {
       const response = await service.processCloudMessage(messageData);
 
       // Verify response contains the unknown command message (may include hints)
-      expect(response).toContain(`Keep your finger on it. Type 'link' to connect or 'help' for commands.`);
+      expect(response).toContain(
+        `Keep your finger on it. Type 'link' to connect or 'help' for commands.`,
+      );
     });
 
     it('should require link for payment commands', async () => {
@@ -492,7 +501,8 @@ describe('WhatsappService', () => {
           expiresAt: new Date(Date.now() + 3600000).toISOString(),
         };
         // Mock that first call returns null (without @c.us), second call returns the request
-        jest.spyOn(redisService, 'getEncrypted')
+        jest
+          .spyOn(redisService, 'getEncrypted')
           .mockResolvedValueOnce(null) // First call with whatsappId
           .mockResolvedValueOnce(mockPendingRequest); // Second call with @c.us suffix
 
@@ -588,7 +598,8 @@ describe('WhatsappService', () => {
           expiresAt: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago (expired)
         };
         // Mock that first call returns null (without @c.us), second call returns the expired request
-        jest.spyOn(redisService, 'getEncrypted')
+        jest
+          .spyOn(redisService, 'getEncrypted')
           .mockResolvedValueOnce(null) // First call with whatsappId
           .mockResolvedValueOnce(mockExpiredRequest); // Second call with @c.us suffix
 
@@ -646,7 +657,8 @@ describe('WhatsappService', () => {
           expiresAt: new Date(Date.now() + 3600000).toISOString(),
         };
         // Mock that first call returns null (without @c.us), second call returns the request
-        jest.spyOn(redisService, 'getEncrypted')
+        jest
+          .spyOn(redisService, 'getEncrypted')
           .mockResolvedValueOnce(null) // First call with whatsappId
           .mockResolvedValueOnce(mockPendingRequest); // Second call with @c.us suffix
 

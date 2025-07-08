@@ -53,10 +53,10 @@ describe('SpeechService', () => {
   it('should use Whisper as fallback when Google Cloud fails', async () => {
     const mockBuffer = Buffer.from('fake audio data');
     const mockTranscription = 'Hello from Whisper';
-    
+
     (whisperService.isAvailable as jest.Mock).mockReturnValue(true);
     (whisperService.speechToText as jest.Mock).mockResolvedValue(mockTranscription);
-    
+
     const result = await service.speechToText(mockBuffer, 'audio/ogg; codecs=opus');
     expect(result).toBe(mockTranscription);
     expect(whisperService.speechToText).toHaveBeenCalledWith(mockBuffer, 'audio/ogg; codecs=opus');

@@ -43,7 +43,7 @@ describe('EventsService', () => {
     // Reset NODE_ENV for these tests
     const originalEnv = process.env.NODE_ENV;
     delete process.env.NODE_ENV;
-    
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EventsService,
@@ -70,7 +70,7 @@ describe('EventsService', () => {
 
     // Call connect directly instead of onModuleInit to bypass test check
     await service['connect']();
-    
+
     // Restore NODE_ENV
     process.env.NODE_ENV = originalEnv;
   });

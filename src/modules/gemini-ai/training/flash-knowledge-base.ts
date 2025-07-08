@@ -235,7 +235,7 @@ export const TRAINING_EXAMPLES: TrainingExample[] = [
     category: 'receive',
     keywords: ['receive', 'bitcoin', 'btc', 'crypto'],
   },
-  
+
   // Send related
   {
     question: 'How do I send money?',
