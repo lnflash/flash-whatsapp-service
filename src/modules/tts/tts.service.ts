@@ -26,7 +26,7 @@ export class TtsService {
   private readonly provider: TtsProvider;
   private googleCloudClient?: TextToSpeechClient;
   private elevenLabsClient?: ElevenLabsClient;
-  private readonly elevenLabsVoiceId: string;
+  private readonly elevenLabsVoices: Record<string, string>;
 
   constructor(
     private readonly adminSettingsService: AdminSettingsService,
@@ -36,7 +36,11 @@ export class TtsService {
   ) {
     // Check if ElevenLabs is configured
     const elevenLabsApiKey = this.configService.get<string>('elevenLabs.apiKey');
-    this.elevenLabsVoiceId = this.configService.get<string>('elevenLabs.voiceId') || 'EXAVITQu4vr4xnSDxMaL'; // Default to Sarah voice
+    this.elevenLabsVoices = this.configService.get<Record<string, string>>('elevenLabs.voices') || {
+      'terri-ann': 'EXAVITQu4vr4xnSDxMaL',
+      'patience': 'EXAVITQu4vr4xnSDxMaL',
+      'dean': 'EXAVITQu4vr4xnSDxMaL',
+    };
     
     if (elevenLabsApiKey) {
       try {
@@ -109,7 +113,7 @@ export class TtsService {
 
       let buffer: Buffer;
       if (provider === 'elevenlabs' && this.elevenLabsClient) {
-        buffer = await this.textToSpeechElevenLabs(cleanedText);
+        buffer = await this.textToSpeechElevenLabs(cleanedText, whatsappId);
       } else if (provider === 'google-cloud' && this.googleCloudClient) {
         buffer = await this.textToSpeechGoogleCloud(cleanedText, language);
       } else {
@@ -367,7 +371,7 @@ export class TtsService {
   /**
    * Use ElevenLabs Text-to-Speech (high quality, natural voices)
    */
-  private async textToSpeechElevenLabs(text: string): Promise<Buffer> {
+  private async textToSpeechElevenLabs(text: string, whatsappId?: string): Promise<Buffer> {
     if (!this.elevenLabsClient) {
       throw new Error('ElevenLabs client not initialized');
     }
@@ -377,8 +381,20 @@ export class TtsService {
       const maxLength = 5000;
       const truncatedText = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
 
+      // Get user's selected voice or use default
+      let selectedVoice = 'terri-ann'; // Default voice
+      if (whatsappId && this.userVoiceSettingsService) {
+        const userVoice = await this.userVoiceSettingsService.getUserVoice(whatsappId);
+        if (userVoice && this.elevenLabsVoices[userVoice]) {
+          selectedVoice = userVoice;
+        }
+      }
+
+      const voiceId = this.elevenLabsVoices[selectedVoice];
+      this.logger.debug(`Using ElevenLabs voice: ${selectedVoice} (${voiceId})`);
+
       // Generate audio using ElevenLabs
-      const audio = await this.elevenLabsClient.textToSpeech.convert(this.elevenLabsVoiceId, {
+      const audio = await this.elevenLabsClient.textToSpeech.convert(voiceId, {
         text: truncatedText,
         modelId: 'eleven_multilingual_v2', // Best quality model
         voiceSettings: {

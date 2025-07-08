@@ -3691,13 +3691,24 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
 
         case 'status': {
           const userMode = await this.userVoiceSettingsService.getUserVoiceMode(whatsappId);
+          const userVoice = await this.userVoiceSettingsService.getUserVoice(whatsappId);
+          
+          let statusMessage = '';
           if (userMode) {
-            return `Your voice setting: ${this.userVoiceSettingsService.formatVoiceMode(userMode)}`;
+            statusMessage = `Your voice setting: ${this.userVoiceSettingsService.formatVoiceMode(userMode)}`;
+          } else {
+            // Show default (admin) setting
+            const adminMode = await this.adminSettingsService.getVoiceMode();
+            statusMessage = `Your voice setting: Default (follows admin setting: ${adminMode})`;
           }
-
-          // Show default (admin) setting
-          const adminMode = await this.adminSettingsService.getVoiceMode();
-          return `Your voice setting: Default (follows admin setting: ${adminMode})`;
+          
+          // Add voice selection info
+          const voiceName = userVoice || 'terri-ann';
+          const voiceDisplay = voiceName === 'terri-ann' ? 'Terri-Ann' : 
+                              voiceName === 'patience' ? 'Patience' : 'Dean';
+          statusMessage += `\nSelected voice: ${voiceDisplay}`;
+          
+          return statusMessage;
         }
 
         case 'on':
@@ -3711,6 +3722,18 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
         case 'only':
           await this.userVoiceSettingsService.setUserVoiceMode(whatsappId, UserVoiceMode.ONLY);
           return "🎤 Voice ONLY - You'll only receive voice responses (no text).";
+
+        case '1':
+          await this.userVoiceSettingsService.setUserVoice(whatsappId, 'terri-ann');
+          return "🎙️ Voice changed to Terri-Ann (warm, friendly female voice).";
+
+        case '2':
+          await this.userVoiceSettingsService.setUserVoice(whatsappId, 'patience');
+          return "🎙️ Voice changed to Patience (calm, professional female voice).";
+
+        case '3':
+          await this.userVoiceSettingsService.setUserVoice(whatsappId, 'dean');
+          return "🎙️ Voice changed to Dean (confident male voice).";
 
         default: {
           // No action specified, show current status
