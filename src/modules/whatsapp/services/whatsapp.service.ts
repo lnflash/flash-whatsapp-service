@@ -3946,7 +3946,7 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
             const voiceListDetails = await this.voiceManagementService.getVoiceListWithDetails();
             const naturalResponse = await this.voiceResponseService.generateNaturalVoiceListResponse(
               voiceListDetails,
-              null,
+              undefined,
             );
             
             // Generate voice and return voice-only response

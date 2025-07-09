@@ -389,7 +389,7 @@ export class VoiceResponseService {
    * Convert formatted responses to natural speech for voice-only mode
    * This is used for command responses that need to be more conversational
    */
-  async convertToNaturalSpeech(formattedResponse: string, context?: Record<string, any>): string {
+  async convertToNaturalSpeech(formattedResponse: string, context?: Record<string, any>): Promise<string> {
     // Remove all formatting and emojis
     let naturalResponse = this.cleanTextForVoice(formattedResponse);
 
@@ -475,7 +475,7 @@ export class VoiceResponseService {
   async generateNaturalVoiceListResponse(
     voiceList: Record<string, any>,
     requestedVoice?: string,
-  ): string {
+  ): Promise<string> {
     const voiceNames = Object.keys(voiceList);
 
     if (requestedVoice) {
