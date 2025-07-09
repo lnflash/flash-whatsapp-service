@@ -11,6 +11,7 @@ import {
   UserVoiceSettingsService,
   UserVoiceMode,
 } from '../whatsapp/services/user-voice-settings.service';
+import { VoiceManagementService } from '../whatsapp/services/voice-management.service';
 
 export type TtsProvider = 'google-tts-api' | 'google-cloud' | 'elevenlabs';
 
@@ -26,22 +27,18 @@ export class TtsService {
   private readonly provider: TtsProvider;
   private googleCloudClient?: TextToSpeechClient;
   private elevenLabsClient?: ElevenLabsClient;
-  private readonly elevenLabsVoices: Record<string, string>;
 
   constructor(
     private readonly adminSettingsService: AdminSettingsService,
     private readonly configService: ConfigService,
     @Inject(forwardRef(() => UserVoiceSettingsService))
     private readonly userVoiceSettingsService?: UserVoiceSettingsService,
+    @Inject(forwardRef(() => VoiceManagementService))
+    private readonly voiceManagementService?: VoiceManagementService,
   ) {
     // Check if ElevenLabs is configured
     const elevenLabsApiKey = this.configService.get<string>('elevenLabs.apiKey');
-    this.elevenLabsVoices = this.configService.get<Record<string, string>>('elevenLabs.voices') || {
-      'terri-ann': 'EXAVITQu4vr4xnSDxMaL',
-      'patience': 'EXAVITQu4vr4xnSDxMaL',
-      'dean': 'EXAVITQu4vr4xnSDxMaL',
-    };
-    
+
     if (elevenLabsApiKey) {
       try {
         // Initialize ElevenLabs client
@@ -54,7 +51,7 @@ export class TtsService {
         this.logger.warn('Failed to initialize ElevenLabs TTS:', error);
       }
     }
-    
+
     // Fall back to Google Cloud if ElevenLabs not available
     if (this.provider !== 'elevenlabs') {
       const googleCloudKeyFile = this.configService.get<string>('GOOGLE_CLOUD_KEYFILE');
@@ -71,7 +68,10 @@ export class TtsService {
           this.provider = 'google-cloud';
           this.logger.log('✅ Google Cloud TTS initialized successfully');
         } catch (error) {
-          this.logger.warn('Failed to initialize Google Cloud TTS, falling back to free API:', error);
+          this.logger.warn(
+            'Failed to initialize Google Cloud TTS, falling back to free API:',
+            error,
+          );
           this.provider = 'google-tts-api';
         }
       } else {
@@ -95,10 +95,10 @@ export class TtsService {
       // Clean the text first to get accurate length
       const cleanedText = this.cleanTextForTTS(text);
       const startTime = Date.now();
-      
+
       // Determine which provider to use
       let provider = this.provider;
-      
+
       // Use ElevenLabs for voice-only mode if available
       if (whatsappId && this.elevenLabsClient) {
         const isVoiceOnly = await this.shouldSendVoiceOnly(whatsappId);
@@ -382,15 +382,36 @@ export class TtsService {
       const truncatedText = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
 
       // Get user's selected voice or use default
-      let selectedVoice = 'terri-ann'; // Default voice
+      let voiceId: string | null = null;
+      let selectedVoice = 'default';
+
       if (whatsappId && this.userVoiceSettingsService) {
         const userVoice = await this.userVoiceSettingsService.getUserVoice(whatsappId);
-        if (userVoice && this.elevenLabsVoices[userVoice]) {
-          selectedVoice = userVoice;
+        if (userVoice && this.voiceManagementService) {
+          voiceId = await this.voiceManagementService.getVoiceId(userVoice);
+          if (voiceId) {
+            selectedVoice = userVoice;
+          }
         }
       }
 
-      const voiceId = this.elevenLabsVoices[selectedVoice];
+      // If no voice found, get any available voice from the system
+      if (!voiceId && this.voiceManagementService) {
+        const voiceList = await this.voiceManagementService.getVoiceList();
+        const voiceNames = Object.keys(voiceList);
+        if (voiceNames.length > 0) {
+          // Use the first available voice
+          selectedVoice = voiceNames[0];
+          voiceId = voiceList[selectedVoice];
+        }
+      }
+
+      // If still no voice, use default ElevenLabs voice ID
+      if (!voiceId) {
+        voiceId = 'EXAVITQu4vr4xnSDxMaL'; // Default Terri-Ann voice
+        this.logger.warn('No voices configured, using default ElevenLabs voice');
+      }
+
       this.logger.debug(`Using ElevenLabs voice: ${selectedVoice} (${voiceId})`);
 
       // Generate audio using ElevenLabs
@@ -410,12 +431,12 @@ export class TtsService {
       for await (const chunk of audio) {
         chunks.push(chunk);
       }
-      
+
       // Combine all chunks into a single buffer
       const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
       const buffer = Buffer.alloc(totalLength);
       let offset = 0;
-      
+
       for (const chunk of chunks) {
         buffer.set(chunk, offset);
         offset += chunk.length;

@@ -153,7 +153,10 @@ Users can send these commands to the WhatsApp bot:
 - `unlink` - Disconnect your Flash account
 - `consent yes/no` - Manage AI support consent
 - `voice on/off/only/status` - Manage voice response settings
-- `voice 1/2/3` - Select voice: Terri-Ann, Patience, or Dean
+- `voice list` - Show available voices
+- `voice [name]` - Select a voice by name
+- `voice add [name] [id]` - Add new ElevenLabs voice
+- `voice remove [name]` - Remove a voice
 - `settings` - View all your settings and preferences
 - `help` - Show available commands
 
@@ -177,9 +180,6 @@ GEMINI_API_KEY=your_gemini_key_here
 
 # Voice Services
 ELEVENLABS_API_KEY=your_elevenlabs_key_here  # Optional: For ultra-realistic voice
-ELEVENLABS_VOICE_ID=EXAVITQu4vr4xnSDxMaL     # Voice 1: Terri-Ann
-ELEVENLABS_VOICE_ID2=your_voice_id_2_here    # Voice 2: Patience
-ELEVENLABS_VOICE_ID3=your_voice_id_3_here    # Voice 3: Dean
 OPENAI_API_KEY=your_openai_key_here          # Optional: For Whisper speech-to-text
 GOOGLE_CLOUD_KEYFILE=/path/to/keyfile.json   # Optional: For Google Cloud TTS/STT
 
@@ -346,10 +346,17 @@ Pulse supports advanced voice interactions for a more natural user experience:
 - `voice off` - Disable all voice responses
 - `voice only` - Receive only voice responses (no text)
 
-### Voice Selection:
-- `voice 1` - Terri-Ann (warm, friendly female voice)
-- `voice 2` - Patience (calm, professional female voice)
-- `voice 3` - Dean (confident male voice)
+### Dynamic Voice Management:
+- `voice list` - Show all available voices
+- `voice add [name] [voiceId]` - Add a new ElevenLabs voice
+- `voice remove [name]` - Remove a voice from the system
+- `voice [name]` - Select a voice by name
+
+### Examples:
+- `voice add sarah EXAVITQu4vr4xnSDxMaL` - Add Sarah's voice
+- `voice sarah` - Switch to Sarah's voice
+- `voice add morgan 21m00Tcm4TlvDq8ikWAM` - Add Morgan Freeman's voice
+- `voice morgan` - Use Morgan's voice
 
 ### Natural Language Processing:
 - 200+ command pattern variations

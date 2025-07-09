@@ -39,6 +39,7 @@ import { TtsService } from '../../tts/tts.service';
 import { PaymentConfirmationService } from './payment-confirmation.service';
 import { UserVoiceSettingsService, UserVoiceMode } from './user-voice-settings.service';
 import { VoiceResponseService } from './voice-response.service';
+import { VoiceManagementService } from './voice-management.service';
 // import { WhatsAppCloudService } from './whatsapp-cloud.service'; // Disabled for prototype branch
 
 @Injectable()
@@ -69,6 +70,7 @@ export class WhatsappService {
     private readonly paymentConfirmationService: PaymentConfirmationService,
     private readonly userVoiceSettingsService: UserVoiceSettingsService,
     private readonly voiceResponseService: VoiceResponseService,
+    private readonly voiceManagementService: VoiceManagementService,
     // private readonly whatsAppCloudService: WhatsAppCloudService, // Disabled for prototype branch
     @Inject(forwardRef(() => WhatsAppWebService))
     private readonly whatsappWebService?: WhatsAppWebService,
@@ -140,7 +142,13 @@ export class WhatsappService {
       }
 
       // Handle the command
-      const response = await this.handleCommand(command, whatsappId, phoneNumber, session, messageData.isVoiceCommand);
+      const response = await this.handleCommand(
+        command,
+        whatsappId,
+        phoneNumber,
+        session,
+        messageData.isVoiceCommand,
+      );
 
       // Check if voice response is requested
       // Mark as AI response if it comes from unknown command (likely AI handled)
@@ -207,7 +215,7 @@ export class WhatsappService {
           try {
             // Generate natural voice response based on command type
             let voiceText = finalText;
-            
+
             // For command responses, use natural language generation
             if (command && command.type !== CommandType.UNKNOWN) {
               voiceText = await this.voiceResponseService.generateNaturalVoiceResponse(
@@ -218,7 +226,7 @@ export class WhatsappService {
                   userName: session?.profileName,
                   isVoiceInput: messageData.isVoiceCommand || false,
                   originalResponse: finalText,
-                }
+                },
               );
             } else {
               // For AI responses, clean up for voice
@@ -289,7 +297,7 @@ export class WhatsappService {
           const originalCommand = pendingPayment.command;
           // Mark as already confirmed to prevent infinite loop
           originalCommand.args.requiresConfirmation = 'false';
-          
+
           if (originalCommand.type === CommandType.SEND) {
             return this.handleSendCommand(originalCommand, whatsappId, session);
           } else if (originalCommand.type === CommandType.REQUEST) {
@@ -332,7 +340,6 @@ export class WhatsappService {
         return lockdownMessage;
       }
 
-
       switch (command.type) {
         case CommandType.HELP:
           return this.getHelpMessage(session, command);
@@ -366,7 +373,7 @@ export class WhatsappService {
             if (validationResult.error) {
               return validationResult.error;
             }
-            
+
             command.args.requiresConfirmation = 'true';
             // Store the command for confirmation with validation info
             if (validationResult.recipientInfo) {
@@ -374,7 +381,7 @@ export class WhatsappService {
               command.args.recipientType = validationResult.recipientInfo.type;
               command.args.recipientDisplay = validationResult.recipientInfo.display;
             }
-            
+
             const details = this.paymentConfirmationService.formatPaymentDetails(command);
             await this.paymentConfirmationService.storePendingPayment(
               whatsappId,
@@ -382,10 +389,12 @@ export class WhatsappService {
               command,
               session?.sessionId,
             );
-            
+
             const isVoiceCommand = command.args.isVoiceCommand === 'true';
-            const header = isVoiceCommand ? '🎤 *Voice Payment Confirmation*' : '💸 *Payment Confirmation*';
-            
+            const header = isVoiceCommand
+              ? '🎤 *Voice Payment Confirmation*'
+              : '💸 *Payment Confirmation*';
+
             return `${header}\n\n${details}\n\n✅ Type *yes*, *ok*, or *pay* to confirm\n❌ Type *no* or *cancel* to cancel\n✏️ Or enter a new amount (e.g., "25")\n\n⏱️ This request will expire in 5 minutes.`;
           }
           return this.handleSendCommand(command, whatsappId, session);
@@ -1078,7 +1087,11 @@ _This limitation is due to WhatsApp's privacy features._`;
   /**
    * Handle AI query using Maple AI
    */
-  private async handleAiQuery(query: string, session: UserSession, isVoiceMode: boolean = false): Promise<string> {
+  private async handleAiQuery(
+    query: string,
+    session: UserSession,
+    isVoiceMode: boolean = false,
+  ): Promise<string> {
     try {
       if (!session.consentGiven) {
         // Store the pending question for after consent is given
@@ -1498,13 +1511,13 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
   private async validateSendRecipient(
     command: ParsedCommand,
     session: UserSession | null,
-  ): Promise<{ 
-    error?: string; 
-    recipientInfo?: { 
-      type: string; 
-      display: string; 
+  ): Promise<{
+    error?: string;
+    recipientInfo?: {
+      type: string;
+      display: string;
       walletId?: string;
-    } 
+    };
   }> {
     try {
       // Check if user has a linked account
@@ -1530,21 +1543,21 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
 
       // Check if it's a Lightning invoice
       if (lightningAddress?.startsWith('lnbc')) {
-        return { 
-          recipientInfo: { 
-            type: 'lightning_invoice', 
-            display: 'Lightning Invoice' 
-          } 
+        return {
+          recipientInfo: {
+            type: 'lightning_invoice',
+            display: 'Lightning Invoice',
+          },
         };
       }
 
       // Check if it's a Lightning address
       if (lightningAddress?.includes('@')) {
-        return { 
-          recipientInfo: { 
-            type: 'lightning_address', 
-            display: lightningAddress 
-          } 
+        return {
+          recipientInfo: {
+            type: 'lightning_address',
+            display: lightningAddress,
+          },
         };
       }
 
@@ -1561,11 +1574,11 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
           if (contacts[contactKey]) {
             const contactInfo = contacts[contactKey];
             const contactPhone = typeof contactInfo === 'string' ? contactInfo : contactInfo.phone;
-            return { 
-              recipientInfo: { 
-                type: 'contact', 
-                display: `${possibleContactName} (${contactPhone})` 
-              } 
+            return {
+              recipientInfo: {
+                type: 'contact',
+                display: `${possibleContactName} (${contactPhone})`,
+              },
             };
           }
         }
@@ -1582,15 +1595,17 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
           );
 
           if (walletCheck?.accountDefaultWallet?.id) {
-            return { 
-              recipientInfo: { 
-                type: 'username', 
+            return {
+              recipientInfo: {
+                type: 'username',
                 display: `@${targetUsername}`,
-                walletId: walletCheck.accountDefaultWallet.id
-              } 
+                walletId: walletCheck.accountDefaultWallet.id,
+              },
             };
           } else {
-            return { error: `❌ Username @${targetUsername} not found.\n\n💡 Tips:\n• Check the spelling\n• Ask them to set a username\n• Use their phone number instead` };
+            return {
+              error: `❌ Username @${targetUsername} not found.\n\n💡 Tips:\n• Check the spelling\n• Ask them to set a username\n• Use their phone number instead`,
+            };
           }
         } catch (error) {
           this.logger.error(`Error validating username: ${error.message}`);
@@ -1600,15 +1615,18 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
 
       // Check if it's a phone number
       if (targetPhone) {
-        return { 
-          recipientInfo: { 
-            type: 'phone', 
-            display: targetPhone 
-          } 
+        return {
+          recipientInfo: {
+            type: 'phone',
+            display: targetPhone,
+          },
         };
       }
 
-      return { error: 'Please specify a valid recipient:\n• @username (Flash user)\n• Lightning invoice (lnbc...)\n• Lightning address (user@domain.com)' };
+      return {
+        error:
+          'Please specify a valid recipient:\n• @username (Flash user)\n• Lightning invoice (lnbc...)\n• Lightning address (user@domain.com)',
+      };
     } catch (error) {
       this.logger.error(`Error validating recipient: ${error.message}`);
       return { error: '❌ Failed to validate recipient. Please try again.' };
@@ -1640,7 +1658,6 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
         return parsedResult.error;
       }
       const amount = parsedResult.amount!;
-
 
       // Determine recipient type
       let targetUsername = command.args.username;
@@ -3807,12 +3824,12 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
     try {
       switch (action) {
         case 'help':
-          return this.userVoiceSettingsService.getVoiceHelp();
+          return this.getVoiceHelp();
 
         case 'status': {
           const userMode = await this.userVoiceSettingsService.getUserVoiceMode(whatsappId);
           const userVoice = await this.userVoiceSettingsService.getUserVoice(whatsappId);
-          
+
           let statusMessage = '';
           if (userMode) {
             statusMessage = `Your voice setting: ${this.userVoiceSettingsService.formatVoiceMode(userMode)}`;
@@ -3821,13 +3838,20 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
             const adminMode = await this.adminSettingsService.getVoiceMode();
             statusMessage = `Your voice setting: Default (follows admin setting: ${adminMode})`;
           }
-          
+
           // Add voice selection info
-          const voiceName = userVoice || 'terri-ann';
-          const voiceDisplay = voiceName === 'terri-ann' ? 'Terri-Ann' : 
-                              voiceName === 'patience' ? 'Patience' : 'Dean';
-          statusMessage += `\nSelected voice: ${voiceDisplay}`;
-          
+          if (userVoice) {
+            // Check if it's a dynamic voice
+            const voiceId = await this.voiceManagementService.getVoiceId(userVoice);
+            if (voiceId) {
+              statusMessage += `\nSelected voice: ${userVoice}`;
+            } else {
+              statusMessage += `\nSelected voice: Default`;
+            }
+          } else {
+            statusMessage += `\nSelected voice: Default`;
+          }
+
           return statusMessage;
         }
 
@@ -3843,47 +3867,98 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
           await this.userVoiceSettingsService.setUserVoiceMode(whatsappId, UserVoiceMode.ONLY);
           return "🎤 Voice ONLY - You'll only receive voice responses (no text).";
 
-        case '1':
-          await this.userVoiceSettingsService.setUserVoice(whatsappId, 'terri-ann');
-          return "🎙️ Voice changed to Terri-Ann (warm, friendly female voice).";
+        case 'list':
+          return await this.voiceManagementService.formatVoiceList();
 
-        case '2':
-          await this.userVoiceSettingsService.setUserVoice(whatsappId, 'patience');
-          return "🎙️ Voice changed to Patience (calm, professional female voice).";
-
-        case '3':
-          await this.userVoiceSettingsService.setUserVoice(whatsappId, 'dean');
-          return "🎙️ Voice changed to Dean (confident male voice).";
-
-        default: {
-          // No action specified, show current status
-          const currentMode = await this.userVoiceSettingsService.getUserVoiceMode(whatsappId);
-          if (currentMode) {
-            return (
-              `Your current voice setting: ${this.userVoiceSettingsService.formatVoiceMode(currentMode)}\n\n` +
-              `To change, use:\n` +
-              `• \`voice on\` - Voice for AI responses\n` +
-              `• \`voice off\` - No voice responses\n` +
-              `• \`voice only\` - Voice only (no text)\n` +
-              `• \`voice help\` - See detailed help`
-            );
+        case 'add': {
+          const { voiceName, voiceId } = command.args;
+          if (!voiceName || !voiceId) {
+            return '❌ Usage: `voice add [name] [voiceId]`\n\nExample: `voice add sarah EXAVITQu4vr4xnSDxMaL`';
           }
 
-          const defaultMode = await this.adminSettingsService.getVoiceMode();
-          return (
-            `Your voice setting: Default (${defaultMode})\n\n` +
-            `To customize, use:\n` +
-            `• \`voice on\` - Voice for AI responses\n` +
-            `• \`voice off\` - No voice responses\n` +
-            `• \`voice only\` - Voice only (no text)\n` +
-            `• \`voice help\` - See detailed help`
-          );
+          const result = await this.voiceManagementService.addVoice(voiceName, voiceId, whatsappId);
+          if (result.success) {
+            // Set this as the user's active voice
+            await this.userVoiceSettingsService.setUserVoice(whatsappId, voiceName);
+            return `${result.message}\n\n🎙️ "${voiceName}" is now your active voice.`;
+          }
+          return `❌ ${result.message}`;
+        }
+
+        case 'remove': {
+          const { voiceName } = command.args;
+          if (!voiceName) {
+            return '❌ Usage: `voice remove [name]`\n\nExample: `voice remove sarah`';
+          }
+
+          const result = await this.voiceManagementService.removeVoice(voiceName);
+          if (result.success) {
+            // Check if user was using this voice
+            const currentVoice = await this.userVoiceSettingsService.getUserVoice(whatsappId);
+            if (currentVoice?.toLowerCase() === voiceName.toLowerCase()) {
+              await this.userVoiceSettingsService.setUserVoice(whatsappId, '');
+              return `${result.message}\n\n⚠️ This was your active voice. Switched to default.`;
+            }
+          }
+          return result.success ? `✅ ${result.message}` : `❌ ${result.message}`;
+        }
+
+        case 'select': {
+          const { voiceName } = command.args;
+          if (!voiceName) {
+            return '❌ Please specify a voice name.';
+          }
+
+          // Check if voice exists
+          const voiceExists = await this.voiceManagementService.voiceExists(voiceName);
+          if (!voiceExists) {
+            const voiceList = await this.voiceManagementService.formatVoiceList();
+            return `❌ Voice "${voiceName}" not found.\n\n${voiceList}`;
+          }
+
+          // Set as user's active voice
+          await this.userVoiceSettingsService.setUserVoice(whatsappId, voiceName);
+          return `🎙️ Voice changed to "${voiceName}".`;
+        }
+
+        default: {
+          // No action specified, show help
+          return this.getVoiceHelp();
         }
       }
     } catch (error) {
       this.logger.error(`Error handling voice command: ${error.message}`);
       return '❌ Failed to update voice settings. Please try again.';
     }
+  }
+
+  /**
+   * Get voice help message
+   */
+  private async getVoiceHelp(): Promise<string> {
+    const voiceList = await this.voiceManagementService.formatVoiceList();
+
+    return `🔊 *Voice Settings*
+
+Control how Pulse responds to you:
+
+*Voice Modes:*
+\`voice on\` - Enable voice for AI responses
+\`voice off\` - Disable all voice responses
+\`voice only\` - Voice responses only (no text)
+\`voice status\` - Check your current settings
+
+*Voice Management:*
+\`voice list\` - Show available voices
+\`voice [name]\` - Select a voice
+\`voice add [name] [id]\` - Add new voice
+\`voice remove [name]\` - Remove a voice
+
+Example:
+• \`voice add sarah EXAVITQu4vr4xnSDxMaL\`
+• \`voice sarah\` - Switch to Sarah's voice
+
+${voiceList}`;
   }
 
   /**
@@ -3901,7 +3976,7 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
       settingsMessage += '👤 *Account*\n';
       if (session && session.isVerified) {
         settingsMessage += `✅ Linked to Flash account\n`;
-        
+
         // Get username and currency info
         if (session.flashUserId && session.flashAuthToken) {
           // Get username
@@ -3912,18 +3987,18 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
             settingsMessage += `📛 Username: Not set\n`;
             settingsMessage += `   → Type \`username [new_username]\` to set one\n`;
           }
-          
+
           // Get balance for currency display
           const balance = await this.balanceService.getUserBalance(
             session.flashUserId,
             session.flashAuthToken,
           );
-          
+
           if (balance?.fiatCurrency) {
             settingsMessage += `💱 Currency: ${balance.fiatCurrency}\n`;
           }
         }
-        
+
         settingsMessage += `📱 Phone: ${session.phoneNumber}\n`;
       } else {
         settingsMessage += `❌ Not linked to Flash\n`;
@@ -3936,17 +4011,17 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
       settingsMessage += '🔊 *Voice Settings*\n';
       const userVoiceMode = await this.userVoiceSettingsService.getUserVoiceMode(whatsappId);
       const userVoice = await this.userVoiceSettingsService.getUserVoice(whatsappId);
-      
+
       if (userVoiceMode) {
         settingsMessage += `Mode: ${this.userVoiceSettingsService.formatVoiceMode(userVoiceMode)}\n`;
       } else {
         const adminMode = await this.adminSettingsService.getVoiceMode();
         settingsMessage += `Mode: Default (${adminMode})\n`;
       }
-      
+
       const voiceName = userVoice || 'terri-ann';
-      const voiceDisplay = voiceName === 'terri-ann' ? 'Terri-Ann' : 
-                          voiceName === 'patience' ? 'Patience' : 'Dean';
+      const voiceDisplay =
+        voiceName === 'terri-ann' ? 'Terri-Ann' : voiceName === 'patience' ? 'Patience' : 'Dean';
       settingsMessage += `Voice: ${voiceDisplay}\n`;
       settingsMessage += `   → Type \`voice help\` for voice options\n`;
 

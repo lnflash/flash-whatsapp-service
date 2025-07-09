@@ -44,8 +44,8 @@ export default () => ({
     apiKey: process.env.ELEVENLABS_API_KEY,
     voices: {
       'terri-ann': process.env.ELEVENLABS_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL', // Voice 1: Terri-Ann
-      'patience': process.env.ELEVENLABS_VOICE_ID2 || 'EXAVITQu4vr4xnSDxMaL', // Voice 2: Patience
-      'dean': process.env.ELEVENLABS_VOICE_ID3 || 'EXAVITQu4vr4xnSDxMaL', // Voice 3: Dean
+      patience: process.env.ELEVENLABS_VOICE_ID2 || 'EXAVITQu4vr4xnSDxMaL', // Voice 2: Patience
+      dean: process.env.ELEVENLABS_VOICE_ID3 || 'EXAVITQu4vr4xnSDxMaL', // Voice 3: Dean
     },
     defaultVoice: 'terri-ann', // Default voice option
   },

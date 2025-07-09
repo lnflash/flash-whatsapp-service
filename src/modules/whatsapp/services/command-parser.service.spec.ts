@@ -364,14 +364,18 @@ describe('CommandParserService - Natural Language', () => {
       expect(result.args.action).toBeUndefined();
     });
 
-    it('should parse "voice balance" as balance command', () => {
+    it('should parse "voice balance" as voice command with balance action', () => {
       const result = service.parseCommand('voice balance');
-      expect(result.type).toBe(CommandType.BALANCE);
+      expect(result.type).toBe(CommandType.VOICE);
+      expect(result.args.action).toBe('select');
+      expect(result.args.voiceName).toBe('balance');
     });
 
-    it('should parse "voice price" as price command', () => {
+    it('should parse "voice price" as voice command with price action', () => {
       const result = service.parseCommand('voice price');
-      expect(result.type).toBe(CommandType.PRICE);
+      expect(result.type).toBe(CommandType.VOICE);
+      expect(result.args.action).toBe('select');
+      expect(result.args.voiceName).toBe('price');
     });
   });
 });

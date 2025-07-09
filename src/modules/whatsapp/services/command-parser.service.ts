@@ -75,7 +75,7 @@ export class CommandParserService {
         /^admin(?:\s+(help|disconnect|reconnect|status|clear-session|settings|lockdown|find|group|add|remove|voice))?\s*(?:support|admin)?\s*(.*)$/i,
     },
     { type: CommandType.PENDING, pattern: /^pending(?:\s+(sent|received|claim))?(?:\s+(.+))?$/i },
-    { type: CommandType.VOICE, pattern: /^voice(?:\s+(on|off|only|status|help|1|2|3))?$/i },
+    { type: CommandType.VOICE, pattern: /^voice(?:\s+(.+))?$/i },
     { type: CommandType.SETTINGS, pattern: /^settings?$/i },
   ];
 
@@ -99,10 +99,10 @@ export class CommandParserService {
         };
       }
 
-      // Check if this is specifically a voice settings command first
-      const voiceSettingsPattern = /^voice\s*(on|off|only|status|help|1|2|3)?$/i;
-      if (voiceSettingsPattern.test(trimmedText)) {
-        // Don't strip the prefix for voice settings commands
+      // Check if this is specifically a voice command first
+      const voiceCommandPattern = /^voice(\s+|$)/i;
+      if (voiceCommandPattern.test(trimmedText)) {
+        // Don't strip the prefix for voice commands
         // Let it fall through to be matched by the VOICE command pattern
       } else {
         // Strip voice-related prefixes to allow "voice balance", "speak help", etc.
@@ -184,7 +184,7 @@ export class CommandParserService {
       lowerText.includes('i want to know what my balance is') ||
       lowerText.includes('i want to know my balance') ||
       lowerText.includes('tell me my balance') ||
-      lowerText.includes('what\'s my balance') ||
+      lowerText.includes("what's my balance") ||
       lowerText.includes('whats my balance') ||
       lowerText.includes('do i have any money') ||
       lowerText.includes('show balance') ||
@@ -236,7 +236,7 @@ export class CommandParserService {
       lowerText.includes('btc exchange rate') ||
       lowerText.includes('show me the price') ||
       lowerText.includes('tell me the price') ||
-      lowerText.includes('what\'s bitcoin at') ||
+      lowerText.includes("what's bitcoin at") ||
       lowerText.includes('whats bitcoin at') ||
       lowerText.includes('bitcoin trading at') ||
       lowerText.includes('btc trading at') ||
@@ -250,7 +250,7 @@ export class CommandParserService {
       lowerText.includes('bitcoin ticker') ||
       lowerText.includes('btc ticker') ||
       lowerText.includes('current rate') ||
-      lowerText.includes('today\'s price') ||
+      lowerText.includes("today's price") ||
       lowerText.includes('todays price') ||
       lowerText.includes('latest price') ||
       lowerText.includes('market rate') ||
@@ -276,11 +276,11 @@ export class CommandParserService {
       lowerText.includes('need some help') ||
       lowerText.includes('help me out') ||
       lowerText.includes('assist me') ||
-      lowerText.includes('i\'m confused') ||
+      lowerText.includes("i'm confused") ||
       lowerText.includes('im confused') ||
-      lowerText.includes('i\'m lost') ||
+      lowerText.includes("i'm lost") ||
       lowerText.includes('im lost') ||
-      lowerText.includes('don\'t understand') ||
+      lowerText.includes("don't understand") ||
       lowerText.includes('dont understand') ||
       lowerText.includes('how does this work') ||
       lowerText.includes('how do i use this') ||
@@ -352,8 +352,12 @@ export class CommandParserService {
 
         // Handle patterns where order might be reversed
         const patternStr = pattern.toString();
-        if (patternStr.includes('i owe') || patternStr.includes('pay back') || 
-            patternStr.includes('send\\s+(\\w+)\\s+\\$') || patternStr.includes('pay\\s+(\\w+)\\s+\\$')) {
+        if (
+          patternStr.includes('i owe') ||
+          patternStr.includes('pay back') ||
+          patternStr.includes('send\\s+(\\w+)\\s+\\$') ||
+          patternStr.includes('pay\\s+(\\w+)\\s+\\$')
+        ) {
           // For these patterns, recipient comes first
           recipient = match[1];
           amount = match[2];
@@ -394,9 +398,9 @@ export class CommandParserService {
           million: '1000000',
           // Common combinations
           'twenty-five': '25',
-          'twentyfive': '25',
+          twentyfive: '25',
           'fifty-five': '55',
-          'fiftyfive': '55',
+          fiftyfive: '55',
           'a hundred': '100',
           'one hundred': '100',
           'five hundred': '500',
@@ -450,9 +454,13 @@ export class CommandParserService {
       if (match) {
         let amount, username;
         const patternStr = pattern.toString();
-        if (patternStr.includes('ask') || patternStr.includes('owes me') || 
-            patternStr.includes('charge') || patternStr.includes('bill') || 
-            patternStr.includes('invoice')) {
+        if (
+          patternStr.includes('ask') ||
+          patternStr.includes('owes me') ||
+          patternStr.includes('charge') ||
+          patternStr.includes('bill') ||
+          patternStr.includes('invoice')
+        ) {
           // For these patterns, recipient comes first
           username = match[1];
           amount = match[2];
@@ -1087,9 +1095,28 @@ export class CommandParserService {
         break;
 
       case CommandType.VOICE:
-        // Extract voice action: on, off, only, status, help
+        // Extract voice command arguments
         if (match[1]) {
-          args.action = match[1].toLowerCase();
+          const voiceArgs = match[1].trim().toLowerCase();
+          const parts = voiceArgs.split(/\s+/);
+
+          // Check for special commands
+          if (['on', 'off', 'only', 'status', 'help', 'list'].includes(parts[0])) {
+            args.action = parts[0];
+          } else if (parts[0] === 'add' && parts.length >= 3) {
+            args.action = 'add';
+            args.voiceName = parts[1];
+            // Voice ID might contain uppercase, so get it from original match
+            const originalParts = match[1].trim().split(/\s+/);
+            args.voiceId = originalParts.slice(2).join(' '); // Join in case ID has spaces
+          } else if (parts[0] === 'remove' && parts.length >= 2) {
+            args.action = 'remove';
+            args.voiceName = parts.slice(1).join(' ');
+          } else {
+            // Assume it's a voice name selection
+            args.action = 'select';
+            args.voiceName = voiceArgs;
+          }
         }
         break;
     }
@@ -1144,8 +1171,8 @@ export class CommandParserService {
       funds: 'balance',
       wallet: 'balance',
       $: 'balance',
-      '$$': 'balance',
-      '$$$': 'balance',
+      $$: 'balance',
+      $$$: 'balance',
 
       // History shortcuts
       hist: 'history',

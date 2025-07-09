@@ -19,7 +19,7 @@ describe('VoiceResponseService', () => {
         CommandType.BALANCE,
         '💰 *Your Flash Balance*\n\n$50.00 USD\n\n_Updated: Today at 2:30 PM EST_',
         {},
-        { userName: 'John' }
+        { userName: 'John' },
       );
 
       expect(response).toContain('Hi John!');
@@ -33,7 +33,7 @@ describe('VoiceResponseService', () => {
         CommandType.SEND,
         '✅ Success! Sent $10.00 to @alice',
         { amount: '10', username: 'alice' },
-        {}
+        {},
       );
 
       expect(response).toContain('successfully sent 10 dollars to alice');
@@ -46,7 +46,7 @@ describe('VoiceResponseService', () => {
         CommandType.RECEIVE,
         '✅ Invoice created successfully!\n\nlnbc100...',
         { amount: '20' },
-        {}
+        {},
       );
 
       expect(response).toContain('created a payment request for 20 dollars');
@@ -59,7 +59,7 @@ describe('VoiceResponseService', () => {
         CommandType.PRICE,
         '₿ *Bitcoin Price*\n\n$65,432.10 USD',
         {},
-        {}
+        {},
       );
 
       expect(response).toContain('current Bitcoin price is 65,432');
@@ -73,7 +73,7 @@ describe('VoiceResponseService', () => {
         CommandType.HELP,
         '⚡ *Welcome to Pulse!*\n\n📱 *Essential Commands:*\n1️⃣ Balance - Check your wallet',
         {},
-        {}
+        {},
       );
 
       expect(response).toContain('help you with many things');
@@ -88,7 +88,7 @@ describe('VoiceResponseService', () => {
         CommandType.BALANCE,
         '💰 *Your Flash Balance*\n\n$0.00 USD',
         {},
-        {}
+        {},
       );
 
       expect(response).toContain('balance is currently empty');
@@ -100,7 +100,7 @@ describe('VoiceResponseService', () => {
         CommandType.BALANCE,
         '💰 *Your Flash Balance*\n\n$3.50 USD',
         {},
-        {}
+        {},
       );
 
       expect(response).toContain('3.50 dollars');
@@ -112,7 +112,7 @@ describe('VoiceResponseService', () => {
         CommandType.BALANCE,
         '💰 *Your Flash Balance*\n\n$250.00 USD',
         {},
-        {}
+        {},
       );
 
       expect(response).toContain('250.00 dollars');
@@ -124,7 +124,7 @@ describe('VoiceResponseService', () => {
         CommandType.HISTORY,
         '📊 *Recent Transactions*\n\n📤 Sent $10\n📥 Received $50',
         {},
-        {}
+        {},
       );
 
       expect(response).toMatch(/transaction|history|sent|received/i);
@@ -137,7 +137,7 @@ describe('VoiceResponseService', () => {
         CommandType.SEND,
         '❌ Insufficient balance',
         {},
-        {}
+        {},
       );
 
       expect(response).toMatch(/not able|wasn't able|check|try again/i);

@@ -132,7 +132,8 @@ export class GeminiAiService {
         : '';
 
     // Different instructions for voice mode
-    const voiceModeInstructions = context.isVoiceMode ? `
+    const voiceModeInstructions = context.isVoiceMode
+      ? `
 VOICE MODE INSTRUCTIONS:
 - You are responding to a VOICE message, so make your response conversational and natural
 - Speak as if having a friendly phone conversation
@@ -141,7 +142,8 @@ VOICE MODE INSTRUCTIONS:
 - Use complete sentences and natural speech patterns
 - Be warm, friendly, and conversational
 - Example: Instead of "Type 'balance' to check your balance", say "Just say balance and I'll tell you how much money you have"
-` : '';
+`
+      : '';
 
     return `You are Pulse, a WhatsApp bot that helps users with their Bitcoin wallet and payment needs in the Caribbean.
 

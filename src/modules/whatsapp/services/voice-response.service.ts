@@ -21,37 +21,37 @@ export class VoiceResponseService {
       switch (commandType) {
         case CommandType.BALANCE:
           return this.generateBalanceVoiceResponse(responseData, context);
-        
+
         case CommandType.SEND:
           return this.generateSendVoiceResponse(responseData, commandArgs);
-        
+
         case CommandType.RECEIVE:
           return this.generateReceiveVoiceResponse(responseData, commandArgs);
-        
+
         case CommandType.HISTORY:
           return this.generateHistoryVoiceResponse(responseData);
-        
+
         case CommandType.PRICE:
           return this.generatePriceVoiceResponse(responseData);
-        
+
         case CommandType.HELP:
           return this.generateHelpVoiceResponse(responseData, commandArgs);
-        
+
         case CommandType.LINK:
           return this.generateLinkVoiceResponse(responseData);
-        
+
         case CommandType.REQUEST:
           return this.generateRequestVoiceResponse(responseData, commandArgs);
-        
+
         case CommandType.CONTACTS:
           return this.generateContactsVoiceResponse(responseData, commandArgs);
-        
+
         case CommandType.USERNAME:
           return this.generateUsernameVoiceResponse(responseData, commandArgs);
-        
+
         case CommandType.PENDING:
           return this.generatePendingVoiceResponse(responseData);
-        
+
         case CommandType.VOICE:
           return this.generateVoiceSettingsResponse(responseData, commandArgs);
 
@@ -90,7 +90,8 @@ export class VoiceResponseService {
 
     // Extract success/failure status
     data.isSuccess = response.includes('✅') || response.includes('Success');
-    data.isError = response.includes('❌') || response.includes('Error') || response.includes('Failed');
+    data.isError =
+      response.includes('❌') || response.includes('Error') || response.includes('Failed');
 
     // Extract transaction IDs
     const txIdMatch = response.match(/#([A-Za-z0-9]+)/);
@@ -104,13 +105,16 @@ export class VoiceResponseService {
   /**
    * Generate natural balance response
    */
-  private generateBalanceVoiceResponse(data: Record<string, any>, context?: Record<string, any>): string {
+  private generateBalanceVoiceResponse(
+    data: Record<string, any>,
+    context?: Record<string, any>,
+  ): string {
     const userName = context?.userName || '';
     const greeting = userName ? `Hi ${userName}! ` : '';
-    
+
     if (data.usdAmount !== undefined) {
       const amount = data.usdAmount.toFixed(2);
-      
+
       if (data.usdAmount === 0) {
         return `${greeting}Your Flash balance is currently empty. To add funds, you can ask someone to send you money, or say "receive" followed by an amount to create a payment request.`;
       } else if (data.usdAmount < 5) {
@@ -146,9 +150,12 @@ export class VoiceResponseService {
   /**
    * Generate natural receive response
    */
-  private generateReceiveVoiceResponse(data: Record<string, any>, args?: Record<string, any>): string {
+  private generateReceiveVoiceResponse(
+    data: Record<string, any>,
+    args?: Record<string, any>,
+  ): string {
     const amount = args?.amount;
-    
+
     if (data.isSuccess) {
       if (amount) {
         return `Perfect! I've created a payment request for ${amount} dollars. You can share this invoice with anyone, and they'll be able to pay you instantly through the Lightning Network.`;
@@ -164,7 +171,7 @@ export class VoiceResponseService {
    */
   private generateHistoryVoiceResponse(data: Record<string, any>): string {
     const original = data.originalResponse || '';
-    
+
     // Count transactions
     const sentCount = (original.match(/📤/g) || []).length;
     const receivedCount = (original.match(/📥/g) || []).length;
@@ -175,7 +182,7 @@ export class VoiceResponseService {
     }
 
     let response = `Here's your recent transaction history. `;
-    
+
     if (sentCount > 0 && receivedCount > 0) {
       response += `You have ${sentCount} sent and ${receivedCount} received transactions. `;
     } else if (sentCount > 0) {
@@ -185,7 +192,7 @@ export class VoiceResponseService {
     }
 
     response += `For more details about a specific transaction, you can say "history" followed by the transaction ID.`;
-    
+
     return response;
   }
 
@@ -195,7 +202,7 @@ export class VoiceResponseService {
   private generatePriceVoiceResponse(data: Record<string, any>): string {
     if (data.btcPrice) {
       const price = data.btcPrice.toLocaleString();
-      
+
       // Add market context
       let marketContext = '';
       if (data.btcPrice > 100000) {
@@ -241,7 +248,10 @@ export class VoiceResponseService {
   /**
    * Generate natural request response
    */
-  private generateRequestVoiceResponse(data: Record<string, any>, args?: Record<string, any>): string {
+  private generateRequestVoiceResponse(
+    data: Record<string, any>,
+    args?: Record<string, any>,
+  ): string {
     if (data.isSuccess) {
       const amount = args?.amount || 'the amount';
       const from = args?.username || 'them';
@@ -254,7 +264,10 @@ export class VoiceResponseService {
   /**
    * Generate natural contacts response
    */
-  private generateContactsVoiceResponse(data: Record<string, any>, args?: Record<string, any>): string {
+  private generateContactsVoiceResponse(
+    data: Record<string, any>,
+    args?: Record<string, any>,
+  ): string {
     const action = args?.action;
 
     if (action === 'add' && data.isSuccess) {
@@ -266,7 +279,7 @@ export class VoiceResponseService {
     } else if (action === 'list' || !action) {
       const original = data.originalResponse || '';
       const contactCount = (original.match(/•/g) || []).length;
-      
+
       if (contactCount === 0) {
         return `You don't have any saved contacts yet. To add one, say "contacts add" followed by their name and phone number.`;
       } else if (contactCount === 1) {
@@ -282,7 +295,10 @@ export class VoiceResponseService {
   /**
    * Generate natural username response
    */
-  private generateUsernameVoiceResponse(data: Record<string, any>, args?: Record<string, any>): string {
+  private generateUsernameVoiceResponse(
+    data: Record<string, any>,
+    args?: Record<string, any>,
+  ): string {
     if (data.isSuccess && args?.username) {
       return `Excellent! Your username is now set to ${args.username}. People can send you money using this username instead of your phone number.`;
     } else if (data.username) {
@@ -297,7 +313,7 @@ export class VoiceResponseService {
    */
   private generatePendingVoiceResponse(data: Record<string, any>): string {
     const original = data.originalResponse || '';
-    
+
     if (original.includes('No pending payments')) {
       return `You don't have any pending payments right now. All your payments have been completed.`;
     }
@@ -315,7 +331,10 @@ export class VoiceResponseService {
   /**
    * Generate natural voice settings response
    */
-  private generateVoiceSettingsResponse(data: Record<string, any>, args?: Record<string, any>): string {
+  private generateVoiceSettingsResponse(
+    data: Record<string, any>,
+    args?: Record<string, any>,
+  ): string {
     const action = args?.action;
 
     switch (action) {
@@ -338,7 +357,7 @@ export class VoiceResponseService {
   private generateGenericVoiceResponse(originalResponse: string): string {
     // Clean up the response for voice
     let cleaned = this.cleanTextForVoice(originalResponse);
-    
+
     // Add natural language wrapper if it's an error
     if (originalResponse.includes('❌')) {
       return `I'm sorry, but ${cleaned}`;

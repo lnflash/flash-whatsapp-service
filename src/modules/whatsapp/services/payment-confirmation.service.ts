@@ -110,7 +110,7 @@ export class PaymentConfirmationService {
 
     if (command.type === 'send') {
       let details = '';
-      
+
       // Add recipient info with validation status
       if (args.recipientValidated === 'true' && args.recipientDisplay) {
         details += `📤 *To*: ${args.recipientDisplay}`;
@@ -125,15 +125,15 @@ export class PaymentConfirmationService {
       } else if (args.recipient) {
         details += `📤 *To*: ${args.recipient}\n`;
       }
-      
+
       // Add amount
       details += `💵 *Amount*: $${args.amount} USD\n`;
-      
+
       // Add memo if present
       if (args.memo) {
         details += `📝 *Memo*: "${args.memo}"\n`;
       }
-      
+
       // Add type-specific info
       if (args.recipientType === 'phone') {
         details += `\n📱 *Type*: Phone number (will create pending payment)`;
@@ -146,7 +146,7 @@ export class PaymentConfirmationService {
       } else {
         details += `\n⚡ *Network*: Lightning (instant, no fees)`;
       }
-      
+
       return details;
     } else if (command.type === 'request') {
       const from = args.username || args.phoneNumber || 'unknown';
