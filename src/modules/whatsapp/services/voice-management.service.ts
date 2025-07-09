@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { RedisService } from '../../redis/redis.service';
+import { SessionService } from '../../auth/services/session.service';
+import { UsernameService } from '../../flash-api/services/username.service';
 
 export interface Voice {
   name: string;
@@ -18,22 +20,60 @@ export class VoiceManagementService {
   private readonly VOICES_KEY = 'elevenlabs:voices';
   private readonly VOICES_DETAILS_PREFIX = 'elevenlabs:voice:';
 
-  constructor(private readonly redisService: RedisService) {}
+  constructor(
+    private readonly redisService: RedisService,
+    private readonly sessionService: SessionService,
+    private readonly usernameService: UsernameService,
+  ) {}
+
+  /**
+   * Generate a random voice name
+   */
+  private async generateRandomVoiceName(): Promise<string> {
+    const funNames = [
+      'aurora', 'blaze', 'cascade', 'delta', 'echo', 'flux', 'galaxy', 'horizon',
+      'iris', 'jazz', 'koda', 'luna', 'matrix', 'nova', 'orbit', 'phoenix',
+      'quantum', 'ripple', 'spark', 'tide', 'ultra', 'vortex', 'wave', 'xenon',
+      'yonder', 'zephyr', 'cosmo', 'dusk', 'ember', 'frost', 'glimmer', 'halo',
+      'indigo', 'jade', 'karma', 'lumen', 'mystic', 'nebula', 'opal', 'prism',
+      'quartz', 'radiant', 'storm', 'twilight', 'umbra', 'velvet', 'whisper', 'zion'
+    ];
+    
+    // Try to find an unused name
+    const voiceList = await this.getVoiceList();
+    for (let i = 0; i < funNames.length; i++) {
+      const randomIndex = Math.floor(Math.random() * funNames.length);
+      const name = funNames[randomIndex];
+      if (!voiceList[name]) {
+        return name;
+      }
+    }
+    
+    // If all fun names are taken, generate a numbered name
+    let counter = 1;
+    while (voiceList[`voice${counter}`]) {
+      counter++;
+    }
+    return `voice${counter}`;
+  }
 
   /**
    * Add a new voice to the system
    */
   async addVoice(
-    name: string,
+    name: string | null,
     voiceId: string,
     addedBy?: string,
   ): Promise<{ success: boolean; message: string }> {
     try {
+      // Generate random name if not provided
+      const voiceName = name || (await this.generateRandomVoiceName());
+      
       // Normalize name to lowercase for consistency
-      const normalizedName = name.toLowerCase().trim();
+      const normalizedName = voiceName.toLowerCase().trim();
 
-      // Validate inputs
-      if (!normalizedName || normalizedName.length < 2) {
+      // Validate voice name
+      if (normalizedName.length < 2) {
         return { success: false, message: 'Voice name must be at least 2 characters long' };
       }
 
@@ -56,7 +96,7 @@ export class VoiceManagementService {
       if (reservedNames.includes(normalizedName)) {
         return {
           success: false,
-          message: `"${name}" is a reserved word. Please choose a different name.`,
+          message: `"${voiceName}" is a reserved word. Please choose a different name.`,
         };
       }
 
@@ -67,7 +107,7 @@ export class VoiceManagementService {
       if (voiceList[normalizedName]) {
         return {
           success: false,
-          message: `Voice named "${name}" already exists. Please choose a different name.`,
+          message: `Voice named "${voiceName}" already exists. Please choose a different name.`,
         };
       }
 
@@ -97,8 +137,8 @@ export class VoiceManagementService {
         0, // Persistent
       );
 
-      this.logger.log(`Voice "${name}" (${voiceId}) added successfully`);
-      return { success: true, message: `✅ Voice "${name}" added successfully!` };
+      this.logger.log(`Voice "${voiceName}" (${voiceId}) added successfully`);
+      return { success: true, message: `✅ Voice "${voiceName}" added successfully!` };
     } catch (error) {
       this.logger.error(`Error adding voice: ${error.message}`);
       return { success: false, message: 'Failed to add voice. Please try again.' };
@@ -205,15 +245,34 @@ export class VoiceManagementService {
         const details = await this.getVoiceDetails(name);
         message += `• *${name}*`;
         if (details?.addedBy) {
-          message += ` (added by ${details.addedBy})`;
+          // Try to get username for the whatsappId
+          let displayName = 'unknown';
+          try {
+            // Get session by whatsappId
+            const session = await this.sessionService.getSessionByWhatsappId(details.addedBy);
+            if (session?.flashAuthToken) {
+              const username = await this.usernameService.getUsername(session.flashAuthToken);
+              if (username) {
+                displayName = username;
+              }
+            }
+          } catch (error) {
+            this.logger.debug(`Could not fetch username for ${details.addedBy}`);
+          }
+          message += ` (added by ${displayName})`;
         }
         message += '\n';
       }
 
       message += '\n📝 *Commands:*\n';
       message += '• `voice [name]` - Select a voice\n';
-      message += '• `voice add [name] [id]` - Add new voice\n';
-      message += '• `voice remove [name]` - Remove voice';
+      message += '• `voice add [id]` - Add voice (auto-names)\n';
+      message += '• `voice add [name] [id]` - Add custom voice\n';
+      message += '• `voice remove [name]` - Remove voice\n\n';
+      message += '💡 *Natural Language:*\n';
+      message += '• "Switch voice to mary"\n';
+      message += '• "Change your voice to john"\n';
+      message += '• "Let me speak to sarah"';
 
       return message;
     } catch (error) {
