@@ -99,18 +99,30 @@ export class CommandParserService {
         };
       }
 
-      // Check if this is specifically a voice command first
-      const voiceCommandPattern = /^voice(\s+|$)/i;
-      if (voiceCommandPattern.test(trimmedText)) {
-        // Don't strip the prefix for voice commands
-        // Let it fall through to be matched by the VOICE command pattern
+      // Check for compound voice commands (voice + another command)
+      const compoundVoicePattern = /^voice\s+(balance|help|price|history|settings|username|contacts|pending)\b/i;
+      const compoundMatch = trimmedText.match(compoundVoicePattern);
+      if (compoundMatch) {
+        // This is a compound command like "voice balance"
+        // Strip the "voice" prefix and mark that voice was requested
+        trimmedText = trimmedText.replace(/^voice\s+/i, '').trim();
+        // Store that this was a voice-requested command
+        isVoiceInput = true;
       } else {
-        // Strip voice-related prefixes to allow "voice balance", "speak help", etc.
-        const voicePrefixes = /^(voice|audio|speak|say it|tell me)\s+/i;
-        const voiceMatch = trimmedText.match(voicePrefixes);
-        if (voiceMatch) {
-          // Remove the voice prefix but keep track that voice was requested
-          trimmedText = trimmedText.replace(voicePrefixes, '').trim();
+        // Check if this is specifically a voice command first
+        const voiceCommandPattern = /^voice(\s+|$)/i;
+        if (voiceCommandPattern.test(trimmedText)) {
+          // Don't strip the prefix for voice commands
+          // Let it fall through to be matched by the VOICE command pattern
+        } else {
+          // Strip voice-related prefixes to allow "speak help", etc.
+          const voicePrefixes = /^(audio|speak|say it|tell me)\s+/i;
+          const voiceMatch = trimmedText.match(voicePrefixes);
+          if (voiceMatch) {
+            // Remove the voice prefix but keep track that voice was requested
+            trimmedText = trimmedText.replace(voicePrefixes, '').trim();
+            isVoiceInput = true;
+          }
         }
       }
 
@@ -190,6 +202,8 @@ export class CommandParserService {
             naturalCommand.args.requiresConfirmation = 'true';
             naturalCommand.args.isVoiceCommand = 'true';
           }
+          // Mark that this was a voice-requested command
+          naturalCommand.args.voiceRequested = 'true';
           return naturalCommand;
         }
       }
@@ -204,6 +218,11 @@ export class CommandParserService {
           if (isVoiceInput && (type === CommandType.SEND || type === CommandType.REQUEST)) {
             result.args.requiresConfirmation = 'true';
             result.args.isVoiceCommand = 'true';
+          }
+
+          // Mark if this was a voice-requested command (for proper voice response)
+          if (isVoiceInput) {
+            result.args.voiceRequested = 'true';
           }
 
           return result;

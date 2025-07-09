@@ -352,10 +352,10 @@ describe('CommandParserService - Natural Language', () => {
       expect(result.args.action).toBe('status');
     });
 
-    it('should parse "voice help" as voice command', () => {
+    it('should parse "voice help" as help command with voice', () => {
       const result = service.parseCommand('voice help');
-      expect(result.type).toBe(CommandType.VOICE);
-      expect(result.args.action).toBe('help');
+      expect(result.type).toBe(CommandType.HELP);
+      expect(result.args.voiceRequested).toBe('true');
     });
 
     it('should parse "voice" alone as voice command', () => {
@@ -364,18 +364,16 @@ describe('CommandParserService - Natural Language', () => {
       expect(result.args.action).toBe('status');
     });
 
-    it('should parse "voice balance" as voice command with balance action', () => {
+    it('should parse "voice balance" as balance command with voice', () => {
       const result = service.parseCommand('voice balance');
-      expect(result.type).toBe(CommandType.VOICE);
-      expect(result.args.action).toBe('select');
-      expect(result.args.voiceName).toBe('balance');
+      expect(result.type).toBe(CommandType.BALANCE);
+      expect(result.args.voiceRequested).toBe('true');
     });
 
-    it('should parse "voice price" as voice command with price action', () => {
+    it('should parse "voice price" as price command with voice', () => {
       const result = service.parseCommand('voice price');
-      expect(result.type).toBe(CommandType.VOICE);
-      expect(result.args.action).toBe('select');
-      expect(result.args.voiceName).toBe('price');
+      expect(result.type).toBe(CommandType.PRICE);
+      expect(result.args.voiceRequested).toBe('true');
     });
   });
 });

@@ -235,7 +235,26 @@ export class TtsService {
     whatsappId?: string,
   ): Promise<boolean> {
     try {
-      // First check user-specific settings if whatsappId is provided
+      // Get admin voice mode first
+      const adminMode = await this.adminSettingsService.getVoiceMode();
+      this.logger.debug(`Admin voice mode: ${adminMode}, isAiResponse: ${isAiResponse}`);
+
+      // If admin mode is 'always', everyone gets voice (unless user explicitly disabled)
+      if (adminMode === 'always') {
+        // Check if user has explicitly disabled voice
+        if (whatsappId && this.userVoiceSettingsService) {
+          const userMode = await this.userVoiceSettingsService.getUserVoiceMode(whatsappId);
+          if (userMode === UserVoiceMode.OFF) {
+            this.logger.debug(`Voice disabled for user ${whatsappId} despite admin 'always' mode`);
+            return false;
+          }
+        }
+        // Admin says always, user hasn't disabled it
+        this.logger.debug(`Voice enabled due to admin 'always' mode`);
+        return true;
+      }
+
+      // Check user-specific settings if whatsappId is provided
       if (whatsappId && this.userVoiceSettingsService) {
         const userMode = await this.userVoiceSettingsService.getUserVoiceMode(whatsappId);
 
@@ -252,8 +271,8 @@ export class TtsService {
               return true;
 
             case UserVoiceMode.ON:
-              // User wants voice for AI responses based on keywords
-              if (isAiResponse) {
+              // For admin 'on' mode or when user is 'on', check keywords
+              if (adminMode === 'on' || isAiResponse) {
                 const voiceKeywords = ['voice', 'audio', 'speak', 'say it', 'tell me'];
                 const lowerText = text.toLowerCase();
                 const hasKeyword = voiceKeywords.some((keyword) => lowerText.includes(keyword));
@@ -267,18 +286,11 @@ export class TtsService {
         }
       }
 
-      // Fall back to admin settings if no user preference
-      const voiceMode = await this.adminSettingsService.getVoiceMode();
-      this.logger.debug(`Using admin voice mode: ${voiceMode}, isAiResponse: ${isAiResponse}`);
-
-      switch (voiceMode) {
+      // Fall back to admin settings logic
+      switch (adminMode) {
         case 'off':
           // Voice disabled
           return false;
-
-        case 'always':
-          // Always use voice for everything
-          return true;
 
         case 'on':
           // Default mode - AI responds to voice keywords only

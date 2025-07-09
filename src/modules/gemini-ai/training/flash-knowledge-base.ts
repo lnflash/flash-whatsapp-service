@@ -168,6 +168,24 @@ export const FLASH_COMMANDS: CommandInfo[] = [
     requiresAuth: false,
     notes: 'View pending payments. Received payments auto-claim when you link your account',
   },
+  {
+    command: 'voice',
+    description: 'Manage voice settings and voice responses',
+    usage: 'voice [on|off|only|list|add|remove|select]',
+    examples: [
+      'voice on',
+      'voice off', 
+      'voice only',
+      'voice list',
+      'voice add alice A1B2C3D4',
+      'voice remove alice',
+      'voice select alice',
+      'voice balance (get balance with voice)',
+      'voice help (get help with voice)'
+    ],
+    requiresAuth: false,
+    notes: 'Control voice responses. "on" enables voice for AI when keywords used, "off" disables all voice, "only" gives voice-only responses (no text). Can add custom voices with voice IDs from ElevenLabs.',
+  },
 ];
 
 export const TRAINING_EXAMPLES: TrainingExample[] = [
@@ -370,6 +388,64 @@ export const TRAINING_EXAMPLES: TrainingExample[] = [
       'Lightning Address is an internet identifier (like email) that provides a simple way to receive Lightning payments. It uses LNURL-pay protocol underneath, where the address resolves to an HTTPS endpoint that returns Lightning invoices on demand. When someone sends to your address, their wallet queries the endpoint, receives payment details, and completes the transaction. It abstracts away the complexity of invoice generation and sharing.',
     category: 'lightning',
     keywords: ['lightning', 'address', 'technical', 'lnurl', 'protocol', 'advanced'],
+  },
+
+  // Voice features
+  {
+    question: 'How do I enable voice responses?',
+    answer:
+      'To enable voice responses, type "voice on". This will give you voice notes when you use keywords like "voice", "speak", or "audio" in your messages. For voice-only mode (no text), type "voice only". To disable voice completely, type "voice off".',
+    category: 'voice',
+    keywords: ['voice', 'enable', 'audio', 'speak', 'turn on'],
+  },
+  {
+    question: 'How do I add a new voice?',
+    answer:
+      'To add a custom voice, use "voice add [name] [voice-id]". The voice ID should be from ElevenLabs. For example: "voice add sarah ABC123XYZ". You can find voice IDs in your ElevenLabs account or ask an admin for available voice IDs.',
+    category: 'voice',
+    keywords: ['voice', 'add', 'new', 'custom', 'elevenlabs'],
+  },
+  {
+    question: 'How do I get voice responses with commands?',
+    answer:
+      'You can request voice with any command by adding "voice" before it. For example: "voice balance" gives you your balance with a voice note, "voice help" gives help with voice. You can also say things like "speak my balance" or "audio help".',
+    category: 'voice',
+    keywords: ['voice', 'commands', 'balance', 'speak', 'audio'],
+  },
+  {
+    question: 'What voices are available?',
+    answer:
+      'Type "voice list" to see all available voices. You can then select a voice with "voice select [name]" or just "voice [name]". For example: "voice alice" or "voice select sarah".',
+    category: 'voice',
+    keywords: ['voice', 'list', 'available', 'options', 'choose'],
+  },
+  {
+    question: 'How do voice modes work?',
+    answer:
+      'There are three voice modes: "voice on" gives you voice when you ask for it (using keywords), "voice off" disables all voice responses, and "voice only" gives you only voice notes without any text. Admin can also set system-wide voice settings.',
+    category: 'voice',
+    keywords: ['voice', 'modes', 'settings', 'on', 'off', 'only'],
+  },
+  {
+    question: 'Can I get balance with voice?',
+    answer:
+      'Yes! Just type "voice balance" or "speak balance" or "audio balance". You\'ll get your balance information as a voice note. This works with other commands too like "voice help" or "voice price".',
+    category: 'voice',
+    keywords: ['voice', 'balance', 'speak', 'audio', 'command'],
+  },
+  {
+    question: 'How do I change my voice assistant?',
+    answer:
+      'First type "voice list" to see available voices, then use "voice select [name]" to choose one. For example: "voice select alice". You can also just type "voice [name]" as a shortcut.',
+    category: 'voice',
+    keywords: ['voice', 'change', 'select', 'assistant', 'switch'],
+  },
+  {
+    question: 'I want only voice notes, no text',
+    answer:
+      'Type "voice only" to enable voice-only mode. You\'ll receive all responses as voice notes without any text. To go back to normal mode, type "voice on" or "voice off".',
+    category: 'voice',
+    keywords: ['voice', 'only', 'no text', 'voicenote', 'audio only'],
   },
 
   // Support
@@ -1026,6 +1102,9 @@ export const CONVERSATION_CONTEXT = {
     'NEVER show or mention BTC balances unless explicitly asked - always show USD balance',
     'When users check balance, only show their USD balance, not BTC',
     'Default all operations to USD unless user specifically requests BTC',
+    'When users ask about voice features, be helpful and explain the options clearly',
+    'For voice commands, explain that "voice balance" gives balance with voice, "voice on/off/only" changes settings',
+    'Voice IDs for custom voices come from ElevenLabs - users may need admin help to get valid IDs',
   ],
 
   common_mistakes: [

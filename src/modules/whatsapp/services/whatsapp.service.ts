@@ -173,7 +173,9 @@ export class WhatsappService {
       // Check if voice response is requested
       // Mark as AI response if it comes from unknown command (likely AI handled)
       const isAiResponse = command.type === CommandType.UNKNOWN;
-      const shouldUseVoice = await this.ttsService.shouldUseVoice(
+      // Check if this was a voice-requested command (e.g., "voice help")
+      const voiceRequested = command.args.voiceRequested === 'true';
+      const shouldUseVoice = voiceRequested || await this.ttsService.shouldUseVoice(
         messageData.text,
         isAiResponse,
         whatsappId,
@@ -374,7 +376,7 @@ export class WhatsappService {
           return this.handleVerifyCommand(command, whatsappId, session);
 
         case CommandType.BALANCE:
-          return this.handleBalanceCommand(whatsappId, session);
+          return this.handleBalanceCommand(command, whatsappId, session);
 
         case CommandType.REFRESH:
           return this.handleRefreshCommand(whatsappId, session);
@@ -760,6 +762,7 @@ _This limitation is due to WhatsApp's privacy features._`;
    * Handle balance check command
    */
   private async handleBalanceCommand(
+    command: ParsedCommand,
     whatsappId: string,
     session: UserSession | null,
   ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
@@ -832,7 +835,9 @@ _This limitation is due to WhatsApp's privacy features._`;
       const textMessage = this.balanceTemplate.generateBalanceMessage(balanceData);
 
       // Check if voice response is needed
-      const shouldUseVoice = await this.ttsService.shouldUseVoice(
+      // Check if this was a voice-requested command (e.g., "voice balance")
+      const voiceRequested = command.args.voiceRequested === 'true';
+      const shouldUseVoice = voiceRequested || await this.ttsService.shouldUseVoice(
         'balance',
         false,
         session.whatsappId,
