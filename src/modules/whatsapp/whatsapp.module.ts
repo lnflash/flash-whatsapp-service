@@ -18,6 +18,7 @@ import { AdminSettingsService } from './services/admin-settings.service';
 import { PaymentConfirmationService } from './services/payment-confirmation.service';
 import { UserVoiceSettingsService } from './services/user-voice-settings.service';
 import { VoiceResponseService } from './services/voice-response.service';
+import { VoiceManagementService } from './services/voice-management.service';
 
 // Guards and Templates
 import { RateLimiterGuard } from '../../common/guards/rate-limiter.guard';
@@ -62,6 +63,7 @@ import { SpeechModule } from '../speech/speech.module';
     PaymentConfirmationService,
     UserVoiceSettingsService,
     VoiceResponseService,
+    VoiceManagementService,
   ],
   exports: [
     WhatsappService,
@@ -69,6 +71,7 @@ import { SpeechModule } from '../speech/speech.module';
     AdminSettingsService,
     UserVoiceSettingsService,
     CommandParserService,
+    VoiceManagementService,
   ],
 })
 export class WhatsappModule {}

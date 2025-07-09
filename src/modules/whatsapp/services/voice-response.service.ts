@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ParsedCommand, CommandType } from './command-parser.service';
+import { convertCurrencyToWords, convertNumbersInText } from '../utils/number-to-words';
 
 @Injectable()
 export class VoiceResponseService {
@@ -21,37 +22,37 @@ export class VoiceResponseService {
       switch (commandType) {
         case CommandType.BALANCE:
           return this.generateBalanceVoiceResponse(responseData, context);
-        
+
         case CommandType.SEND:
           return this.generateSendVoiceResponse(responseData, commandArgs);
-        
+
         case CommandType.RECEIVE:
           return this.generateReceiveVoiceResponse(responseData, commandArgs);
-        
+
         case CommandType.HISTORY:
           return this.generateHistoryVoiceResponse(responseData);
-        
+
         case CommandType.PRICE:
           return this.generatePriceVoiceResponse(responseData);
-        
+
         case CommandType.HELP:
           return this.generateHelpVoiceResponse(responseData, commandArgs);
-        
+
         case CommandType.LINK:
           return this.generateLinkVoiceResponse(responseData);
-        
+
         case CommandType.REQUEST:
           return this.generateRequestVoiceResponse(responseData, commandArgs);
-        
+
         case CommandType.CONTACTS:
           return this.generateContactsVoiceResponse(responseData, commandArgs);
-        
+
         case CommandType.USERNAME:
           return this.generateUsernameVoiceResponse(responseData, commandArgs);
-        
+
         case CommandType.PENDING:
           return this.generatePendingVoiceResponse(responseData);
-        
+
         case CommandType.VOICE:
           return this.generateVoiceSettingsResponse(responseData, commandArgs);
 
@@ -90,7 +91,8 @@ export class VoiceResponseService {
 
     // Extract success/failure status
     data.isSuccess = response.includes('✅') || response.includes('Success');
-    data.isError = response.includes('❌') || response.includes('Error') || response.includes('Failed');
+    data.isError =
+      response.includes('❌') || response.includes('Error') || response.includes('Failed');
 
     // Extract transaction IDs
     const txIdMatch = response.match(/#([A-Za-z0-9]+)/);
@@ -104,21 +106,23 @@ export class VoiceResponseService {
   /**
    * Generate natural balance response
    */
-  private generateBalanceVoiceResponse(data: Record<string, any>, context?: Record<string, any>): string {
+  private generateBalanceVoiceResponse(
+    data: Record<string, any>,
+    context?: Record<string, any>,
+  ): string {
     const userName = context?.userName || '';
     const greeting = userName ? `Hi ${userName}! ` : '';
-    
+
     if (data.usdAmount !== undefined) {
       const amount = data.usdAmount.toFixed(2);
-      
+      const amountInWords = convertCurrencyToWords(amount);
+
       if (data.usdAmount === 0) {
         return `${greeting}Your Flash balance is currently empty. To add funds, you can ask someone to send you money, or say "receive" followed by an amount to create a payment request.`;
       } else if (data.usdAmount < 5) {
-        return `${greeting}Your Flash balance is ${amount} dollars. Your balance is getting a bit low. You might want to add more funds soon.`;
-      } else if (data.usdAmount > 100) {
-        return `${greeting}Your Flash balance is ${amount} dollars. You have a healthy balance! You can send money by saying "send" followed by the amount and recipient.`;
+        return `${greeting}Your Flash balance is ${amountInWords}. Your balance is getting a bit low. You might want to add more funds soon.`;
       } else {
-        return `${greeting}Your Flash balance is ${amount} dollars.`;
+        return `${greeting}Your Flash balance is ${amountInWords}.`;
       }
     }
 
@@ -131,8 +135,9 @@ export class VoiceResponseService {
   private generateSendVoiceResponse(data: Record<string, any>, args?: Record<string, any>): string {
     if (data.isSuccess) {
       const amount = args?.amount || 'the payment';
+      const amountInWords = amount !== 'the payment' ? convertCurrencyToWords(amount) : amount;
       const recipient = args?.username || args?.recipient || 'them';
-      return `Great! I've successfully sent ${amount} dollars to ${recipient}. The payment was instant and they should have received it already.`;
+      return `Great! I've successfully sent ${amountInWords} to ${recipient}. The payment was instant and they should have received it already.`;
     } else if (data.isError) {
       if (data.originalResponse?.includes('Insufficient balance')) {
         return `Sorry, you don't have enough funds to complete this payment. Please check your balance first.`;
@@ -146,12 +151,16 @@ export class VoiceResponseService {
   /**
    * Generate natural receive response
    */
-  private generateReceiveVoiceResponse(data: Record<string, any>, args?: Record<string, any>): string {
+  private generateReceiveVoiceResponse(
+    data: Record<string, any>,
+    args?: Record<string, any>,
+  ): string {
     const amount = args?.amount;
-    
+
     if (data.isSuccess) {
       if (amount) {
-        return `Perfect! I've created a payment request for ${amount} dollars. You can share this invoice with anyone, and they'll be able to pay you instantly through the Lightning Network.`;
+        const amountInWords = convertCurrencyToWords(amount);
+        return `Perfect! I've created a payment request for ${amountInWords}. You can share this invoice with anyone, and they'll be able to pay you instantly through the Lightning Network.`;
       }
       return `I've created your payment request. Share this invoice to receive payment instantly.`;
     }
@@ -164,7 +173,7 @@ export class VoiceResponseService {
    */
   private generateHistoryVoiceResponse(data: Record<string, any>): string {
     const original = data.originalResponse || '';
-    
+
     // Count transactions
     const sentCount = (original.match(/📤/g) || []).length;
     const receivedCount = (original.match(/📥/g) || []).length;
@@ -175,7 +184,7 @@ export class VoiceResponseService {
     }
 
     let response = `Here's your recent transaction history. `;
-    
+
     if (sentCount > 0 && receivedCount > 0) {
       response += `You have ${sentCount} sent and ${receivedCount} received transactions. `;
     } else if (sentCount > 0) {
@@ -185,7 +194,7 @@ export class VoiceResponseService {
     }
 
     response += `For more details about a specific transaction, you can say "history" followed by the transaction ID.`;
-    
+
     return response;
   }
 
@@ -194,8 +203,10 @@ export class VoiceResponseService {
    */
   private generatePriceVoiceResponse(data: Record<string, any>): string {
     if (data.btcPrice) {
+      // For large numbers like Bitcoin price, we'll use a formatted version
       const price = data.btcPrice.toLocaleString();
-      
+      const priceInWords = this.convertLargeNumberToWords(data.btcPrice);
+
       // Add market context
       let marketContext = '';
       if (data.btcPrice > 100000) {
@@ -204,7 +215,7 @@ export class VoiceResponseService {
         marketContext = ' The price is quite strong today.';
       }
 
-      return `The current Bitcoin price is ${price} US dollars.${marketContext} Remember, when you send or receive money through Flash, it's always in US dollars, not Bitcoin.`;
+      return `The current Bitcoin price is ${priceInWords}.${marketContext} Remember, when you send or receive money through Flash, it's always in US dollars, not Bitcoin.`;
     }
 
     return `I'm checking the current Bitcoin price for you. This will just take a moment.`;
@@ -241,11 +252,15 @@ export class VoiceResponseService {
   /**
    * Generate natural request response
    */
-  private generateRequestVoiceResponse(data: Record<string, any>, args?: Record<string, any>): string {
+  private generateRequestVoiceResponse(
+    data: Record<string, any>,
+    args?: Record<string, any>,
+  ): string {
     if (data.isSuccess) {
       const amount = args?.amount || 'the amount';
+      const amountInWords = amount !== 'the amount' ? convertCurrencyToWords(amount) : amount;
       const from = args?.username || 'them';
-      return `I've sent a payment request for ${amount} dollars to ${from}. They'll receive a notification and can pay you instantly.`;
+      return `I've sent a payment request for ${amountInWords} to ${from}. They'll receive a notification and can pay you instantly.`;
     }
 
     return `I'm creating your payment request now. The recipient will be notified right away.`;
@@ -254,7 +269,10 @@ export class VoiceResponseService {
   /**
    * Generate natural contacts response
    */
-  private generateContactsVoiceResponse(data: Record<string, any>, args?: Record<string, any>): string {
+  private generateContactsVoiceResponse(
+    data: Record<string, any>,
+    args?: Record<string, any>,
+  ): string {
     const action = args?.action;
 
     if (action === 'add' && data.isSuccess) {
@@ -266,7 +284,7 @@ export class VoiceResponseService {
     } else if (action === 'list' || !action) {
       const original = data.originalResponse || '';
       const contactCount = (original.match(/•/g) || []).length;
-      
+
       if (contactCount === 0) {
         return `You don't have any saved contacts yet. To add one, say "contacts add" followed by their name and phone number.`;
       } else if (contactCount === 1) {
@@ -282,7 +300,10 @@ export class VoiceResponseService {
   /**
    * Generate natural username response
    */
-  private generateUsernameVoiceResponse(data: Record<string, any>, args?: Record<string, any>): string {
+  private generateUsernameVoiceResponse(
+    data: Record<string, any>,
+    args?: Record<string, any>,
+  ): string {
     if (data.isSuccess && args?.username) {
       return `Excellent! Your username is now set to ${args.username}. People can send you money using this username instead of your phone number.`;
     } else if (data.username) {
@@ -297,7 +318,7 @@ export class VoiceResponseService {
    */
   private generatePendingVoiceResponse(data: Record<string, any>): string {
     const original = data.originalResponse || '';
-    
+
     if (original.includes('No pending payments')) {
       return `You don't have any pending payments right now. All your payments have been completed.`;
     }
@@ -315,7 +336,10 @@ export class VoiceResponseService {
   /**
    * Generate natural voice settings response
    */
-  private generateVoiceSettingsResponse(data: Record<string, any>, args?: Record<string, any>): string {
+  private generateVoiceSettingsResponse(
+    data: Record<string, any>,
+    args?: Record<string, any>,
+  ): string {
     const action = args?.action;
 
     switch (action) {
@@ -338,7 +362,7 @@ export class VoiceResponseService {
   private generateGenericVoiceResponse(originalResponse: string): string {
     // Clean up the response for voice
     let cleaned = this.cleanTextForVoice(originalResponse);
-    
+
     // Add natural language wrapper if it's an error
     if (originalResponse.includes('❌')) {
       return `I'm sorry, but ${cleaned}`;
@@ -349,6 +373,26 @@ export class VoiceResponseService {
     }
 
     return cleaned;
+  }
+
+  /**
+   * Convert large numbers to natural speech format
+   */
+  private convertLargeNumberToWords(num: number): string {
+    if (num >= 1000000) {
+      const millions = (num / 1000000).toFixed(1);
+      return `${millions} million dollars`;
+    } else if (num >= 1000) {
+      const thousands = Math.floor(num / 1000);
+      const remainder = num % 1000;
+      if (remainder === 0) {
+        return `${thousands} thousand dollars`;
+      } else {
+        return `${thousands} thousand ${remainder} dollars`;
+      }
+    } else {
+      return convertCurrencyToWords(num);
+    }
   }
 
   /**
@@ -364,5 +408,188 @@ export class VoiceResponseService {
       .replace(/\s+/g, ' ') // Normalize spaces
       .replace(/\.\s*\./g, '.') // Remove double periods
       .trim();
+  }
+
+  /**
+   * Convert formatted responses to natural speech for voice-only mode
+   * This is used for command responses that need to be more conversational
+   */
+  async convertToNaturalSpeech(formattedResponse: string, context?: Record<string, any>): Promise<string> {
+    // Remove all formatting and emojis
+    let naturalResponse = this.cleanTextForVoice(formattedResponse);
+
+    // Process different types of content
+    naturalResponse = this.convertBulletListsToSpeech(naturalResponse);
+    naturalResponse = this.handleErrorMessages(naturalResponse, formattedResponse);
+    naturalResponse = this.handleSuccessMessages(naturalResponse, formattedResponse);
+    naturalResponse = this.convertTechnicalTermsToSpeech(naturalResponse);
+    naturalResponse = this.removeUrlsAndIdentifiers(naturalResponse);
+    naturalResponse = this.cleanupFinalText(naturalResponse);
+
+    return naturalResponse;
+  }
+
+  /**
+   * Convert bullet point lists to natural language
+   */
+  private convertBulletListsToSpeech(text: string): string {
+    if (!text.includes('•')) {
+      return text;
+    }
+
+    const lines = text.split('.');
+    const items: string[] = [];
+    let mainMessage = '';
+
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('•')) {
+        items.push(trimmed.substring(1).trim());
+      } else if (trimmed) {
+        mainMessage += trimmed + '. ';
+      }
+    });
+
+    if (items.length === 0) {
+      return text;
+    }
+
+    let result = mainMessage;
+    if (items.length === 1) {
+      result += `You have ${items[0]}.`;
+    } else if (items.length === 2) {
+      result += `You have ${items[0]} and ${items[1]}.`;
+    } else {
+      const lastItem = items.pop();
+      result += `You have ${items.join(', ')}, and ${lastItem}.`;
+    }
+
+    return result;
+  }
+
+  /**
+   * Handle error messages and make them conversational
+   */
+  private handleErrorMessages(text: string, originalResponse: string): string {
+    if (!originalResponse.includes('❌')) {
+      return text;
+    }
+
+    const errorMatch = text.match(/([^.]+)/);
+    if (!errorMatch) {
+      return text;
+    }
+
+    const errorMsg = errorMatch[1].trim();
+    
+    // Check for specific error patterns
+    if (errorMsg.includes('not found')) {
+      return `I'm sorry, but ${errorMsg.toLowerCase()}. Please check the spelling and try again.`;
+    } 
+    
+    if (errorMsg.includes('Usage:') || errorMsg.includes('usage:')) {
+      // Convert usage instructions to natural language
+      let result = text.replace(/Usage:/gi, 'To use this command, you need to say');
+      result = result.replace(/\[([^\]]+)\]/g, 'followed by $1');
+      return result;
+    }
+    
+    return `I'm sorry, but ${errorMsg.toLowerCase()}.`;
+  }
+
+  /**
+   * Handle success messages
+   */
+  private handleSuccessMessages(text: string, originalResponse: string): string {
+    if (originalResponse.includes('✅')) {
+      return text.replace(/^([^.]+)/, 'Great! $1');
+    }
+    return text;
+  }
+
+  /**
+   * Convert technical terms to natural speech
+   */
+  private convertTechnicalTermsToSpeech(text: string): string {
+    return text
+      .replace(/\b(\w+)\s*\([^)]+\)/g, '$1') // Remove parenthetical info
+      .replace(/Type\s+['"]([^'"]+)['"]/gi, 'Say $1') // Convert "Type" to "Say"
+      .replace(/\bOR\b/g, 'or') // Lowercase OR
+      .replace(/\be\.g\./gi, 'for example')
+      .replace(/\bi\.e\./gi, 'that is')
+      .replace(/\betc\./gi, 'and so on');
+  }
+
+  /**
+   * Remove URLs and technical identifiers
+   */
+  private removeUrlsAndIdentifiers(text: string): string {
+    return text
+      .replace(/https?:\/\/[^\s]+/g, '')
+      .replace(/#[A-Za-z0-9]+/g, '');
+  }
+
+  /**
+   * Clean up final text formatting
+   */
+  private cleanupFinalText(text: string): string {
+    return text
+      .replace(/\s+/g, ' ')
+      .replace(/\.\s*\./g, '.')
+      .replace(/,\s*,/g, ',')
+      .trim();
+  }
+
+  /**
+   * Generate natural voice list response
+   */
+  async generateNaturalVoiceListResponse(
+    voiceList: Record<string, any>,
+    requestedVoice?: string,
+  ): Promise<string> {
+    const voiceNames = Object.keys(voiceList);
+
+    if (requestedVoice) {
+      // User asked for a specific voice that wasn't found
+      if (voiceNames.length === 0) {
+        return `I couldn't find a voice named '${requestedVoice}'. You don't have any voices available yet. You can add a new voice by saying 'voice add' followed by the voice ID.`;
+      } else if (voiceNames.length === 1) {
+        const voiceName = voiceNames[0];
+        const voiceDetails = voiceList[voiceName];
+        let response = `I couldn't find a voice named '${requestedVoice}'. `;
+        response += `You currently have one voice available: ${voiceName}`;
+        if (voiceDetails.addedBy) {
+          response += `, which was added by ${voiceDetails.addedBy}`;
+        }
+        response += `. You can select it by saying 'voice ${voiceName}' or add a new voice by saying 'voice add' followed by the voice ID.`;
+        return response;
+      } else {
+        const lastVoice = voiceNames.pop();
+        let response = `I couldn't find a voice named '${requestedVoice}'. `;
+        response += `You have ${voiceNames.length + 1} voices available: ${voiceNames.join(', ')}, and ${lastVoice}. `;
+        response += `You can select any of them by saying 'voice' followed by the name, or add a new voice by saying 'voice add' followed by the voice ID.`;
+        return response;
+      }
+    }
+
+    // Regular voice list request
+    if (voiceNames.length === 0) {
+      return `You don't have any voices available yet. To add a voice, say 'voice add' followed by the voice ID.`;
+    } else if (voiceNames.length === 1) {
+      const voiceName = voiceNames[0];
+      const voiceDetails = voiceList[voiceName];
+      let response = `You have one voice available: ${voiceName}`;
+      if (voiceDetails.addedBy) {
+        response += `, added by ${voiceDetails.addedBy}`;
+      }
+      response += `. To use it, say 'voice ${voiceName}'.`;
+      return response;
+    } else {
+      const lastVoice = voiceNames.pop();
+      let response = `You have ${voiceNames.length + 1} voices available: ${voiceNames.join(', ')}, and ${lastVoice}. `;
+      response += `To select a voice, say 'voice' followed by the name. For example, 'voice ${voiceNames[0]}'. `;
+      response += `You can also add new voices or remove existing ones.`;
+      return response;
+    }
   }
 }

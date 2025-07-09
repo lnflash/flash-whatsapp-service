@@ -10,6 +10,7 @@ export enum UserVoiceMode {
 export interface UserVoiceSettings {
   whatsappId: string;
   mode: UserVoiceMode;
+  voiceName?: string; // Selected voice: 'terri-ann', 'patience', or 'dean'
   updatedAt: Date;
 }
 
@@ -50,15 +51,38 @@ export class UserVoiceSettingsService {
   async setUserVoiceMode(whatsappId: string, mode: UserVoiceMode): Promise<void> {
     try {
       const key = `${this.SETTINGS_PREFIX}${whatsappId}`;
+      const existingSettings = await this.getUserVoiceSettings(whatsappId);
       const settings: UserVoiceSettings = {
         whatsappId,
         mode,
+        voiceName: existingSettings?.voiceName, // Preserve existing voice selection
         updatedAt: new Date(),
       };
 
       await this.redisService.set(key, JSON.stringify(settings), this.SETTINGS_TTL);
     } catch (error) {
       this.logger.error(`Error setting user voice mode: ${error.message}`);
+      // Swallow the error to maintain backwards compatibility
+    }
+  }
+
+  /**
+   * Set user voice selection
+   */
+  async setUserVoice(whatsappId: string, voiceName: string): Promise<void> {
+    try {
+      const key = `${this.SETTINGS_PREFIX}${whatsappId}`;
+      const existingSettings = await this.getUserVoiceSettings(whatsappId);
+      const settings: UserVoiceSettings = {
+        whatsappId,
+        mode: existingSettings?.mode || UserVoiceMode.ON, // Default to ON if not set
+        voiceName,
+        updatedAt: new Date(),
+      };
+
+      await this.redisService.set(key, JSON.stringify(settings), this.SETTINGS_TTL);
+    } catch (error) {
+      this.logger.error(`Error setting user voice: ${error.message}`);
       // Swallow the error to maintain backwards compatibility
     }
   }
@@ -88,6 +112,14 @@ export class UserVoiceSettingsService {
   }
 
   /**
+   * Get user's selected voice name
+   */
+  async getUserVoice(whatsappId: string): Promise<string | null> {
+    const settings = await this.getUserVoiceSettings(whatsappId);
+    return settings?.voiceName || null;
+  }
+
+  /**
    * Format voice mode for display
    */
   formatVoiceMode(mode: UserVoiceMode): string {
@@ -111,16 +143,23 @@ export class UserVoiceSettingsService {
 
 Control how Pulse responds to you:
 
+*Voice Modes:*
 \`voice on\` - Enable voice for AI responses
 \`voice off\` - Disable all voice responses
 \`voice only\` - Voice responses only (no text)
-\`voice status\` - Check your current setting
+\`voice status\` - Check your current settings
+
+*Voice Selection:*
+\`voice 1\` - Terri-Ann (warm, friendly female voice)
+\`voice 2\` - Patience (calm, professional female voice)
+\`voice 3\` - Dean (confident male voice)
 
 Examples:
 • \`voice on\` - You'll hear voice for AI answers
-• \`voice off\` - You'll only see text responses
-• \`voice only\` - You'll only hear voice (great for hands-free)
+• \`voice only\` - You'll only hear voice (hands-free mode)
+• \`voice 2\` - Switch to Patience's voice
+• \`voice off\` - Disable all voice responses
 
-💡 Your setting only affects your messages, not other users.`;
+💡 Your settings only affect your messages, not other users.`;
   }
 }

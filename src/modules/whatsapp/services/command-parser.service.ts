@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { VOICE_SWITCH_PATTERNS } from '../constants/voice-patterns.constants';
 
 export enum CommandType {
   HELP = 'help',
@@ -20,6 +21,7 @@ export enum CommandType {
   ADMIN = 'admin',
   PENDING = 'pending',
   VOICE = 'voice',
+  SETTINGS = 'settings',
   UNKNOWN = 'unknown',
 }
 
@@ -74,7 +76,8 @@ export class CommandParserService {
         /^admin(?:\s+(help|disconnect|reconnect|status|clear-session|settings|lockdown|find|group|add|remove|voice))?\s*(?:support|admin)?\s*(.*)$/i,
     },
     { type: CommandType.PENDING, pattern: /^pending(?:\s+(sent|received|claim))?(?:\s+(.+))?$/i },
-    { type: CommandType.VOICE, pattern: /^voice(?:\s+(on|off|only|status|help))?$/i },
+    { type: CommandType.VOICE, pattern: /^voice(?:\s+(.+))?$/i },
+    { type: CommandType.SETTINGS, pattern: /^settings?$/i },
   ];
 
   /**
@@ -97,23 +100,96 @@ export class CommandParserService {
         };
       }
 
-      // Check if this is specifically a voice settings command first
-      const voiceSettingsPattern = /^voice\s*(on|off|only|status|help)?$/i;
-      if (voiceSettingsPattern.test(trimmedText)) {
-        // Don't strip the prefix for voice settings commands
-        // Let it fall through to be matched by the VOICE command pattern
+      // Check for compound voice commands (voice + another command)
+      const compoundVoicePattern = /^voice\s+(balance|help|price|history|settings|username|contacts|pending)\b/i;
+      const compoundMatch = trimmedText.match(compoundVoicePattern);
+      if (compoundMatch) {
+        // This is a compound command like "voice balance"
+        // Strip the "voice" prefix and mark that voice was requested
+        trimmedText = trimmedText.replace(/^voice\s+/i, '').trim();
+        // Store that this was a voice-requested command
+        isVoiceInput = true;
       } else {
-        // Strip voice-related prefixes to allow "voice balance", "speak help", etc.
-        const voicePrefixes = /^(voice|audio|speak|say it|tell me)\s+/i;
-        const voiceMatch = trimmedText.match(voicePrefixes);
-        if (voiceMatch) {
-          // Remove the voice prefix but keep track that voice was requested
-          trimmedText = trimmedText.replace(voicePrefixes, '').trim();
+        // Check if this is specifically a voice command first
+        const voiceCommandPattern = /^voice(\s+|$)/i;
+        if (voiceCommandPattern.test(trimmedText)) {
+          // Don't strip the prefix for voice commands
+          // Let it fall through to be matched by the VOICE command pattern
+        } else {
+          // Strip voice-related prefixes to allow "speak help", etc.
+          const voicePrefixes = /^(audio|speak|say it|tell me)\s+/i;
+          const voiceMatch = trimmedText.match(voicePrefixes);
+          if (voiceMatch) {
+            // Remove the voice prefix but keep track that voice was requested
+            trimmedText = trimmedText.replace(voicePrefixes, '').trim();
+            isVoiceInput = true;
+          }
         }
       }
 
       // Apply smart command corrections
       trimmedText = this.applyCommandCorrections(trimmedText);
+      
+      // Check for voice only patterns before natural language parsing
+      const voiceOnlyPatterns = [
+        'voice only',
+        'voicenote only',
+        'voice note only',
+        'only voice',
+        'only voicenote',
+        'only voice note',
+        'just voice',
+        'just voicenote',
+        'just voice note',
+        'voice notes only',
+        'voicenotes only',
+        'just voice notes',
+        'just voicenotes',
+        'only voice notes',
+        'only voicenotes'
+      ];
+      
+      const lowerTrimmed = trimmedText.toLowerCase();
+      // Check exact matches first
+      if (voiceOnlyPatterns.includes(lowerTrimmed)) {
+        return {
+          type: CommandType.VOICE,
+          args: { action: 'only' },
+          rawText: originalText,
+        };
+      }
+      
+      // Check for patterns with extra words
+      const voiceOnlyPhrases = [
+        'voice only',
+        'voicenote only',
+        'voice note only',
+        'only voice',
+        'only voicenote',
+        'only voice note',
+        'just voice',
+        'just voicenote',
+        'just voice note',
+        'i want voice only',
+        'i want voicenote only',
+        'i want voice note only',
+        'i want only voice',
+        'i want only voicenote',
+        'i want only voice note',
+        'i want just voice',
+        'i want just voicenote',
+        'i want just voice note'
+      ];
+      
+      for (const phrase of voiceOnlyPhrases) {
+        if (lowerTrimmed.includes(phrase)) {
+          return {
+            type: CommandType.VOICE,
+            args: { action: 'only' },
+            rawText: originalText,
+          };
+        }
+      }
 
       // If this is voice input, try natural language patterns first
       if (isVoiceInput) {
@@ -127,6 +203,8 @@ export class CommandParserService {
             naturalCommand.args.requiresConfirmation = 'true';
             naturalCommand.args.isVoiceCommand = 'true';
           }
+          // Mark that this was a voice-requested command
+          naturalCommand.args.voiceRequested = 'true';
           return naturalCommand;
         }
       }
@@ -141,6 +219,11 @@ export class CommandParserService {
           if (isVoiceInput && (type === CommandType.SEND || type === CommandType.REQUEST)) {
             result.args.requiresConfirmation = 'true';
             result.args.isVoiceCommand = 'true';
+          }
+
+          // Mark if this was a voice-requested command (for proper voice response)
+          if (isVoiceInput) {
+            result.args.voiceRequested = 'true';
           }
 
           return result;
@@ -182,7 +265,7 @@ export class CommandParserService {
       lowerText.includes('i want to know what my balance is') ||
       lowerText.includes('i want to know my balance') ||
       lowerText.includes('tell me my balance') ||
-      lowerText.includes('what\'s my balance') ||
+      lowerText.includes("what's my balance") ||
       lowerText.includes('whats my balance') ||
       lowerText.includes('do i have any money') ||
       lowerText.includes('show balance') ||
@@ -234,7 +317,7 @@ export class CommandParserService {
       lowerText.includes('btc exchange rate') ||
       lowerText.includes('show me the price') ||
       lowerText.includes('tell me the price') ||
-      lowerText.includes('what\'s bitcoin at') ||
+      lowerText.includes("what's bitcoin at") ||
       lowerText.includes('whats bitcoin at') ||
       lowerText.includes('bitcoin trading at') ||
       lowerText.includes('btc trading at') ||
@@ -248,7 +331,7 @@ export class CommandParserService {
       lowerText.includes('bitcoin ticker') ||
       lowerText.includes('btc ticker') ||
       lowerText.includes('current rate') ||
-      lowerText.includes('today\'s price') ||
+      lowerText.includes("today's price") ||
       lowerText.includes('todays price') ||
       lowerText.includes('latest price') ||
       lowerText.includes('market rate') ||
@@ -274,11 +357,11 @@ export class CommandParserService {
       lowerText.includes('need some help') ||
       lowerText.includes('help me out') ||
       lowerText.includes('assist me') ||
-      lowerText.includes('i\'m confused') ||
+      lowerText.includes("i'm confused") ||
       lowerText.includes('im confused') ||
-      lowerText.includes('i\'m lost') ||
+      lowerText.includes("i'm lost") ||
       lowerText.includes('im lost') ||
-      lowerText.includes('don\'t understand') ||
+      lowerText.includes("don't understand") ||
       lowerText.includes('dont understand') ||
       lowerText.includes('how does this work') ||
       lowerText.includes('how do i use this') ||
@@ -350,8 +433,12 @@ export class CommandParserService {
 
         // Handle patterns where order might be reversed
         const patternStr = pattern.toString();
-        if (patternStr.includes('i owe') || patternStr.includes('pay back') || 
-            patternStr.includes('send\\s+(\\w+)\\s+\\$') || patternStr.includes('pay\\s+(\\w+)\\s+\\$')) {
+        if (
+          patternStr.includes('i owe') ||
+          patternStr.includes('pay back') ||
+          patternStr.includes('send\\s+(\\w+)\\s+\\$') ||
+          patternStr.includes('pay\\s+(\\w+)\\s+\\$')
+        ) {
           // For these patterns, recipient comes first
           recipient = match[1];
           amount = match[2];
@@ -392,9 +479,9 @@ export class CommandParserService {
           million: '1000000',
           // Common combinations
           'twenty-five': '25',
-          'twentyfive': '25',
+          twentyfive: '25',
           'fifty-five': '55',
-          'fiftyfive': '55',
+          fiftyfive: '55',
           'a hundred': '100',
           'one hundred': '100',
           'five hundred': '500',
@@ -448,9 +535,13 @@ export class CommandParserService {
       if (match) {
         let amount, username;
         const patternStr = pattern.toString();
-        if (patternStr.includes('ask') || patternStr.includes('owes me') || 
-            patternStr.includes('charge') || patternStr.includes('bill') || 
-            patternStr.includes('invoice')) {
+        if (
+          patternStr.includes('ask') ||
+          patternStr.includes('owes me') ||
+          patternStr.includes('charge') ||
+          patternStr.includes('bill') ||
+          patternStr.includes('invoice')
+        ) {
           // For these patterns, recipient comes first
           username = match[1];
           amount = match[2];
@@ -708,7 +799,59 @@ export class CommandParserService {
       return { type: CommandType.USERNAME, args: {}, rawText: text };
     }
 
-    // Voice settings variations
+    // Check voice switching patterns using imported constants
+    for (const pattern of VOICE_SWITCH_PATTERNS) {
+      const match = lowerText.match(pattern);
+      if (match) {
+        const voiceName = match[1];
+        return {
+          type: CommandType.VOICE,
+          args: { action: 'select', voiceName },
+          rawText: text,
+        };
+      }
+    }
+
+    // Voice settings - check for "voice only" and variations first
+    if (
+      lowerText === 'voice only' ||
+      lowerText === 'voicenote only' ||
+      lowerText === 'voice note only' ||
+      lowerText === 'only voice' ||
+      lowerText === 'only voicenote' ||
+      lowerText === 'only voice note' ||
+      lowerText === 'just voice' ||
+      lowerText === 'just voicenote' ||
+      lowerText === 'just voice note' ||
+      lowerText === 'voice notes only' ||
+      lowerText === 'voicenotes only' ||
+      lowerText === 'just voice notes' ||
+      lowerText === 'just voicenotes' ||
+      lowerText === 'only voice notes' ||
+      lowerText === 'only voicenotes' ||
+      lowerText.includes('voice only') ||
+      lowerText.includes('voicenote only') ||
+      lowerText.includes('voice note only') ||
+      lowerText.includes('only voice') ||
+      lowerText.includes('only voicenote') ||
+      lowerText.includes('only voice note') ||
+      lowerText.includes('just voice') ||
+      lowerText.includes('just voicenote') ||
+      lowerText.includes('just voice note') ||
+      lowerText.includes('i want voice only') ||
+      lowerText.includes('i want voicenote only') ||
+      lowerText.includes('i want voice note only') ||
+      lowerText.includes('i want only voice') ||
+      lowerText.includes('i want only voicenote') ||
+      lowerText.includes('i want only voice note') ||
+      lowerText.includes('i want just voice') ||
+      lowerText.includes('i want just voicenote') ||
+      lowerText.includes('i want just voice note')
+    ) {
+      return { type: CommandType.VOICE, args: { action: 'only' }, rawText: text };
+    }
+    
+    // Other voice settings variations
     if (
       lowerText.includes('voice settings') ||
       lowerText.includes('voice mode') ||
@@ -725,9 +868,6 @@ export class CommandParserService {
       lowerText.includes('deactivate voice') ||
       lowerText.includes('voice on') ||
       lowerText.includes('voice off') ||
-      lowerText.includes('voice only') ||
-      lowerText.includes('only voice') ||
-      lowerText.includes('just voice') ||
       lowerText.includes('voice status') ||
       lowerText.includes('check voice') ||
       lowerText.includes('voice help') ||
@@ -743,6 +883,8 @@ export class CommandParserService {
       lowerText.includes('text only') ||
       lowerText.includes('no audio') ||
       lowerText === 'voice' ||
+      lowerText === 'voicenote' ||
+      lowerText === 'voice note' ||
       lowerText === 'audio' ||
       lowerText === 'speech' ||
       lowerText === 'tts'
@@ -874,6 +1016,33 @@ export class CommandParserService {
       lowerText === 'admin'
     ) {
       return { type: CommandType.ADMIN, args: {}, rawText: text };
+    }
+
+    // Settings variations
+    if (
+      lowerText === 'settings' ||
+      lowerText === 'setting' ||
+      lowerText === 'preferences' ||
+      lowerText === 'preference' ||
+      lowerText === 'config' ||
+      lowerText === 'configuration' ||
+      lowerText.includes('my settings') ||
+      lowerText.includes('show settings') ||
+      lowerText.includes('view settings') ||
+      lowerText.includes('check settings') ||
+      lowerText.includes('current settings') ||
+      lowerText.includes('my preferences') ||
+      lowerText.includes('show preferences') ||
+      lowerText.includes('view preferences') ||
+      lowerText.includes('my configuration') ||
+      lowerText.includes('show configuration') ||
+      lowerText.includes('what are my settings') ||
+      lowerText.includes('show me my settings') ||
+      lowerText.includes('i want to see my settings') ||
+      lowerText.includes('display my settings') ||
+      lowerText.includes('list my settings')
+    ) {
+      return { type: CommandType.SETTINGS, args: {}, rawText: text };
     }
 
     return { type: CommandType.UNKNOWN, args: {}, rawText: text };
@@ -1058,9 +1227,40 @@ export class CommandParserService {
         break;
 
       case CommandType.VOICE:
-        // Extract voice action: on, off, only, status, help
+        // Extract voice command arguments
         if (match[1]) {
-          args.action = match[1].toLowerCase();
+          const voiceArgs = match[1].trim().toLowerCase();
+          const parts = voiceArgs.split(/\s+/);
+
+          // Check for special commands
+          if (['on', 'off', 'only', 'status', 'help', 'list'].includes(parts[0])) {
+            args.action = parts[0];
+          } else if (parts[0] === 'add' && parts.length >= 2) {
+            args.action = 'add';
+            // Check if voice name was provided
+            if (parts.length >= 3) {
+              args.voiceName = parts[1];
+              // Voice ID might contain uppercase, so get it from original match
+              const originalParts = match[1].trim().split(/\s+/);
+              args.voiceId = originalParts.slice(2).join(' '); // Join in case ID has spaces
+            } else {
+              // Only voice ID provided, name will be generated
+              const originalParts = match[1].trim().split(/\s+/);
+              args.voiceId = originalParts.slice(1).join(' '); // Join in case ID has spaces
+            }
+          } else if (parts[0] === 'remove' && parts.length >= 2) {
+            args.action = 'remove';
+            args.voiceName = parts.slice(1).join(' ');
+          } else {
+            // Assume it's a voice name selection
+            args.action = 'select';
+            args.voiceName = voiceArgs;
+          }
+        } else {
+          // No arguments, check if we already have action from natural language parsing
+          if (!args.action) {
+            args.action = 'status'; // Default to status when no args
+          }
         }
         break;
     }
@@ -1115,8 +1315,8 @@ export class CommandParserService {
       funds: 'balance',
       wallet: 'balance',
       $: 'balance',
-      '$$': 'balance',
-      '$$$': 'balance',
+      $$: 'balance',
+      $$$: 'balance',
 
       // History shortcuts
       hist: 'history',

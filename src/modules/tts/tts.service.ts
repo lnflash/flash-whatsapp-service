@@ -11,6 +11,7 @@ import {
   UserVoiceSettingsService,
   UserVoiceMode,
 } from '../whatsapp/services/user-voice-settings.service';
+import { VoiceManagementService } from '../whatsapp/services/voice-management.service';
 
 export type TtsProvider = 'google-tts-api' | 'google-cloud' | 'elevenlabs';
 
@@ -26,18 +27,18 @@ export class TtsService {
   private readonly provider: TtsProvider;
   private googleCloudClient?: TextToSpeechClient;
   private elevenLabsClient?: ElevenLabsClient;
-  private readonly elevenLabsVoiceId: string;
 
   constructor(
     private readonly adminSettingsService: AdminSettingsService,
     private readonly configService: ConfigService,
     @Inject(forwardRef(() => UserVoiceSettingsService))
     private readonly userVoiceSettingsService?: UserVoiceSettingsService,
+    @Inject(forwardRef(() => VoiceManagementService))
+    private readonly voiceManagementService?: VoiceManagementService,
   ) {
     // Check if ElevenLabs is configured
     const elevenLabsApiKey = this.configService.get<string>('elevenLabs.apiKey');
-    this.elevenLabsVoiceId = this.configService.get<string>('elevenLabs.voiceId') || 'EXAVITQu4vr4xnSDxMaL'; // Default to Sarah voice
-    
+
     if (elevenLabsApiKey) {
       try {
         // Initialize ElevenLabs client
@@ -50,7 +51,7 @@ export class TtsService {
         this.logger.warn('Failed to initialize ElevenLabs TTS:', error);
       }
     }
-    
+
     // Fall back to Google Cloud if ElevenLabs not available
     if (this.provider !== 'elevenlabs') {
       const googleCloudKeyFile = this.configService.get<string>('GOOGLE_CLOUD_KEYFILE');
@@ -67,7 +68,10 @@ export class TtsService {
           this.provider = 'google-cloud';
           this.logger.log('✅ Google Cloud TTS initialized successfully');
         } catch (error) {
-          this.logger.warn('Failed to initialize Google Cloud TTS, falling back to free API:', error);
+          this.logger.warn(
+            'Failed to initialize Google Cloud TTS, falling back to free API:',
+            error,
+          );
           this.provider = 'google-tts-api';
         }
       } else {
@@ -91,10 +95,10 @@ export class TtsService {
       // Clean the text first to get accurate length
       const cleanedText = this.cleanTextForTTS(text);
       const startTime = Date.now();
-      
+
       // Determine which provider to use
       let provider = this.provider;
-      
+
       // Use ElevenLabs for voice-only mode if available
       if (whatsappId && this.elevenLabsClient) {
         const isVoiceOnly = await this.shouldSendVoiceOnly(whatsappId);
@@ -109,7 +113,7 @@ export class TtsService {
 
       let buffer: Buffer;
       if (provider === 'elevenlabs' && this.elevenLabsClient) {
-        buffer = await this.textToSpeechElevenLabs(cleanedText);
+        buffer = await this.textToSpeechElevenLabs(cleanedText, whatsappId);
       } else if (provider === 'google-cloud' && this.googleCloudClient) {
         buffer = await this.textToSpeechGoogleCloud(cleanedText, language);
       } else {
@@ -231,7 +235,26 @@ export class TtsService {
     whatsappId?: string,
   ): Promise<boolean> {
     try {
-      // First check user-specific settings if whatsappId is provided
+      // Get admin voice mode first
+      const adminMode = await this.adminSettingsService.getVoiceMode();
+      this.logger.debug(`Admin voice mode: ${adminMode}, isAiResponse: ${isAiResponse}`);
+
+      // If admin mode is 'always', everyone gets voice (unless user explicitly disabled)
+      if (adminMode === 'always') {
+        // Check if user has explicitly disabled voice
+        if (whatsappId && this.userVoiceSettingsService) {
+          const userMode = await this.userVoiceSettingsService.getUserVoiceMode(whatsappId);
+          if (userMode === UserVoiceMode.OFF) {
+            this.logger.debug(`Voice disabled for user ${whatsappId} despite admin 'always' mode`);
+            return false;
+          }
+        }
+        // Admin says always, user hasn't disabled it
+        this.logger.debug(`Voice enabled due to admin 'always' mode`);
+        return true;
+      }
+
+      // Check user-specific settings if whatsappId is provided
       if (whatsappId && this.userVoiceSettingsService) {
         const userMode = await this.userVoiceSettingsService.getUserVoiceMode(whatsappId);
 
@@ -248,8 +271,8 @@ export class TtsService {
               return true;
 
             case UserVoiceMode.ON:
-              // User wants voice for AI responses based on keywords
-              if (isAiResponse) {
+              // For admin 'on' mode or when user is 'on', check keywords
+              if (adminMode === 'on' || isAiResponse) {
                 const voiceKeywords = ['voice', 'audio', 'speak', 'say it', 'tell me'];
                 const lowerText = text.toLowerCase();
                 const hasKeyword = voiceKeywords.some((keyword) => lowerText.includes(keyword));
@@ -263,18 +286,11 @@ export class TtsService {
         }
       }
 
-      // Fall back to admin settings if no user preference
-      const voiceMode = await this.adminSettingsService.getVoiceMode();
-      this.logger.debug(`Using admin voice mode: ${voiceMode}, isAiResponse: ${isAiResponse}`);
-
-      switch (voiceMode) {
+      // Fall back to admin settings logic
+      switch (adminMode) {
         case 'off':
           // Voice disabled
           return false;
-
-        case 'always':
-          // Always use voice for everything
-          return true;
 
         case 'on':
           // Default mode - AI responds to voice keywords only
@@ -367,7 +383,7 @@ export class TtsService {
   /**
    * Use ElevenLabs Text-to-Speech (high quality, natural voices)
    */
-  private async textToSpeechElevenLabs(text: string): Promise<Buffer> {
+  private async textToSpeechElevenLabs(text: string, whatsappId?: string): Promise<Buffer> {
     if (!this.elevenLabsClient) {
       throw new Error('ElevenLabs client not initialized');
     }
@@ -377,8 +393,41 @@ export class TtsService {
       const maxLength = 5000;
       const truncatedText = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
 
+      // Get user's selected voice or use default
+      let voiceId: string | null = null;
+      let selectedVoice = 'default';
+
+      if (whatsappId && this.userVoiceSettingsService) {
+        const userVoice = await this.userVoiceSettingsService.getUserVoice(whatsappId);
+        if (userVoice && this.voiceManagementService) {
+          voiceId = await this.voiceManagementService.getVoiceId(userVoice);
+          if (voiceId) {
+            selectedVoice = userVoice;
+          }
+        }
+      }
+
+      // If no voice found, get any available voice from the system
+      if (!voiceId && this.voiceManagementService) {
+        const voiceList = await this.voiceManagementService.getVoiceList();
+        const voiceNames = Object.keys(voiceList);
+        if (voiceNames.length > 0) {
+          // Use the first available voice
+          selectedVoice = voiceNames[0];
+          voiceId = voiceList[selectedVoice];
+        }
+      }
+
+      // If still no voice, use default ElevenLabs voice ID
+      if (!voiceId) {
+        voiceId = 'EXAVITQu4vr4xnSDxMaL'; // Default Terri-Ann voice
+        this.logger.warn('No voices configured, using default ElevenLabs voice');
+      }
+
+      this.logger.debug(`Using ElevenLabs voice: ${selectedVoice} (${voiceId})`);
+
       // Generate audio using ElevenLabs
-      const audio = await this.elevenLabsClient.textToSpeech.convert(this.elevenLabsVoiceId, {
+      const audio = await this.elevenLabsClient.textToSpeech.convert(voiceId, {
         text: truncatedText,
         modelId: 'eleven_multilingual_v2', // Best quality model
         voiceSettings: {
@@ -394,12 +443,12 @@ export class TtsService {
       for await (const chunk of audio) {
         chunks.push(chunk);
       }
-      
+
       // Combine all chunks into a single buffer
       const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
       const buffer = Buffer.alloc(totalLength);
       let offset = 0;
-      
+
       for (const chunk of chunks) {
         buffer.set(chunk, offset);
         offset += chunk.length;

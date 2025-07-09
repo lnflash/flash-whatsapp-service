@@ -39,6 +39,7 @@ import { TtsService } from '../../tts/tts.service';
 import { PaymentConfirmationService } from './payment-confirmation.service';
 import { UserVoiceSettingsService, UserVoiceMode } from './user-voice-settings.service';
 import { VoiceResponseService } from './voice-response.service';
+import { VoiceManagementService } from './voice-management.service';
 // import { WhatsAppCloudService } from './whatsapp-cloud.service'; // Disabled for prototype branch
 
 @Injectable()
@@ -69,6 +70,7 @@ export class WhatsappService {
     private readonly paymentConfirmationService: PaymentConfirmationService,
     private readonly userVoiceSettingsService: UserVoiceSettingsService,
     private readonly voiceResponseService: VoiceResponseService,
+    private readonly voiceManagementService: VoiceManagementService,
     // private readonly whatsAppCloudService: WhatsAppCloudService, // Disabled for prototype branch
     @Inject(forwardRef(() => WhatsAppWebService))
     private readonly whatsappWebService?: WhatsAppWebService,
@@ -89,6 +91,26 @@ export class WhatsappService {
       this.logger.error(`Error getting recent conversation: ${error.message}`);
       return [];
     }
+  }
+
+  /**
+   * Helper to convert error messages to natural voice in voice-only mode
+   */
+  private async convertToVoiceOnlyResponse(
+    message: string,
+    whatsappId: string,
+  ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
+    const isVoiceOnly = await this.ttsService.shouldSendVoiceOnly(whatsappId);
+    if (isVoiceOnly) {
+      const naturalResponse = await this.voiceResponseService.convertToNaturalSpeech(message);
+      const audioBuffer = await this.ttsService.textToSpeech(naturalResponse, 'en', whatsappId);
+      return {
+        text: '',
+        voice: audioBuffer,
+        voiceOnly: true,
+      };
+    }
+    return message;
   }
 
   /**
@@ -140,12 +162,20 @@ export class WhatsappService {
       }
 
       // Handle the command
-      const response = await this.handleCommand(command, whatsappId, phoneNumber, session, messageData.isVoiceCommand);
+      const response = await this.handleCommand(
+        command,
+        whatsappId,
+        phoneNumber,
+        session,
+        messageData.isVoiceCommand,
+      );
 
       // Check if voice response is requested
       // Mark as AI response if it comes from unknown command (likely AI handled)
       const isAiResponse = command.type === CommandType.UNKNOWN;
-      const shouldUseVoice = await this.ttsService.shouldUseVoice(
+      // Check if this was a voice-requested command (e.g., "voice help")
+      const voiceRequested = command.args.voiceRequested === 'true';
+      const shouldUseVoice = voiceRequested || await this.ttsService.shouldUseVoice(
         messageData.text,
         isAiResponse,
         whatsappId,
@@ -207,7 +237,7 @@ export class WhatsappService {
           try {
             // Generate natural voice response based on command type
             let voiceText = finalText;
-            
+
             // For command responses, use natural language generation
             if (command && command.type !== CommandType.UNKNOWN) {
               voiceText = await this.voiceResponseService.generateNaturalVoiceResponse(
@@ -218,7 +248,7 @@ export class WhatsappService {
                   userName: session?.profileName,
                   isVoiceInput: messageData.isVoiceCommand || false,
                   originalResponse: finalText,
-                }
+                },
               );
             } else {
               // For AI responses, clean up for voice
@@ -279,49 +309,23 @@ export class WhatsappService {
       const pendingPayment = await this.paymentConfirmationService.getPendingPayment(whatsappId);
       if (pendingPayment) {
         // Check if this is a confirmation response
-        const confirmText = command.rawText.toLowerCase().trim();
-        // Flexible positive confirmations
-        const positiveResponses = [
-          'yes',
-          'y',
-          'ok',
-          'okay',
-          'sure',
-          'confirm',
-          'pay',
-          'send',
-          'go',
-          'proceed',
-          'yep',
-          'yeah',
-          'yup',
-        ];
-        const negativeResponses = [
-          'no',
-          'n',
-          'cancel',
-          'stop',
-          'abort',
-          'nope',
-          'nah',
-          'exit',
-          'quit',
-          'nevermind',
-          'forget it',
-        ];
+        const confirmText = command.rawText;
 
-        if (positiveResponses.includes(confirmText)) {
+        if (this.paymentConfirmationService.isConfirmation(confirmText)) {
           // Clear the pending payment and execute it
           await this.paymentConfirmationService.clearPendingPayment(whatsappId);
 
           // Execute the original command
           const originalCommand = pendingPayment.command;
+          // Mark as already confirmed to prevent infinite loop
+          originalCommand.args.requiresConfirmation = 'false';
+
           if (originalCommand.type === CommandType.SEND) {
             return this.handleSendCommand(originalCommand, whatsappId, session);
           } else if (originalCommand.type === CommandType.REQUEST) {
             return this.handleRequestCommand(originalCommand, whatsappId, session);
           }
-        } else if (negativeResponses.includes(confirmText)) {
+        } else if (this.paymentConfirmationService.isCancellation(confirmText)) {
           // Cancel the pending payment
           await this.paymentConfirmationService.clearPendingPayment(whatsappId);
           return '❌ Payment cancelled.';
@@ -348,7 +352,7 @@ export class WhatsappService {
             return `🔄 Amount updated!\n\n${updatedDetails}\n\n✅ Type "yes" or "ok" to confirm\n❌ Type "no" or "cancel" to cancel`;
           }
 
-          return `⏳ You have a pending payment:\n\n${details}\n\n✅ Type "yes" or "ok" to confirm\n❌ Type "no" or "cancel" to cancel\n✏️ Or enter a new amount (e.g., "25")`;
+          return `⏳ *Pending Payment*\n\n${details}\n\n✅ Type *yes*, *ok*, or *pay* to confirm\n❌ Type *no* or *cancel* to cancel\n✏️ Or enter a new amount (e.g., "25")`;
         }
       }
 
@@ -356,19 +360,6 @@ export class WhatsappService {
       const lockdownMessage = await this.checkLockdown(whatsappId, command);
       if (lockdownMessage) {
         return lockdownMessage;
-      }
-
-      // Check if this is a voice payment command that requires confirmation
-      if (command.args.requiresConfirmation === 'true') {
-        const details = this.paymentConfirmationService.formatPaymentDetails(command);
-        await this.paymentConfirmationService.storePendingPayment(
-          whatsappId,
-          phoneNumber,
-          command,
-          session?.sessionId,
-        );
-
-        return `🎤 Voice Payment Confirmation Required\n\n${details}\n\n✅ Type "yes" or "ok" to confirm\n❌ Type "no" or "cancel" to cancel\n✏️ Or enter a new amount (e.g., "25")\n\n⏱️ This request will expire in 5 minutes.`;
       }
 
       switch (command.type) {
@@ -385,7 +376,7 @@ export class WhatsappService {
           return this.handleVerifyCommand(command, whatsappId, session);
 
         case CommandType.BALANCE:
-          return this.handleBalanceCommand(whatsappId, session);
+          return this.handleBalanceCommand(command, whatsappId, session);
 
         case CommandType.REFRESH:
           return this.handleRefreshCommand(whatsappId, session);
@@ -397,6 +388,37 @@ export class WhatsappService {
           return this.handlePriceCommand(whatsappId, session);
 
         case CommandType.SEND:
+          // Check if send command needs confirmation
+          if (command.args.requiresConfirmation !== 'false') {
+            // Validate recipient before asking for confirmation
+            const validationResult = await this.validateSendRecipient(command, session);
+            if (validationResult.error) {
+              return validationResult.error;
+            }
+
+            command.args.requiresConfirmation = 'true';
+            // Store the command for confirmation with validation info
+            if (validationResult.recipientInfo) {
+              command.args.recipientValidated = 'true';
+              command.args.recipientType = validationResult.recipientInfo.type;
+              command.args.recipientDisplay = validationResult.recipientInfo.display;
+            }
+
+            const details = this.paymentConfirmationService.formatPaymentDetails(command);
+            await this.paymentConfirmationService.storePendingPayment(
+              whatsappId,
+              phoneNumber,
+              command,
+              session?.sessionId,
+            );
+
+            const isVoiceCommand = command.args.isVoiceCommand === 'true';
+            const header = isVoiceCommand
+              ? '🎤 *Voice Payment Confirmation*'
+              : '💸 *Payment Confirmation*';
+
+            return `${header}\n\n${details}\n\n✅ Type *yes*, *ok*, or *pay* to confirm\n❌ Type *no* or *cancel* to cancel\n✏️ Or enter a new amount (e.g., "25")\n\n⏱️ This request will expire in 5 minutes.`;
+          }
           return this.handleSendCommand(command, whatsappId, session);
 
         case CommandType.RECEIVE:
@@ -425,6 +447,9 @@ export class WhatsappService {
 
         case CommandType.VOICE:
           return this.handleVoiceCommand(command, whatsappId);
+
+        case CommandType.SETTINGS:
+          return this.handleSettingsCommand(command, whatsappId, session);
 
         case CommandType.ADMIN:
           return this.handleAdminCommand(command, whatsappId, phoneNumber);
@@ -534,7 +559,7 @@ export class WhatsappService {
             );
             return this.handleAiQuery(command.rawText, session, shouldUseVoice);
           } else {
-            return this.getUnknownCommandMessage(session);
+            return this.getUnknownCommandMessage(session, whatsappId);
           }
         }
       }
@@ -737,6 +762,7 @@ _This limitation is due to WhatsApp's privacy features._`;
    * Handle balance check command
    */
   private async handleBalanceCommand(
+    command: ParsedCommand,
     whatsappId: string,
     session: UserSession | null,
   ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
@@ -809,7 +835,9 @@ _This limitation is due to WhatsApp's privacy features._`;
       const textMessage = this.balanceTemplate.generateBalanceMessage(balanceData);
 
       // Check if voice response is needed
-      const shouldUseVoice = await this.ttsService.shouldUseVoice(
+      // Check if this was a voice-requested command (e.g., "voice balance")
+      const voiceRequested = command.args.voiceRequested === 'true';
+      const shouldUseVoice = voiceRequested || await this.ttsService.shouldUseVoice(
         'balance',
         false,
         session.whatsappId,
@@ -1084,7 +1112,11 @@ _This limitation is due to WhatsApp's privacy features._`;
   /**
    * Handle AI query using Maple AI
    */
-  private async handleAiQuery(query: string, session: UserSession, isVoiceMode: boolean = false): Promise<string> {
+  private async handleAiQuery(
+    query: string,
+    session: UserSession,
+    isVoiceMode: boolean = false,
+  ): Promise<string> {
     try {
       if (!session.consentGiven) {
         // Store the pending question for after consent is given
@@ -1229,6 +1261,7 @@ Need a new code? Type \`link\` again.`;
 3️⃣ Receive - Get paid
 
 Type a number for details or:
+• \`settings\` - View your settings
 • \`more\` - See all commands
 • \`support\` - Get help
 
@@ -1264,6 +1297,7 @@ Type a number for details or:
 
 🎙️ *Voice & Settings:*
 • \`voice on/off/only\` - Voice settings
+• \`settings\` - View all your settings
 • \`vybz\` - Earn sats
 • \`pending\` - View pending payments
 
@@ -1494,6 +1528,248 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
       // Generic error message for unexpected errors
       return { text: 'Failed to create invoice. Please try again later.' };
     }
+  }
+
+  /**
+   * Validate send recipient before confirmation
+   */
+  private async validateSendRecipient(
+    command: ParsedCommand,
+    session: UserSession | null,
+  ): Promise<{
+    error?: string;
+    recipientInfo?: {
+      type: string;
+      display: string;
+      walletId?: string;
+    };
+  }> {
+    try {
+      // Validate session
+      const sessionError = this.validateSession(session);
+      if (sessionError) {
+        return { error: sessionError };
+      }
+
+      // Validate amount
+      const amountError = this.validateSendAmount(command.args.amount);
+      if (amountError) {
+        return { error: amountError };
+      }
+
+      // Extract recipient information
+      const recipientData = this.extractRecipientData(command);
+
+      // Check various recipient types in order
+      const lightningInvoiceCheck = this.checkLightningInvoice(recipientData.lightningAddress);
+      if (lightningInvoiceCheck) {
+        return { recipientInfo: lightningInvoiceCheck };
+      }
+
+      const lightningAddressCheck = this.checkLightningAddress(recipientData.lightningAddress);
+      if (lightningAddressCheck) {
+        return { recipientInfo: lightningAddressCheck };
+      }
+
+      const savedContactCheck = await this.checkSavedContact(
+        recipientData.targetUsername || recipientData.lightningAddress,
+        session!.whatsappId,
+      );
+      if (savedContactCheck) {
+        return { recipientInfo: savedContactCheck };
+      }
+
+      if (recipientData.targetUsername && session?.flashAuthToken) {
+        const usernameValidation = await this.validateUsername(
+          recipientData.targetUsername,
+          session.flashAuthToken,
+        );
+        if (usernameValidation.error) {
+          return { error: usernameValidation.error };
+        }
+        if (usernameValidation.recipientInfo) {
+          return { recipientInfo: usernameValidation.recipientInfo };
+        }
+      }
+
+      const phoneNumberCheck = this.checkPhoneNumber(recipientData.targetPhone);
+      if (phoneNumberCheck) {
+        return { recipientInfo: phoneNumberCheck };
+      }
+
+      return {
+        error:
+          'Please specify a valid recipient:\n• @username (Flash user)\n• Lightning invoice (lnbc...)\n• Lightning address (user@domain.com)',
+      };
+    } catch (error) {
+      this.logger.error(`Error validating recipient: ${error.message}`);
+      return { error: '❌ Failed to validate recipient. Please try again.' };
+    }
+  }
+
+  /**
+   * Validate user session
+   */
+  private validateSession(session: UserSession | null): string | null {
+    if (!session || !session.isVerified || !session.flashAuthToken) {
+      return this.getNotLinkedMessage();
+    }
+    return null;
+  }
+
+  /**
+   * Validate send amount
+   */
+  private validateSendAmount(amountStr?: string): string | null {
+    if (!amountStr) {
+      return 'Please specify amount in USD. Usage: send [amount] to [recipient]';
+    }
+
+    const parsedResult = parseAndValidateAmount(amountStr);
+    if (parsedResult.error) {
+      return parsedResult.error;
+    }
+
+    return null;
+  }
+
+  /**
+   * Extract recipient data from command
+   */
+  private extractRecipientData(command: ParsedCommand): {
+    targetUsername?: string;
+    targetPhone?: string;
+    lightningAddress?: string;
+  } {
+    return {
+      targetUsername: command.args.username,
+      targetPhone: command.args.phoneNumber,
+      lightningAddress: command.args.recipient,
+    };
+  }
+
+  /**
+   * Check if recipient is a Lightning invoice
+   */
+  private checkLightningInvoice(lightningAddress?: string): {
+    type: string;
+    display: string;
+  } | null {
+    if (lightningAddress?.startsWith('lnbc')) {
+      return {
+        type: 'lightning_invoice',
+        display: 'Lightning Invoice',
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Check if recipient is a Lightning address
+   */
+  private checkLightningAddress(lightningAddress?: string): {
+    type: string;
+    display: string;
+  } | null {
+    if (lightningAddress?.includes('@')) {
+      return {
+        type: 'lightning_address',
+        display: lightningAddress,
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Check if recipient is a saved contact
+   */
+  private async checkSavedContact(
+    possibleContactName: string | undefined,
+    whatsappId: string,
+  ): Promise<{
+    type: string;
+    display: string;
+  } | null> {
+    if (!possibleContactName) {
+      return null;
+    }
+
+    const contactsKey = `contacts:${whatsappId}`;
+    const savedContacts = await this.redisService.get(contactsKey);
+
+    if (!savedContacts) {
+      return null;
+    }
+
+    const contacts = JSON.parse(savedContacts);
+    const contactKey = possibleContactName.toLowerCase();
+
+    if (contacts[contactKey]) {
+      const contactInfo = contacts[contactKey];
+      const contactPhone = typeof contactInfo === 'string' ? contactInfo : contactInfo.phone;
+      return {
+        type: 'contact',
+        display: `${possibleContactName} (${contactPhone})`,
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Validate Flash username
+   */
+  private async validateUsername(
+    targetUsername: string,
+    authToken: string,
+  ): Promise<{
+    error?: string;
+    recipientInfo?: {
+      type: string;
+      display: string;
+      walletId: string;
+    };
+  }> {
+    try {
+      const walletCheck = await this.flashApiService.executeQuery<any>(
+        ACCOUNT_DEFAULT_WALLET_QUERY,
+        { username: targetUsername },
+        authToken,
+      );
+
+      if (walletCheck?.accountDefaultWallet?.id) {
+        return {
+          recipientInfo: {
+            type: 'username',
+            display: `@${targetUsername}`,
+            walletId: walletCheck.accountDefaultWallet.id,
+          },
+        };
+      } else {
+        return {
+          error: `❌ Username @${targetUsername} not found.\n\n💡 Tips:\n• Check the spelling\n• Ask them to set a username\n• Use their phone number instead`,
+        };
+      }
+    } catch (error) {
+      this.logger.error(`Error validating username: ${error.message}`);
+      return { error: `❌ Unable to verify username @${targetUsername}. Please try again.` };
+    }
+  }
+
+  /**
+   * Check if recipient is a phone number
+   */
+  private checkPhoneNumber(targetPhone?: string): {
+    type: string;
+    display: string;
+  } | null {
+    if (targetPhone) {
+      return {
+        type: 'phone',
+        display: targetPhone,
+      };
+    }
+    return null;
   }
 
   /**
@@ -2440,7 +2716,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
     command: ParsedCommand,
     whatsappId: string,
     session: UserSession | null,
-  ): Promise<string> {
+  ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
     try {
       // Check if user has a linked account
       if (!session || !session.isVerified) {
@@ -2545,7 +2821,8 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
         default: {
           const savedContacts = await this.redisService.get(contactsKey);
           if (!savedContacts) {
-            return 'You have no saved contacts.\n\nTo add a contact: contacts add [name] [phone]';
+            const noContactsMsg = 'You have no saved contacts.\n\nTo add a contact: contacts add [name] [phone]';
+            return await this.convertToVoiceOnlyResponse(noContactsMsg, whatsappId);
           }
 
           const contactData = JSON.parse(savedContacts);
@@ -2556,7 +2833,8 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
           }>;
 
           if (contactEntries.length === 0) {
-            return 'You have no saved contacts.\n\nTo add a contact: contacts add [name] [phone]';
+            const noContactsMsg = 'You have no saved contacts.\n\nTo add a contact: contacts add [name] [phone]';
+            return await this.convertToVoiceOnlyResponse(noContactsMsg, whatsappId);
           }
 
           let message = '📇 *Your Saved Contacts*\n\n';
@@ -2574,12 +2852,47 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
           }
           message += '\n_Type "contacts history [name]" to see request history_';
 
+          // Check if we're in voice-only mode
+          const isVoiceOnly = await this.ttsService.shouldSendVoiceOnly(whatsappId);
+          if (isVoiceOnly) {
+            // Generate natural language response for contacts list
+            let naturalResponse = '';
+            if (contactEntries.length === 1) {
+              const contact = contactEntries[0];
+              naturalResponse = `You have one saved contact: ${contact.name} with phone number ${contact.phone}.`;
+              const histKey = `contact_history:${whatsappId}:${contact.name.toLowerCase()}`;
+              const hist = await this.redisService.get(histKey);
+              if (hist) {
+                const histData = JSON.parse(hist);
+                naturalResponse += ` You've made ${histData.length} payment requests to them.`;
+              }
+            } else {
+              naturalResponse = `You have ${contactEntries.length} saved contacts. `;
+              const names = contactEntries.map(c => c.name);
+              if (names.length <= 3) {
+                naturalResponse += `They are: ${names.join(', ')}.`;
+              } else {
+                const lastContact = names.pop();
+                naturalResponse += `They are: ${names.slice(0, 2).join(', ')}, and ${names.length} others including ${lastContact}.`;
+              }
+            }
+            naturalResponse += ` To see the history for a contact, say 'contacts history' followed by their name.`;
+            
+            const audioBuffer = await this.ttsService.textToSpeech(naturalResponse, 'en', whatsappId);
+            return {
+              text: '',
+              voice: audioBuffer,
+              voiceOnly: true,
+            };
+          }
+
           return message;
         }
       }
     } catch (error) {
       this.logger.error(`Error handling contacts command: ${error.message}`, error.stack);
-      return '❌ Failed to manage contacts. Please try again later.';
+      const errorMsg = '❌ Failed to manage contacts. Please try again later.';
+      return await this.convertToVoiceOnlyResponse(errorMsg, whatsappId);
     }
   }
 
@@ -2728,12 +3041,21 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
   /**
    * Get unknown command message based on session status
    */
-  private getUnknownCommandMessage(session: UserSession | null): string {
+  private async getUnknownCommandMessage(
+    session: UserSession | null,
+    whatsappId?: string,
+  ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
+    let message: string;
     if (!session || !session.isVerified) {
-      return `Keep your finger on it. Type 'link' to connect or 'help' for commands.`;
+      message = `Keep your finger on it. Type 'link' to connect or 'help' for commands.`;
+    } else {
+      message = `Keep your finger on it. Try 'help' or 'balance'.`;
     }
 
-    return `Keep your finger on it. Try 'help' or 'balance'.`;
+    if (whatsappId) {
+      return await this.convertToVoiceOnlyResponse(message, whatsappId);
+    }
+    return message;
   }
 
   /**
@@ -3681,23 +4003,44 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
   /**
    * Handle voice settings command
    */
-  private async handleVoiceCommand(command: ParsedCommand, whatsappId: string): Promise<string> {
+  private async handleVoiceCommand(
+    command: ParsedCommand,
+    whatsappId: string,
+  ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
     const action = command.args.action;
 
     try {
       switch (action) {
         case 'help':
-          return this.userVoiceSettingsService.getVoiceHelp();
+          return this.getVoiceHelp();
 
         case 'status': {
           const userMode = await this.userVoiceSettingsService.getUserVoiceMode(whatsappId);
+          const userVoice = await this.userVoiceSettingsService.getUserVoice(whatsappId);
+
+          let statusMessage = '';
           if (userMode) {
-            return `Your voice setting: ${this.userVoiceSettingsService.formatVoiceMode(userMode)}`;
+            statusMessage = `Your voice setting: ${this.userVoiceSettingsService.formatVoiceMode(userMode)}`;
+          } else {
+            // Show default (admin) setting
+            const adminMode = await this.adminSettingsService.getVoiceMode();
+            statusMessage = `Your voice setting: Default (follows admin setting: ${adminMode})`;
           }
 
-          // Show default (admin) setting
-          const adminMode = await this.adminSettingsService.getVoiceMode();
-          return `Your voice setting: Default (follows admin setting: ${adminMode})`;
+          // Add voice selection info
+          if (userVoice) {
+            // Check if it's a dynamic voice
+            const voiceId = await this.voiceManagementService.getVoiceId(userVoice);
+            if (voiceId) {
+              statusMessage += `\nSelected voice: ${userVoice}`;
+            } else {
+              statusMessage += `\nSelected voice: Default`;
+            }
+          } else {
+            statusMessage += `\nSelected voice: Default`;
+          }
+
+          return statusMessage;
         }
 
         case 'on':
@@ -3712,34 +4055,320 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
           await this.userVoiceSettingsService.setUserVoiceMode(whatsappId, UserVoiceMode.ONLY);
           return "🎤 Voice ONLY - You'll only receive voice responses (no text).";
 
-        default: {
-          // No action specified, show current status
-          const currentMode = await this.userVoiceSettingsService.getUserVoiceMode(whatsappId);
-          if (currentMode) {
-            return (
-              `Your current voice setting: ${this.userVoiceSettingsService.formatVoiceMode(currentMode)}\n\n` +
-              `To change, use:\n` +
-              `• \`voice on\` - Voice for AI responses\n` +
-              `• \`voice off\` - No voice responses\n` +
-              `• \`voice only\` - Voice only (no text)\n` +
-              `• \`voice help\` - See detailed help`
+        case 'list': {
+          const formattedList = await this.voiceManagementService.formatVoiceList();
+          
+          // Check if we're in voice-only mode
+          const isVoiceOnly = await this.ttsService.shouldSendVoiceOnly(whatsappId);
+          if (isVoiceOnly) {
+            // Get natural language voice list
+            const voiceListDetails = await this.voiceManagementService.getVoiceListWithDetails();
+            const naturalResponse = await this.voiceResponseService.generateNaturalVoiceListResponse(
+              voiceListDetails,
+              undefined,
             );
+            
+            // Generate voice and return voice-only response
+            const audioBuffer = await this.ttsService.textToSpeech(naturalResponse, 'en', whatsappId);
+            return {
+              text: '', // Empty text for voice-only mode
+              voice: audioBuffer,
+              voiceOnly: true,
+            };
+          }
+          
+          return formattedList;
+        }
+
+        case 'add': {
+          const { voiceName, voiceId } = command.args;
+          if (!voiceName || !voiceId) {
+            return '❌ Usage: `voice add [name] [voiceId]`\n\nExample: `voice add sarah EXAVITQu4vr4xnSDxMaL`';
           }
 
-          const defaultMode = await this.adminSettingsService.getVoiceMode();
-          return (
-            `Your voice setting: Default (${defaultMode})\n\n` +
-            `To customize, use:\n` +
-            `• \`voice on\` - Voice for AI responses\n` +
-            `• \`voice off\` - No voice responses\n` +
-            `• \`voice only\` - Voice only (no text)\n` +
-            `• \`voice help\` - See detailed help`
-          );
+          const result = await this.voiceManagementService.addVoice(voiceName, voiceId, whatsappId);
+          if (result.success) {
+            // Set this as the user's active voice
+            await this.userVoiceSettingsService.setUserVoice(whatsappId, voiceName);
+            return `${result.message}\n\n🎙️ "${voiceName}" is now your active voice.`;
+          }
+          return `❌ ${result.message}`;
+        }
+
+        case 'remove': {
+          const { voiceName } = command.args;
+          if (!voiceName) {
+            return '❌ Usage: `voice remove [name]`\n\nExample: `voice remove sarah`';
+          }
+
+          const result = await this.voiceManagementService.removeVoice(voiceName);
+          if (result.success) {
+            // Check if user was using this voice
+            const currentVoice = await this.userVoiceSettingsService.getUserVoice(whatsappId);
+            if (currentVoice?.toLowerCase() === voiceName.toLowerCase()) {
+              await this.userVoiceSettingsService.setUserVoice(whatsappId, '');
+              return `${result.message}\n\n⚠️ This was your active voice. Switched to default.`;
+            }
+          }
+          return result.success ? `✅ ${result.message}` : `❌ ${result.message}`;
+        }
+
+        case 'select': {
+          const { voiceName } = command.args;
+          if (!voiceName) {
+            const errorMsg = '❌ Please specify a voice name.';
+            
+            // Check if we're in voice-only mode
+            const isVoiceOnly = await this.ttsService.shouldSendVoiceOnly(whatsappId);
+            if (isVoiceOnly) {
+              const naturalResponse = await this.voiceResponseService.convertToNaturalSpeech(errorMsg);
+              const audioBuffer = await this.ttsService.textToSpeech(naturalResponse, 'en', whatsappId);
+              return {
+                text: '',
+                voice: audioBuffer,
+                voiceOnly: true,
+              };
+            }
+            return errorMsg;
+          }
+
+          // Check if voice exists
+          const voiceExists = await this.voiceManagementService.voiceExists(voiceName);
+          if (!voiceExists) {
+            // Check if we're in voice-only mode
+            const isVoiceOnly = await this.ttsService.shouldSendVoiceOnly(whatsappId);
+            if (isVoiceOnly) {
+              // Get natural language response for voice not found
+              const voiceListDetails = await this.voiceManagementService.getVoiceListWithDetails();
+              const naturalResponse = await this.voiceResponseService.generateNaturalVoiceListResponse(
+                voiceListDetails,
+                voiceName, // Pass the requested voice name
+              );
+              
+              const audioBuffer = await this.ttsService.textToSpeech(naturalResponse, 'en', whatsappId);
+              return {
+                text: '',
+                voice: audioBuffer,
+                voiceOnly: true,
+              };
+            }
+            
+            const voiceList = await this.voiceManagementService.formatVoiceList();
+            return `❌ Voice "${voiceName}" not found.\n\n${voiceList}`;
+          }
+
+          // Set as user's active voice
+          await this.userVoiceSettingsService.setUserVoice(whatsappId, voiceName);
+          const successMsg = `🎙️ Voice changed to "${voiceName}".`;
+          
+          // Check if we're in voice-only mode
+          const isVoiceOnly = await this.ttsService.shouldSendVoiceOnly(whatsappId);
+          if (isVoiceOnly) {
+            const naturalResponse = `Your voice has been changed to ${voiceName}.`;
+            const audioBuffer = await this.ttsService.textToSpeech(naturalResponse, 'en', whatsappId);
+            return {
+              text: '',
+              voice: audioBuffer,
+              voiceOnly: true,
+            };
+          }
+          
+          return successMsg;
+        }
+
+        default: {
+          // If a voice name was provided directly (e.g., "voice your")
+          if (command.args.voiceName) {
+            // Try to select the voice
+            const voiceName = command.args.voiceName;
+            const voiceExists = await this.voiceManagementService.voiceExists(voiceName);
+            
+            if (!voiceExists) {
+              // Check if we're in voice-only mode
+              const isVoiceOnly = await this.ttsService.shouldSendVoiceOnly(whatsappId);
+              if (isVoiceOnly) {
+                // Get natural language response for voice not found
+                const voiceListDetails = await this.voiceManagementService.getVoiceListWithDetails();
+                const naturalResponse = await this.voiceResponseService.generateNaturalVoiceListResponse(
+                  voiceListDetails,
+                  voiceName, // Pass the requested voice name
+                );
+                
+                const audioBuffer = await this.ttsService.textToSpeech(naturalResponse, 'en', whatsappId);
+                return {
+                  text: '',
+                  voice: audioBuffer,
+                  voiceOnly: true,
+                };
+              }
+              
+              const voiceList = await this.voiceManagementService.formatVoiceList();
+              return `❌ Voice "${voiceName}" not found.\n\n${voiceList}`;
+            }
+            
+            // Voice exists, select it
+            await this.userVoiceSettingsService.setUserVoice(whatsappId, voiceName);
+            const successMsg = `🎙️ Voice changed to "${voiceName}".`;
+            
+            // Check if we're in voice-only mode
+            const isVoiceOnly = await this.ttsService.shouldSendVoiceOnly(whatsappId);
+            if (isVoiceOnly) {
+              const naturalResponse = `Your voice has been changed to ${voiceName}.`;
+              const audioBuffer = await this.ttsService.textToSpeech(naturalResponse, 'en', whatsappId);
+              return {
+                text: '',
+                voice: audioBuffer,
+                voiceOnly: true,
+              };
+            }
+            
+            return successMsg;
+          }
+          
+          // No action specified, show help
+          return this.getVoiceHelp();
         }
       }
     } catch (error) {
       this.logger.error(`Error handling voice command: ${error.message}`);
       return '❌ Failed to update voice settings. Please try again.';
+    }
+  }
+
+  /**
+   * Get voice help message
+   */
+  private async getVoiceHelp(): Promise<string> {
+    const voiceList = await this.voiceManagementService.formatVoiceList();
+
+    return `🔊 *Voice Settings*
+
+Control how Pulse responds to you:
+
+*Voice Modes:*
+\`voice on\` - Enable voice for AI responses
+\`voice off\` - Disable all voice responses
+\`voice only\` - Voice responses only (no text)
+\`voice status\` - Check your current settings
+
+*Voice Management:*
+\`voice list\` - Show available voices
+\`voice [name]\` - Select a voice
+\`voice add [name] [id]\` - Add new voice
+\`voice remove [name]\` - Remove a voice
+
+Example:
+• \`voice add sarah EXAVITQu4vr4xnSDxMaL\`
+• \`voice sarah\` - Switch to Sarah's voice
+
+${voiceList}`;
+  }
+
+  /**
+   * Handle settings command - display all user settings
+   */
+  private async handleSettingsCommand(
+    command: ParsedCommand,
+    whatsappId: string,
+    session: UserSession | null,
+  ): Promise<string> {
+    try {
+      let settingsMessage = '⚙️ *Your Settings*\n\n';
+
+      // Account Settings
+      settingsMessage += '👤 *Account*\n';
+      if (session && session.isVerified) {
+        settingsMessage += `✅ Linked to Flash account\n`;
+
+        // Get username and currency info
+        if (session.flashUserId && session.flashAuthToken) {
+          // Get username
+          const username = await this.usernameService.getUsername(session.flashAuthToken);
+          if (username) {
+            settingsMessage += `📛 Username: @${username}\n`;
+          } else {
+            settingsMessage += `📛 Username: Not set\n`;
+            settingsMessage += `   → Type \`username [new_username]\` to set one\n`;
+          }
+
+          // Get balance for currency display
+          const balance = await this.balanceService.getUserBalance(
+            session.flashUserId,
+            session.flashAuthToken,
+          );
+
+          if (balance?.fiatCurrency) {
+            settingsMessage += `💱 Currency: ${balance.fiatCurrency}\n`;
+          }
+        }
+
+        settingsMessage += `📱 Phone: ${session.phoneNumber}\n`;
+      } else {
+        settingsMessage += `❌ Not linked to Flash\n`;
+        settingsMessage += `   → Type \`link\` to connect your account\n`;
+      }
+
+      settingsMessage += '\n';
+
+      // Voice Settings
+      settingsMessage += '🔊 *Voice Settings*\n';
+      const userVoiceMode = await this.userVoiceSettingsService.getUserVoiceMode(whatsappId);
+      const userVoice = await this.userVoiceSettingsService.getUserVoice(whatsappId);
+
+      if (userVoiceMode) {
+        settingsMessage += `Mode: ${this.userVoiceSettingsService.formatVoiceMode(userVoiceMode)}\n`;
+      } else {
+        const adminMode = await this.adminSettingsService.getVoiceMode();
+        settingsMessage += `Mode: Default (${adminMode})\n`;
+      }
+
+      const voiceName = userVoice || 'terri-ann';
+      const voiceDisplay =
+        voiceName === 'terri-ann' ? 'Terri-Ann' : voiceName === 'patience' ? 'Patience' : 'Dean';
+      settingsMessage += `Voice: ${voiceDisplay}\n`;
+      settingsMessage += `   → Type \`voice help\` for voice options\n`;
+
+      settingsMessage += '\n';
+
+      // AI Support Settings
+      settingsMessage += '🤖 *AI Support*\n';
+      if (session && session.consentGiven) {
+        settingsMessage += `✅ AI assistance enabled\n`;
+        settingsMessage += `   → Type \`consent no\` to disable\n`;
+      } else {
+        settingsMessage += `❌ AI assistance disabled\n`;
+        settingsMessage += `   → Type \`consent yes\` to enable\n`;
+      }
+
+      settingsMessage += '\n';
+
+      // Notification Settings (future feature placeholder)
+      settingsMessage += '🔔 *Notifications*\n';
+      settingsMessage += `Payment alerts: ✅ Enabled\n`;
+      settingsMessage += `Transaction updates: ✅ Enabled\n`;
+
+      settingsMessage += '\n';
+
+      // Privacy Settings
+      settingsMessage += '🔒 *Privacy*\n';
+      if (session && session.isVerified) {
+        settingsMessage += `Session security: ✅ Active\n`;
+        settingsMessage += `   → Type \`unlink\` to disconnect\n`;
+      }
+
+      settingsMessage += '\n';
+
+      // Quick Actions
+      settingsMessage += '⚡ *Quick Actions*\n';
+      settingsMessage += `• \`username [new]\` - Change username\n`;
+      settingsMessage += `• \`voice status\` - Voice settings\n`;
+      settingsMessage += `• \`consent yes/no\` - AI support\n`;
+      settingsMessage += `• \`help\` - View all commands\n`;
+
+      return settingsMessage.trim();
+    } catch (error) {
+      this.logger.error(`Error handling settings command: ${error.message}`);
+      return '❌ Failed to retrieve settings. Please try again.';
     }
   }
 
@@ -4178,54 +4807,106 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
    * Add contextual hints to messages
    */
   private addHint(message: string, session: UserSession | null, command?: ParsedCommand): string {
-    // Don't add hints to admin commands or help messages
-    if (command?.type === CommandType.ADMIN || command?.type === CommandType.HELP) {
+    // Check if hint should be added
+    if (!this.shouldAddHint(message, command)) {
       return message;
+    }
+
+    // Get appropriate hint based on context
+    const hint = this.getContextualHint(session, command);
+    
+    // Format and return message with hint
+    return hint ? this.formatMessageWithHint(message, hint) : message;
+  }
+
+  /**
+   * Check if a hint should be added to the message
+   */
+  private shouldAddHint(message: string, command?: ParsedCommand): boolean {
+    // Don't add hints to admin commands
+    if (command?.type === CommandType.ADMIN) {
+      return false;
     }
 
     // Don't add hints if message already has a hint (contains 💡)
     if (message.includes('💡')) {
-      return message;
+      return false;
     }
 
-    const hints: string[] = [];
+    return true;
+  }
 
-    // Context-based hints
+  /**
+   * Get contextual hint based on session state and command
+   */
+  private getContextualHint(session: UserSession | null, command?: ParsedCommand): string | null {
     if (!session) {
-      hints.push('Type `link` to connect your Flash account');
-    } else if (!session.isVerified) {
-      hints.push('Enter your 6-digit verification code');
-    } else {
-      // User is linked and verified
-      if (command?.type === CommandType.BALANCE) {
-        hints.push('Send money with `send 10 to @username`');
-      } else if (command?.type === CommandType.SEND) {
-        hints.push('Check balance with `balance`');
-      } else if (command?.type === CommandType.RECEIVE) {
-        hints.push('Share this invoice to get paid');
-      } else if (command?.type === CommandType.PRICE) {
-        hints.push('Receive Bitcoin with `receive 20`');
-      } else if (command?.type === CommandType.CONTACTS) {
-        hints.push('Send to contacts: `send 5 to john`');
-      } else {
-        // Random general hints
-        const generalHints = [
-          'Type `help` to see all commands',
-          'Need assistance? Type `support`',
-          'Set username for easy payments',
-          'Save contacts with `contacts add`',
-          'Check Bitcoin price with `price`',
-          'View transactions with `history`',
-        ];
-        hints.push(generalHints[Math.floor(Math.random() * generalHints.length)]);
-      }
+      return this.getHintForUnauthorizedUser();
+    }
+    
+    if (!session.isVerified) {
+      return this.getHintForUnverifiedUser();
+    }
+    
+    return this.getHintForVerifiedUser(command);
+  }
+
+  /**
+   * Get hint for users without a session
+   */
+  private getHintForUnauthorizedUser(): string {
+    return 'Type `link` to connect your Flash account';
+  }
+
+  /**
+   * Get hint for unverified users
+   */
+  private getHintForUnverifiedUser(): string {
+    return 'Enter your 6-digit verification code';
+  }
+
+  /**
+   * Get hint for verified users based on command type
+   */
+  private getHintForVerifiedUser(command?: ParsedCommand): string {
+    if (!command) {
+      return this.getRandomGeneralHint();
     }
 
-    if (hints.length > 0) {
-      return `${message}\n\n💡 ${hints[0]}`;
-    }
+    const commandHints: Partial<Record<CommandType, string>> = {
+      [CommandType.BALANCE]: 'Need assistance? Type `support`',
+      [CommandType.PRICE]: 'Need assistance? Type `support`',
+      [CommandType.HELP]: 'Need assistance? Type `support`',
+      [CommandType.SEND]: 'Check balance with `balance`',
+      [CommandType.RECEIVE]: 'Share this invoice to get paid',
+      [CommandType.CONTACTS]: 'Send to contacts: `send 5 to john`',
+    };
 
-    return message;
+    return commandHints[command.type] || this.getRandomGeneralHint();
+  }
+
+  /**
+   * Get a random general hint
+   */
+  private getRandomGeneralHint(): string {
+    const generalHints = [
+      'Type `help` to see all commands',
+      'Set username for easy payments',
+      'Save contacts with `contacts add`',
+      'Check Bitcoin price with `price`',
+      'View transactions with `history`',
+      'Send money with `send 10 to @username`',
+      'Receive Bitcoin with `receive 20`',
+    ];
+    
+    return generalHints[Math.floor(Math.random() * generalHints.length)];
+  }
+
+  /**
+   * Format message with hint
+   */
+  private formatMessageWithHint(message: string, hint: string): string {
+    return `${message}\n\n💡 ${hint}`;
   }
 
   /**

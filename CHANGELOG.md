@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Dynamic voice management system replacing hardcoded voice options
+- `voice add [name] [voiceId]` command to add new ElevenLabs voices
+- `voice remove [name]` command to remove voices
+- `voice [name]` command to select a voice by name
+- `voice list` command to show all available voices
+- Voice storage in Redis for persistence
+- Duplicate voice name and ID prevention
+- Reserved word protection for voice names
+- VoiceManagementService for centralized voice operations
+- Integration with TTS service for dynamic voice lookup
+- Comprehensive settings menu with `settings` command
+- Natural language support for settings command (my settings, show settings, etc.)
+- Mandatory payment confirmation for all send commands with detailed summary
+- Support for "pay", "yes", "y", "ok", "confirm" as confirmation words
+- Enhanced payment confirmation display with recipient, amount, memo, and network info
+- Username validation before payment confirmation (prevents sending to non-existent users)
+- Recipient type indicators in confirmation (username ✅, phone, contact, lightning)
+
+### Removed
+- Hardcoded voice selection (voice 1/2/3) replaced by dynamic voice management
+- ELEVENLABS_VOICE_ID2 and ELEVENLABS_VOICE_ID3 environment variables (no longer needed)
+
 ## [2.0.0] - 2025-01-03
 
 ### Added

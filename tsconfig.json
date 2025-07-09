@@ -20,5 +20,6 @@
     "paths": {
       "@app/*": ["src/*"]
     }
-  }
+  },
+  "exclude": ["paper-crate", "admin-dashboard-v2"]
 }
