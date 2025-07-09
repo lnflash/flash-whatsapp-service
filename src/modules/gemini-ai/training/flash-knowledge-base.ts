@@ -174,17 +174,18 @@ export const FLASH_COMMANDS: CommandInfo[] = [
     usage: 'voice [on|off|only|list|add|remove|select]',
     examples: [
       'voice on',
-      'voice off', 
+      'voice off',
       'voice only',
       'voice list',
       'voice add alice A1B2C3D4',
       'voice remove alice',
       'voice select alice',
       'voice balance (get balance with voice)',
-      'voice help (get help with voice)'
+      'voice help (get help with voice)',
     ],
     requiresAuth: false,
-    notes: 'Control voice responses. "on" enables voice for AI when keywords used, "off" disables all voice, "only" gives voice-only responses (no text). Can add custom voices with voice IDs from ElevenLabs.',
+    notes:
+      'Control voice responses. "on" enables voice for AI when keywords used, "off" disables all voice, "only" gives voice-only responses (no text). Can add custom voices with voice IDs from ElevenLabs.',
   },
 ];
 

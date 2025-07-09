@@ -11,7 +11,15 @@ import { FlashApiModule } from '../flash-api/flash-api.module';
 import { TtsModule } from '../tts/tts.module';
 
 @Module({
-  imports: [ConfigModule, RedisModule, WhatsappModule, EventsModule, AuthModule, FlashApiModule, TtsModule],
+  imports: [
+    ConfigModule,
+    RedisModule,
+    WhatsappModule,
+    EventsModule,
+    AuthModule,
+    FlashApiModule,
+    TtsModule,
+  ],
   providers: [NotificationService, PaymentNotificationService, PaymentEventListener],
   exports: [NotificationService, PaymentNotificationService],
 })

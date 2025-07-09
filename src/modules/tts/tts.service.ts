@@ -393,29 +393,24 @@ export class TtsService {
       const maxLength = 5000;
       const truncatedText = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
 
-      // Get user's selected voice or use default
+      // Get voice ID with fallback hierarchy: user's voice → default voice → first available → ElevenLabs default
       let voiceId: string | null = null;
       let selectedVoice = 'default';
 
-      if (whatsappId && this.userVoiceSettingsService) {
-        const userVoice = await this.userVoiceSettingsService.getUserVoice(whatsappId);
-        if (userVoice && this.voiceManagementService) {
-          voiceId = await this.voiceManagementService.getVoiceId(userVoice);
-          if (voiceId) {
-            selectedVoice = userVoice;
+      if (this.voiceManagementService) {
+        // Get user's selected voice name if available
+        let userVoiceName: string | undefined;
+        if (whatsappId && this.userVoiceSettingsService) {
+          const userVoice = await this.userVoiceSettingsService.getUserVoice(whatsappId);
+          if (userVoice) {
+            userVoiceName = userVoice;
           }
         }
-      }
 
-      // If no voice found, get any available voice from the system
-      if (!voiceId && this.voiceManagementService) {
-        const voiceList = await this.voiceManagementService.getVoiceList();
-        const voiceNames = Object.keys(voiceList);
-        if (voiceNames.length > 0) {
-          // Use the first available voice
-          selectedVoice = voiceNames[0];
-          voiceId = voiceList[selectedVoice];
-        }
+        // Use getVoiceIdWithDefault to handle the fallback hierarchy
+        const voiceResult = await this.voiceManagementService.getVoiceIdWithDefault(userVoiceName);
+        voiceId = voiceResult.voiceId;
+        selectedVoice = voiceResult.voiceName;
       }
 
       // If still no voice, use default ElevenLabs voice ID

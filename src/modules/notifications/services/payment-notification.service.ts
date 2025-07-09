@@ -10,7 +10,10 @@ import { UsernameService } from '../../flash-api/services/username.service';
 import { PriceService } from '../../flash-api/services/price.service';
 import { EventsService } from '../../events/events.service';
 import { TtsService } from '../../tts/tts.service';
-import { UserVoiceSettingsService, UserVoiceMode } from '../../whatsapp/services/user-voice-settings.service';
+import {
+  UserVoiceSettingsService,
+  UserVoiceMode,
+} from '../../whatsapp/services/user-voice-settings.service';
 import { convertCurrencyToWords } from '../../whatsapp/utils/number-to-words';
 
 interface PaymentNotification {
@@ -354,16 +357,21 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
     try {
       // Set recipient to 'voice on' mode if not already set
       if (this.userVoiceSettingsService) {
-        const currentSettings = await this.userVoiceSettingsService.getUserVoiceSettings(notification.whatsappId);
+        const currentSettings = await this.userVoiceSettingsService.getUserVoiceSettings(
+          notification.whatsappId,
+        );
         if (!currentSettings || currentSettings.mode === UserVoiceMode.OFF) {
-          await this.userVoiceSettingsService.setUserVoiceMode(notification.whatsappId, UserVoiceMode.ON);
+          await this.userVoiceSettingsService.setUserVoiceMode(
+            notification.whatsappId,
+            UserVoiceMode.ON,
+          );
           this.logger.log(`Set voice mode to ON for payment recipient ${notification.whatsappId}`);
         }
       }
 
       // Generate natural voice message
       let naturalVoiceMessage = 'Hi! You just received ';
-      
+
       if (notification.currency === 'USD') {
         naturalVoiceMessage += convertCurrencyToWords(fiatAmount);
       } else {
@@ -423,10 +431,7 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
       );
 
       // Send voice-only notification (no text)
-      await this.whatsappWebService.sendVoiceMessage(
-        notification.whatsappId,
-        audioBuffer,
-      );
+      await this.whatsappWebService.sendVoiceMessage(notification.whatsappId, audioBuffer);
     } catch (error) {
       // Don't throw if WhatsApp is not ready - just log and continue
       if (error.message && error.message.includes('WhatsApp Web client is not ready')) {

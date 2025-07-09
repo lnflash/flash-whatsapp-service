@@ -115,7 +115,7 @@ export class BalanceTemplate {
     const greeting = data.userName ? `Hi ${data.userName}! ` : '';
     const amount = data.fiatBalance.toFixed(2);
     const currency = data.fiatCurrency === 'USD' ? 'dollars' : data.fiatCurrency;
-    
+
     // Convert amount to natural speech
     const amountInWords = convertCurrencyToWords(amount, currency);
 

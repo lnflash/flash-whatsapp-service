@@ -414,7 +414,10 @@ export class VoiceResponseService {
    * Convert formatted responses to natural speech for voice-only mode
    * This is used for command responses that need to be more conversational
    */
-  async convertToNaturalSpeech(formattedResponse: string, context?: Record<string, any>): Promise<string> {
+  async convertToNaturalSpeech(
+    formattedResponse: string,
+    context?: Record<string, any>,
+  ): Promise<string> {
     // Remove all formatting and emojis
     let naturalResponse = this.cleanTextForVoice(formattedResponse);
 
@@ -481,19 +484,19 @@ export class VoiceResponseService {
     }
 
     const errorMsg = errorMatch[1].trim();
-    
+
     // Check for specific error patterns
     if (errorMsg.includes('not found')) {
       return `I'm sorry, but ${errorMsg.toLowerCase()}. Please check the spelling and try again.`;
-    } 
-    
+    }
+
     if (errorMsg.includes('Usage:') || errorMsg.includes('usage:')) {
       // Convert usage instructions to natural language
       let result = text.replace(/Usage:/gi, 'To use this command, you need to say');
       result = result.replace(/\[([^\]]+)\]/g, 'followed by $1');
       return result;
     }
-    
+
     return `I'm sorry, but ${errorMsg.toLowerCase()}.`;
   }
 
@@ -524,9 +527,7 @@ export class VoiceResponseService {
    * Remove URLs and technical identifiers
    */
   private removeUrlsAndIdentifiers(text: string): string {
-    return text
-      .replace(/https?:\/\/[^\s]+/g, '')
-      .replace(/#[A-Za-z0-9]+/g, '');
+    return text.replace(/https?:\/\/[^\s]+/g, '').replace(/#[A-Za-z0-9]+/g, '');
   }
 
   /**

@@ -101,7 +101,8 @@ export class CommandParserService {
       }
 
       // Check for compound voice commands (voice + another command)
-      const compoundVoicePattern = /^voice\s+(balance|help|price|history|settings|username|contacts|pending)\b/i;
+      const compoundVoicePattern =
+        /^voice\s+(balance|help|price|history|settings|username|contacts|pending)\b/i;
       const compoundMatch = trimmedText.match(compoundVoicePattern);
       if (compoundMatch) {
         // This is a compound command like "voice balance"
@@ -129,7 +130,7 @@ export class CommandParserService {
 
       // Apply smart command corrections
       trimmedText = this.applyCommandCorrections(trimmedText);
-      
+
       // Check for voice only patterns before natural language parsing
       const voiceOnlyPatterns = [
         'voice only',
@@ -146,9 +147,9 @@ export class CommandParserService {
         'just voice notes',
         'just voicenotes',
         'only voice notes',
-        'only voicenotes'
+        'only voicenotes',
       ];
-      
+
       const lowerTrimmed = trimmedText.toLowerCase();
       // Check exact matches first
       if (voiceOnlyPatterns.includes(lowerTrimmed)) {
@@ -158,7 +159,7 @@ export class CommandParserService {
           rawText: originalText,
         };
       }
-      
+
       // Check for patterns with extra words
       const voiceOnlyPhrases = [
         'voice only',
@@ -178,9 +179,9 @@ export class CommandParserService {
         'i want only voice note',
         'i want just voice',
         'i want just voicenote',
-        'i want just voice note'
+        'i want just voice note',
       ];
-      
+
       for (const phrase of voiceOnlyPhrases) {
         if (lowerTrimmed.includes(phrase)) {
           return {
@@ -850,7 +851,7 @@ export class CommandParserService {
     ) {
       return { type: CommandType.VOICE, args: { action: 'only' }, rawText: text };
     }
-    
+
     // Other voice settings variations
     if (
       lowerText.includes('voice settings') ||

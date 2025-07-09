@@ -83,9 +83,12 @@ function convertWholeNumber(num: number): string {
  * @param currency - The currency name (default: 'dollars')
  * @returns Natural speech version of the amount
  */
-export function convertCurrencyToWords(amount: number | string, currency: string = 'dollars'): string {
+export function convertCurrencyToWords(
+  amount: number | string,
+  currency: string = 'dollars',
+): string {
   const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-  
+
   if (isNaN(numAmount)) {
     return `${amount} ${currency}`;
   }
@@ -125,7 +128,7 @@ export function convertCurrencyToWords(amount: number | string, currency: string
     if (wholeDollars > 0) {
       result += ' and ';
     }
-    
+
     if (cents === 1) {
       result += 'one cent';
     } else if (cents < 10) {
@@ -158,10 +161,13 @@ export function convertNumbersInText(text: string): string {
   converted = converted.replace(/\$(\d+(?:\.\d{1,2})?)\b/g, (match, amount) => {
     return convertCurrencyToWords(amount, 'dollars');
   });
-  
-  converted = converted.replace(/\b(\d+(?:\.\d{1,2})?)\s*(dollars?|USD)\b/gi, (match, amount, currency) => {
-    return convertCurrencyToWords(amount, 'dollars');
-  });
+
+  converted = converted.replace(
+    /\b(\d+(?:\.\d{1,2})?)\s*(dollars?|USD)\b/gi,
+    (match, amount, currency) => {
+      return convertCurrencyToWords(amount, 'dollars');
+    },
+  );
 
   // Convert percentages BEFORE converting general numbers
   converted = converted.replace(/\b(\d+(?:\.\d+)?)\s*%/g, (match, num) => {
@@ -173,13 +179,17 @@ export function convertNumbersInText(text: string): string {
   });
 
   // Convert simple whole numbers in common contexts
-  converted = converted.replace(/\b(\d+)\s+(transactions?|payments?|messages?|items?|times?)\b/gi, (match, num, unit) => {
-    const number = parseInt(num);
-    if (number < 100) { // Only convert smaller numbers to avoid awkward long number words
-      return `${convertWholeNumber(number)} ${unit}`;
-    }
-    return match;
-  });
+  converted = converted.replace(
+    /\b(\d+)\s+(transactions?|payments?|messages?|items?|times?)\b/gi,
+    (match, num, unit) => {
+      const number = parseInt(num);
+      if (number < 100) {
+        // Only convert smaller numbers to avoid awkward long number words
+        return `${convertWholeNumber(number)} ${unit}`;
+      }
+      return match;
+    },
+  );
 
   // Convert standalone decimal numbers that might be currency (after other conversions)
   converted = converted.replace(/\b(\d+\.\d{2})\b/g, (match, amount) => {

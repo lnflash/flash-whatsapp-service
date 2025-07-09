@@ -94,6 +94,11 @@ See `/docs/BTC_WALLET_POLICY.md` for full details.
 - `voice add [name] [id]` - Add custom voice
 - `voice remove [name]` - Remove voice
 
+### Admin Voice Commands
+- `admin voice default [name]` - Set default voice for all users
+- `admin voice default` - View current default voice
+- `admin voice default clear` - Clear default voice setting
+
 ## Development Guidelines
 
 - Keep logs minimal and sanitized for production

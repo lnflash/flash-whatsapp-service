@@ -15,11 +15,11 @@ describe('Number to Words Conversion', () => {
     it('should convert amounts with cents', () => {
       expect(convertCurrencyToWords(0.01)).toBe('one cent');
       expect(convertCurrencyToWords(0.05)).toBe('five cents');
-      expect(convertCurrencyToWords(0.10)).toBe('ten cents');
+      expect(convertCurrencyToWords(0.1)).toBe('ten cents');
       expect(convertCurrencyToWords(0.25)).toBe('twenty five cents');
       expect(convertCurrencyToWords(0.99)).toBe('ninety nine cents');
       expect(convertCurrencyToWords(1.01)).toBe('one dollar and one cent');
-      expect(convertCurrencyToWords(5.50)).toBe('five dollars and fifty cents');
+      expect(convertCurrencyToWords(5.5)).toBe('five dollars and fifty cents');
       expect(convertCurrencyToWords(10.05)).toBe('ten dollars and five cents');
       expect(convertCurrencyToWords(25.99)).toBe('twenty five dollars and ninety nine cents');
     });
@@ -39,14 +39,16 @@ describe('Number to Words Conversion', () => {
 
     it('should handle negative amounts', () => {
       expect(convertCurrencyToWords(-10)).toBe('negative ten dollars');
-      expect(convertCurrencyToWords(-0.50)).toBe('negative fifty cents');
-      expect(convertCurrencyToWords(-100.25)).toBe('negative one hundred dollars and twenty five cents');
+      expect(convertCurrencyToWords(-0.5)).toBe('negative fifty cents');
+      expect(convertCurrencyToWords(-100.25)).toBe(
+        'negative one hundred dollars and twenty five cents',
+      );
     });
 
     it('should handle custom currency', () => {
       expect(convertCurrencyToWords(10, 'euros')).toBe('ten euros');
       expect(convertCurrencyToWords(1, 'euro')).toBe('one euro');
-      expect(convertCurrencyToWords(50.50, 'pounds')).toBe('fifty pounds and fifty cents');
+      expect(convertCurrencyToWords(50.5, 'pounds')).toBe('fifty pounds and fifty cents');
     });
   });
 

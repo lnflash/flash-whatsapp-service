@@ -34,7 +34,14 @@ voice add [name] [id] - Add voice with custom name
 voice remove [name] - Remove a voice
 ```
 
-### 5. Natural Language Processing
+### 5. Admin Voice Commands
+```
+admin voice default [name] - Set default voice for all users
+admin voice default       - View current default voice
+admin voice default clear - Clear default voice setting
+```
+
+### 6. Natural Language Processing
 - Numbers converted to words: "$10.50" → "ten dollars and fifty cents"
 - Natural speech patterns for better voice synthesis
 - Context-aware responses based on command type
@@ -99,9 +106,22 @@ GOOGLE_CLOUD_KEYFILE=/path/to/credentials.json
 
 ### Voice Selection Flow
 1. Check user's selected voice
-2. If not found, use first available voice
-3. If no voices configured, use ElevenLabs default
-4. Log warning for monitoring
+2. If not found, use admin-configured default voice
+3. If no default set, use first available voice
+4. If no voices configured, use ElevenLabs default
+5. Log warning for monitoring
+
+### Default Voice Feature
+Administrators can set a default voice for all users who haven't selected their own voice:
+- `admin voice default [name]` - Set a voice as the default for all users
+- `admin voice default` - View the current default voice
+- `admin voice default clear` - Remove the default voice setting
+
+The voice selection hierarchy is:
+1. User's explicitly selected voice (highest priority)
+2. Admin-configured default voice
+3. First available voice in the system
+4. ElevenLabs platform default (lowest priority)
 
 ## Best Practices
 

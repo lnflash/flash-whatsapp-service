@@ -19,6 +19,7 @@ export class VoiceManagementService {
   private readonly logger = new Logger(VoiceManagementService.name);
   private readonly VOICES_KEY = 'elevenlabs:voices';
   private readonly VOICES_DETAILS_PREFIX = 'elevenlabs:voice:';
+  private readonly DEFAULT_VOICE_KEY = 'elevenlabs:default_voice';
 
   constructor(
     private readonly redisService: RedisService,
@@ -28,12 +29,54 @@ export class VoiceManagementService {
 
   // Voice name pool for random generation
   private readonly VOICE_NAME_POOL = [
-    'aurora', 'blaze', 'cascade', 'delta', 'echo', 'flux', 'galaxy', 'horizon',
-    'iris', 'jazz', 'koda', 'luna', 'matrix', 'nova', 'orbit', 'phoenix',
-    'quantum', 'ripple', 'spark', 'tide', 'ultra', 'vortex', 'wave', 'xenon',
-    'yonder', 'zephyr', 'cosmo', 'dusk', 'ember', 'frost', 'glimmer', 'halo',
-    'indigo', 'jade', 'karma', 'lumen', 'mystic', 'nebula', 'opal', 'prism',
-    'quartz', 'radiant', 'storm', 'twilight', 'umbra', 'velvet', 'whisper', 'zion'
+    'aurora',
+    'blaze',
+    'cascade',
+    'delta',
+    'echo',
+    'flux',
+    'galaxy',
+    'horizon',
+    'iris',
+    'jazz',
+    'koda',
+    'luna',
+    'matrix',
+    'nova',
+    'orbit',
+    'phoenix',
+    'quantum',
+    'ripple',
+    'spark',
+    'tide',
+    'ultra',
+    'vortex',
+    'wave',
+    'xenon',
+    'yonder',
+    'zephyr',
+    'cosmo',
+    'dusk',
+    'ember',
+    'frost',
+    'glimmer',
+    'halo',
+    'indigo',
+    'jade',
+    'karma',
+    'lumen',
+    'mystic',
+    'nebula',
+    'opal',
+    'prism',
+    'quartz',
+    'radiant',
+    'storm',
+    'twilight',
+    'umbra',
+    'velvet',
+    'whisper',
+    'zion',
   ];
 
   /**
@@ -41,13 +84,13 @@ export class VoiceManagementService {
    */
   private async generateRandomVoiceName(): Promise<string> {
     const voiceList = await this.getVoiceList();
-    
+
     // Try to find an unused name from the pool
     const unusedName = await this.findUnusedNameFromPool(voiceList);
     if (unusedName) {
       return unusedName;
     }
-    
+
     // If all names are taken, generate a numbered name
     return this.generateNumberedVoiceName(voiceList);
   }
@@ -58,14 +101,14 @@ export class VoiceManagementService {
   private async findUnusedNameFromPool(voiceList: VoiceList): Promise<string | null> {
     // Shuffle the names for randomness
     const shuffled = [...this.VOICE_NAME_POOL].sort(() => Math.random() - 0.5);
-    
+
     // Find the first unused name
     for (const name of shuffled) {
       if (!voiceList[name]) {
         return name;
       }
     }
-    
+
     return null;
   }
 
@@ -91,7 +134,7 @@ export class VoiceManagementService {
     try {
       // Generate random name if not provided
       const voiceName = name || (await this.generateRandomVoiceName());
-      
+
       // Normalize name to lowercase for consistency
       const normalizedName = voiceName.toLowerCase().trim();
 
@@ -324,7 +367,7 @@ export class VoiceManagementService {
       for (const name of Object.keys(voiceList)) {
         const details = await this.getVoiceDetails(name);
         let addedBy = 'unknown';
-        
+
         if (details?.addedBy) {
           try {
             // Get session by whatsappId
@@ -351,6 +394,94 @@ export class VoiceManagementService {
     } catch (error) {
       this.logger.error(`Error getting voice list with details: ${error.message}`);
       return {};
+    }
+  }
+
+  /**
+   * Set the default voice for all users
+   */
+  async setDefaultVoice(voiceName: string): Promise<void> {
+    try {
+      const normalizedName = voiceName.toLowerCase().trim();
+
+      // Verify voice exists
+      const voiceList = await this.getVoiceList();
+      if (!voiceList[normalizedName]) {
+        throw new Error(`Voice "${voiceName}" does not exist`);
+      }
+
+      // Store default voice setting
+      await this.redisService.set(this.DEFAULT_VOICE_KEY, normalizedName, 0); // Persistent
+      this.logger.log(`Default voice set to: ${normalizedName}`);
+    } catch (error) {
+      this.logger.error(`Error setting default voice: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get the default voice name
+   */
+  async getDefaultVoice(): Promise<string | null> {
+    try {
+      const defaultVoice = await this.redisService.get(this.DEFAULT_VOICE_KEY);
+      return defaultVoice;
+    } catch (error) {
+      this.logger.error(`Error getting default voice: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Clear the default voice setting
+   */
+  async clearDefaultVoice(): Promise<void> {
+    try {
+      await this.redisService.del(this.DEFAULT_VOICE_KEY);
+      this.logger.log('Default voice cleared');
+    } catch (error) {
+      this.logger.error(`Error clearing default voice: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get voice ID with fallback to default
+   */
+  async getVoiceIdWithDefault(
+    userVoiceName?: string,
+  ): Promise<{ voiceId: string | null; voiceName: string }> {
+    try {
+      // First, try user's selected voice
+      if (userVoiceName) {
+        const voiceId = await this.getVoiceId(userVoiceName);
+        if (voiceId) {
+          return { voiceId, voiceName: userVoiceName };
+        }
+      }
+
+      // Second, try default voice
+      const defaultVoiceName = await this.getDefaultVoice();
+      if (defaultVoiceName) {
+        const defaultVoiceId = await this.getVoiceId(defaultVoiceName);
+        if (defaultVoiceId) {
+          return { voiceId: defaultVoiceId, voiceName: defaultVoiceName };
+        }
+      }
+
+      // Third, use first available voice
+      const voiceList = await this.getVoiceList();
+      const voiceNames = Object.keys(voiceList);
+      if (voiceNames.length > 0) {
+        const firstVoiceName = voiceNames[0];
+        return { voiceId: voiceList[firstVoiceName], voiceName: firstVoiceName };
+      }
+
+      // No voices available
+      return { voiceId: null, voiceName: 'default' };
+    } catch (error) {
+      this.logger.error(`Error getting voice ID with default: ${error.message}`);
+      return { voiceId: null, voiceName: 'default' };
     }
   }
 }

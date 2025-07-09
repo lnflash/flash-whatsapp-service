@@ -11,26 +11,26 @@ export const VOICE_SWITCH_PATTERNS: RegExp[] = [
   /switch\s+(?:voices?\s+)?to\s+(\w+)/i,
   /change\s+(?:(?:the|my)\s+)?voice\s+to\s+(\w+)/i,
   /change\s+(?:your\s+)?voice\s+to\s+(\w+)/i,
-  
+
   // Conversational requests
   /let\s+me\s+(?:speak|talk)\s+(?:to|with)\s+(\w+)/i,
   /(?:i\s+)?(?:want|wanna)\s+(?:to\s+)?(?:speak|talk)\s+(?:to|with)\s+(\w+)/i,
   /(?:can\s+)?(?:i|you)\s+(?:speak|talk)\s+(?:to|with)\s+(\w+)/i,
-  
+
   // Voice selection
   /use\s+(\w+)(?:'s)?\s+voice/i,
   /speak\s+(?:as|like)\s+(\w+)/i,
   /talk\s+(?:as|like)\s+(\w+)/i,
   /(?:i\s+)?(?:want|wanna)\s+(\w+)(?:'s)?\s+voice/i,
-  
+
   // Be/become variations
   /(?:can\s+)?(?:you\s+)?(?:be|sound\s+like)\s+(\w+)/i,
   /(?:please\s+)?(?:be|become)\s+(\w+)/i,
-  
+
   // Set/make commands
   /set\s+(?:(?:the|my|your)\s+)?voice\s+to\s+(\w+)/i,
   /make\s+(?:it|your\s+voice)\s+(\w+)/i,
-  
+
   // Simple variations
   /(?:hey\s+)?(\w+)\s+(?:please|voice)/i,
 ];
