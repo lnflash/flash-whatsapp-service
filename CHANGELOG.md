@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced payment confirmation display with recipient, amount, memo, and network info
 - Username validation before payment confirmation (prevents sending to non-existent users)
 - Recipient type indicators in confirmation (username ✅, phone, contact, lightning)
+- Voice-only payment notifications for recipients
+- Automatic 'voice on' mode activation for payment recipients
+- sendVoiceMessage method in WhatsAppWebService for audio delivery
 
 ### Removed
 - Hardcoded voice selection (voice 1/2/3) replaced by dynamic voice management

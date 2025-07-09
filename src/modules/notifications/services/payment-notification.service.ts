@@ -9,6 +9,9 @@ import { BalanceService } from '../../flash-api/services/balance.service';
 import { UsernameService } from '../../flash-api/services/username.service';
 import { PriceService } from '../../flash-api/services/price.service';
 import { EventsService } from '../../events/events.service';
+import { TtsService } from '../../tts/tts.service';
+import { UserVoiceSettingsService, UserVoiceMode } from '../../whatsapp/services/user-voice-settings.service';
+import { convertCurrencyToWords } from '../../whatsapp/utils/number-to-words';
 
 interface PaymentNotification {
   paymentHash: string;
@@ -44,6 +47,8 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
     private readonly usernameService: UsernameService,
     private readonly priceService: PriceService,
     private readonly eventsService: EventsService,
+    private readonly ttsService: TtsService,
+    private readonly userVoiceSettingsService: UserVoiceSettingsService,
   ) {}
 
   async onModuleInit() {
@@ -347,68 +352,60 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
     fiatCurrency: string,
   ): Promise<void> {
     try {
-      // Format notification message
-      let message = `💰 *Payment Received!*\n\n`;
-
-      // Check if this is a USD payment (notification.currency would be 'USD')
-      if (notification.currency === 'USD') {
-        const currencySymbol = fiatCurrency === 'USD' ? '$' : '';
-        message += `Amount: *${currencySymbol}${fiatAmount} ${fiatCurrency}*`;
-        if (btcAmount && btcAmount !== '?') {
-          message += ` _(~${btcAmount} BTC)_`;
+      // Set recipient to 'voice on' mode if not already set
+      if (this.userVoiceSettingsService) {
+        const currentSettings = await this.userVoiceSettingsService.getUserVoiceSettings(notification.whatsappId);
+        if (!currentSettings || currentSettings.mode === UserVoiceMode.OFF) {
+          await this.userVoiceSettingsService.setUserVoiceMode(notification.whatsappId, UserVoiceMode.ON);
+          this.logger.log(`Set voice mode to ON for payment recipient ${notification.whatsappId}`);
         }
-        message += '\n';
+      }
+
+      // Generate natural voice message
+      let naturalVoiceMessage = 'Hi! You just received ';
+      
+      if (notification.currency === 'USD') {
+        naturalVoiceMessage += convertCurrencyToWords(fiatAmount);
       } else {
         // BTC payment
-        message += `Amount: *${btcAmount} BTC*`;
-        const fiatSymbol = fiatCurrency === 'USD' ? '$' : '';
-        message += ` _(~${fiatSymbol}${fiatAmount} ${fiatCurrency})_\n`;
+        naturalVoiceMessage += `${btcAmount} Bitcoin`;
+        if (fiatAmount && fiatAmount !== '?') {
+          naturalVoiceMessage += `, worth about ${convertCurrencyToWords(fiatAmount)}`;
+        }
       }
 
       if (notification.senderName && notification.senderName !== 'Someone') {
-        message += `From: *${notification.senderName}*\n`;
+        naturalVoiceMessage += ` from ${notification.senderName}`;
       }
 
       if (notification.memo) {
-        message += `Memo: _${notification.memo}_\n`;
+        naturalVoiceMessage += `. They said: ${notification.memo}`;
       }
-
-      message += `\n✅ Payment confirmed instantly`;
 
       // Get current balance
       const session = await this.sessionService.getSessionByWhatsappId(notification.whatsappId);
-      if (session?.flashAuthToken) {
+      if (session?.flashAuthToken && session.flashUserId) {
         try {
-          if (session.flashUserId) {
-            // Clear balance cache to ensure we get the latest balance
-            await this.balanceService.clearBalanceCache(session.flashUserId);
+          // Clear balance cache to ensure we get the latest balance
+          await this.balanceService.clearBalanceCache(session.flashUserId);
 
-            const balance = await this.balanceService.getUserBalance(
-              session.flashUserId,
-              session.flashAuthToken,
-            );
+          const balance = await this.balanceService.getUserBalance(
+            session.flashUserId,
+            session.flashAuthToken,
+          );
 
-            // Show the appropriate balance based on what the user has
-            if (balance.fiatBalance > 0 || balance.btcBalance === 0) {
-              // User has USD balance or only USD wallet
-              // Note: fiatBalance is already in dollars from BalanceService, not cents
-              const balanceAmount = balance.fiatBalance.toFixed(2);
-
-              // For display currency (e.g., JMD), we need to show the USD amount
-              if (balance.fiatCurrency !== 'USD') {
-                message += `\n💼 New balance: *$${balanceAmount} USD*`;
-              } else {
-                message += `\n💼 New balance: *$${balanceAmount} USD*`;
-              }
-            } else if (balance.btcBalance > 0) {
-              // User has BTC balance
-              message += `\n💼 New balance: *${this.formatBtcAmount(balance.btcBalance)} BTC*`;
-            }
+          // Show the appropriate balance based on what the user has
+          if (balance.fiatBalance > 0 || balance.btcBalance === 0) {
+            naturalVoiceMessage += `. Your new balance is ${convertCurrencyToWords(balance.fiatBalance.toFixed(2))}`;
+          } else if (balance.btcBalance > 0) {
+            naturalVoiceMessage += `. Your new balance is ${this.formatBtcAmount(balance.btcBalance)} Bitcoin`;
           }
         } catch {
           // Balance fetch failed, skip it
         }
       }
+
+      naturalVoiceMessage += '. The payment was confirmed instantly.';
 
       // Check if WhatsApp client is ready before sending
       if (!this.whatsappWebService.isClientReady()) {
@@ -418,8 +415,18 @@ export class PaymentNotificationService implements OnModuleInit, OnModuleDestroy
         return;
       }
 
-      // Send WhatsApp message
-      await this.whatsappWebService.sendMessage(notification.whatsappId, message);
+      // Generate voice audio
+      const audioBuffer = await this.ttsService.textToSpeech(
+        naturalVoiceMessage,
+        'en',
+        notification.whatsappId,
+      );
+
+      // Send voice-only notification (no text)
+      await this.whatsappWebService.sendVoiceMessage(
+        notification.whatsappId,
+        audioBuffer,
+      );
     } catch (error) {
       // Don't throw if WhatsApp is not ready - just log and continue
       if (error.message && error.message.includes('WhatsApp Web client is not ready')) {

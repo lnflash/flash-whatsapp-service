@@ -1,6 +1,10 @@
-# Claude AI Context for Flash WhatsApp Service
+# Claude AI Context for Pulse WhatsApp Service
 
 This file contains important context and guidelines for AI assistants working on this codebase.
+
+## Project Name
+- Service is branded as **"Pulse"** - capturing the pulse of the Lightning Network
+- Bot introduces itself as "Pulse, your personal payment assistant"
 
 ## Critical Policies
 
@@ -14,6 +18,14 @@ This file contains important context and guidelines for AI assistants working on
 - When implementing features, check for USD wallet first: `balance.fiatBalance > 0 || balance.btcBalance === 0`
 
 See `/docs/BTC_WALLET_POLICY.md` for full details.
+
+### Voice Features Policy
+**Payment recipients automatically get voice notifications**
+
+- When someone receives money, they get a voice-only message (no text)
+- Recipients are automatically set to 'voice on' mode for future interactions
+- Voice management is dynamic - users can add custom ElevenLabs voices
+- Keep voice messages short and natural for better speech synthesis
 
 ## Service Architecture
 
@@ -61,6 +73,27 @@ See `/docs/BTC_WALLET_POLICY.md` for full details.
    - Always check wallet type and show appropriate currency
    - USD users should see USD balance, not BTC
 
+## Voice System Architecture
+
+### Voice Management
+- **Dynamic Voices**: Users can add/remove custom ElevenLabs voices
+- **Voice Storage**: Voice configurations stored in Redis with persistence
+- **Auto-naming**: Voices can be auto-named from a pool of friendly names
+- **Reserved Words**: System prevents using command names as voice names
+
+### Voice Response Flow
+1. Check user's voice mode (on/off/only)
+2. For 'only' mode, generate natural conversational response
+3. Convert numbers to words for better speech (e.g., "$10.50" → "ten dollars and fifty cents")
+4. Use ElevenLabs API for high-quality voice synthesis
+
+### Voice Commands
+- `voice on/off/only` - Set voice mode
+- `voice list` - Show available voices
+- `voice [name]` - Select a voice
+- `voice add [name] [id]` - Add custom voice
+- `voice remove [name]` - Remove voice
+
 ## Development Guidelines
 
 - Keep logs minimal and sanitized for production
@@ -68,3 +101,5 @@ See `/docs/BTC_WALLET_POLICY.md` for full details.
 - Test with both USD and BTC wallets (when BTC is explicitly needed)
 - Always handle both Lightning and Intraledger payment types
 - Use TypeScript strict mode and fix all type errors
+- Keep voice messages concise and natural-sounding
+- Test voice features with different accents and speaking speeds

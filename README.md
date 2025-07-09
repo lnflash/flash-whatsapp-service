@@ -57,6 +57,9 @@ This service uses WhatsApp Web.js to provide a seamless integration between Flas
 - ✅ Natural language voice responses powered by AI
 - ✅ ElevenLabs integration for ultra-realistic voice synthesis
 - ✅ Transaction details with voice narration
+- ✅ Dynamic voice management system with custom ElevenLabs voices
+- ✅ Voice-only payment notifications for recipients
+- ✅ Automatic voice mode activation for payment recipients
 
 ## Prerequisites
 
@@ -152,10 +155,11 @@ Users can send these commands to the WhatsApp bot:
 - `vybz` - Share content to earn sats (3 posts/day limit)
 - `unlink` - Disconnect your Flash account
 - `consent yes/no` - Manage AI support consent
-- `voice on/off/only/status` - Manage voice response settings
-- `voice list` - Show available voices
-- `voice [name]` - Select a voice by name
-- `voice add [name] [id]` - Add new ElevenLabs voice
+- `voice on/off/only` - Set voice mode (on=voice+text, off=text only, only=voice only)
+- `voice list` - Show all available voices
+- `voice [name]` - Select a specific voice
+- `voice add [name] [id]` - Add custom ElevenLabs voice
+- `voice add [id]` - Add voice with auto-generated name
 - `voice remove [name]` - Remove a voice
 - `settings` - View all your settings and preferences
 - `help` - Show available commands

@@ -1247,6 +1247,35 @@ export class WhatsAppWebService
   }
 
   /**
+   * Send a voice message
+   */
+  async sendVoiceMessage(to: string, audioBuffer: Buffer): Promise<void> {
+    if (!this.isReady) {
+      throw new Error('WhatsApp Web client is not ready');
+    }
+
+    try {
+      // Import MessageMedia from whatsapp-web.js
+      const { MessageMedia } = await import('whatsapp-web.js');
+
+      // Ensure the number has @c.us suffix
+      const chatId = to.includes('@') ? to : `${to}@c.us`;
+      const phoneNumber = to.replace('@c.us', '');
+
+      // Create media from buffer
+      // Use audio/ogg for voice messages
+      const media = new MessageMedia('audio/ogg', audioBuffer.toString('base64'), 'voice.ogg');
+
+      // Send the voice message with sendAsDocument: false to send as voice note
+      await this.client.sendMessage(chatId, media, { sendAudioAsVoice: true });
+      this.logger.debug(`🎤 Voice message delivered to ${phoneNumber}`);
+    } catch (error) {
+      this.logger.error(`Failed to send voice message to ${to}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Send voice note
    */
   async sendVoiceNote(to: string, audioBuffer: Buffer): Promise<void> {

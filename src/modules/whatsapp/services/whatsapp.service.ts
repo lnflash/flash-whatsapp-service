@@ -40,6 +40,7 @@ import { PaymentConfirmationService } from './payment-confirmation.service';
 import { UserVoiceSettingsService, UserVoiceMode } from './user-voice-settings.service';
 import { VoiceResponseService } from './voice-response.service';
 import { VoiceManagementService } from './voice-management.service';
+import { convertCurrencyToWords } from '../utils/number-to-words';
 // import { WhatsAppCloudService } from './whatsapp-cloud.service'; // Disabled for prototype branch
 
 @Injectable()
@@ -1220,52 +1221,35 @@ _This limitation is due to WhatsApp's privacy features._`;
       return this.getCategoryHelp(category);
     }
     if (!session) {
-      return `🌟 *Welcome to Flash WhatsApp Bot!*
+      return `*Welcome to Pulse!*
 
-Flash is your gateway to instant Bitcoin payments through the Lightning Network.
+Type \`link\` to connect your Flash account.
 
-📱 *Getting Started:*
-Type \`link\` to connect your Flash account
+Once connected:
+• Send & receive money
+• Check balance
+• View history
 
-⚡ *Available Commands:*
-• \`price\` - Check current Bitcoin price
-• \`help\` - Show this help message
-
-Once linked, you'll unlock features like:
-✅ Send & receive payments instantly
-✅ Check your balance
-✅ View transaction history
-✅ Create payment requests
-✅ And much more!
-
-Ready? Type \`link\` to begin! 🚀`;
+Ready? Type \`link\` to start!`;
     }
 
     if (!session.isVerified) {
-      return `📲 *Complete Your Verification*
+      return `📲 *Verify Your Account*
 
-Please enter the 6-digit code sent to your phone.
-
-⚡ *Available Commands:*
-• \`price\` - Check current Bitcoin price
-• \`help\` - Show this help message
+Enter the 6-digit code sent to your phone.
 
 Need a new code? Type \`link\` again.`;
     }
 
-    return `⚡ *Welcome to Pulse!*
+    return `⚡ *Commands*
 
-📱 *Essential Commands:*
-1️⃣ Balance - Check your wallet
-2️⃣ Send - Send money
-3️⃣ Receive - Get paid
+• \`balance\` - check money
+• \`send 10 to john\` - send payment
+• \`receive 25\` - request money
+• \`history\` - view transactions
+• \`help more\` - all commands
 
-Type a number for details or:
-• \`settings\` - View your settings
-• \`more\` - See all commands
-• \`support\` - Get help
-
-💡 Quick example: \`send 5 to john\``;
+Try: \`balance\``;
   }
 
   /**
@@ -1276,38 +1260,25 @@ Type a number for details or:
       return this.getHelpMessage(session);
     }
 
-    return `⚡ *All Pulse Commands*
+    return `⚡ *All Commands*
 
-💰 *Wallet & Balance:*
-• \`balance\` - Check your balance
-• \`refresh\` - Refresh balance
-• \`username\` - View/set Lightning username
-• \`history\` - Transaction history
+*Money:*
+• \`balance\` / \`refresh\`
+• \`send 10 to @user\`
+• \`receive 20\`
+• \`request 15 from @user\`
+• \`history\`
 
-💸 *Send & Receive:*
-• \`send 10 to @user\` - Send money
-• \`receive 20\` - Create invoice
-• \`request 15 from @user\` - Request payment
-• \`pay\` - Confirm pending payment
+*Contacts:*
+• \`contacts\` / \`contacts add/remove\`
 
-👥 *Contacts:*
-• \`contacts\` - List all contacts
-• \`contacts add john +1234567890\`
-• \`contacts remove john\`
+*Settings:*
+• \`voice on/off/only\`
+• \`settings\`
+• \`username\`
+• \`pending\`
 
-🎙️ *Voice & Settings:*
-• \`voice on/off/only\` - Voice settings
-• \`settings\` - View all your settings
-• \`vybz\` - Earn sats
-• \`pending\` - View pending payments
-
-💡 *Tips:*
-• All amounts are in USD
-• Save contacts for easy payments
-• Use voice mode for hands-free
-
-📱 Type \`help [topic]\` for details
-💬 Type \`support\` for assistance`;
+Type \`help [topic]\` for details`;
   }
 
   /**
@@ -1315,75 +1286,52 @@ Type a number for details or:
    */
   private getCategoryHelp(category: string): string {
     const categories: Record<string, string> = {
-      wallet: `💰 *Wallet & Balance Commands*
+      wallet: `💰 *Balance Commands*
 
-• \`balance\` - Check your USD balance
-• \`refresh\` - Refresh balance (clear cache)
-• \`username\` - View or set Lightning username
-• \`history\` - View recent transactions
+• \`balance\` - check balance
+• \`refresh\` - update balance
+• \`username\` - set payment address
+• \`history\` - recent transactions`,
 
-💡 Tip: Set a username to get your own Lightning address!
+      send: `💸 *Send Money*
 
-⬅️ Type \`help\` to go back`,
+• \`send 10 to @username\`
+• \`send 5.50 to john\` (contact)
+• \`send 25 to lnbc...\` (invoice)
 
-      send: `💸 *Send Money Commands*
+*Request:*
+• \`request 20 from @john\`
 
-• \`send 10 to @username\` - Send $10 USD to Flash user
-• \`send 5.50 to john\` - Send $5.50 USD to saved contact
-• \`send 25 to lnbc...\` - Pay $25 USD Lightning invoice
+All amounts in USD.`,
 
-📱 *Request from Others:*
-• \`request 20 from @john\` - Request $20 USD from user
-• \`request 15 from ayanna\` - Request $15 USD from contact
+      receive: `📥 *Receive Money*
 
-💡 *Important:* All amounts are in USD regardless of your display currency
-💡 Tip: Save contacts for easier payments!
+• \`receive 10\` - $10 invoice
+• \`receive 50 Coffee\` - with note
 
-⬅️ Type \`help\` to go back`,
+Share the QR code to get paid!`,
 
-      receive: `📥 *Receive Money Commands*
+      contacts: `👥 *Contacts*
 
-• \`receive 10\` - Create $10 USD invoice
-• \`receive 50 Coffee\` - Create $50 USD invoice with memo
+• \`contacts\` - list all
+• \`contacts add john 18765551234\`
+• \`contacts remove john\``,
 
-💡 *Important:* All amounts are in USD regardless of your display currency
-💡 Tip: Share the invoice or QR code to get paid!
+      pending: `💳 *Pending Payments*
 
-⬅️ Type \`help\` to go back`,
+• \`pending\` - view all
+• \`pay 12345\` - claim with code`,
 
-      contacts: `👥 *Contact Commands*
+      voice: `🎙️ *Voice Mode*
 
-• \`contacts\` - List all contacts
-• \`contacts add john 18765551234\` - Add new
-• \`contacts remove john\` - Remove contact
-
-💡 Tip: Use contact names instead of phone numbers!`,
-
-      pending: `💳 *Pending Payment Commands*
-
-• \`pending\` - View all pending payments
-• \`pending sent\` - View sent pending payments
-• \`pay 12345\` - Claim with code
-
-💡 Tip: Pending payments expire after 24 hours!`,
-
-      voice: `🎙️ *Voice Commands*
-
-Simply add "voice", "audio", or "speak" to any command:
-• "voice balance"
-• "speak help"
-• "audio price"
-
-Current mode: Check with \`admin voice\`
-
-💡 Tip: I'll respond with both voice and text!
-
-⬅️ Type \`help\` to go back`,
+• \`voice on\` - voice + text
+• \`voice off\` - text only  
+• \`voice only\` - voice only`,
     };
 
     return (
       categories[category.toLowerCase()] ||
-      `❓ Unknown category. Try: \`help\`, \`help wallet\`, \`help send\`, \`help receive\`, \`help contacts\`, \`help pending\`, or \`help voice\``
+      `Type: \`help\`, \`help send\`, \`help receive\``
     );
   }
 
@@ -1394,38 +1342,25 @@ Current mode: Check with \`admin voice\`
     const userName = session?.profileName || 'there';
     const firstName = userName.split(' ')[0]; // Use first name for friendlier greeting
 
-    let message = `🎉 *Welcome to Pulse, ${firstName}!*
+    let message = `🎉 *Welcome, ${firstName}!*
 
-✅ Your Flash account is now connected to WhatsApp.`;
+Your Flash account is connected.`;
 
     if (pendingClaimMessage) {
       message += `\n\n${pendingClaimMessage}`;
     }
 
-    // Create a conversational welcome that sounds natural when spoken
     message += `
 
-I'm Pulse, your personal payment assistant! I can help you send money instantly, check your balance, and manage your Bitcoin wallet - all through WhatsApp.
+I'm Pulse - I can send money, check balances, and handle Bitcoin payments through WhatsApp.
 
-🚀 *Here's what you can do:*
+*Quick commands:*
+• \`balance\` - check your money
+• \`send 10 to john\` - send payment
+• \`receive 25\` - request money
+• \`help\` - see all commands
 
-**Check your money:**
-Type \`balance\` to see how much you have
-
-**Send money instantly:**
-Type \`send 5 to @username\` or to a contact
-
-**Request payments:**
-Type \`receive 10\` to create an invoice
-
-**Check Bitcoin price:**
-Type \`price\` for the current rate
-
-💡 *Quick tip:* Want me to speak? Just say "voice" before any command, like "voice balance"!
-
-Type \`help\` anytime to see all commands, or \`support\` if you need assistance.
-
-**Ready to start?** Try typing \`balance\` to check your account! 💰`;
+Ready? Try \`balance\` to start!`;
 
     return message;
   }
@@ -2046,11 +1981,42 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
                     }
                   }
 
-                  // Send the notification
+                  // Set recipient to 'voice on' mode if not already set
+                  if (this.userVoiceSettingsService) {
+                    const currentSettings = await this.userVoiceSettingsService.getUserVoiceSettings(recipientSession.whatsappId);
+                    if (!currentSettings || currentSettings.mode === UserVoiceMode.OFF) {
+                      await this.userVoiceSettingsService.setUserVoiceMode(recipientSession.whatsappId, UserVoiceMode.ON);
+                      this.logger.log(`Set voice mode to ON for recipient ${recipientSession.whatsappId}`);
+                    }
+                  }
+
+                  // Generate natural voice message for recipient
+                  const voiceResponseService = this.voiceResponseService;
+                  let naturalVoiceMessage = `Hi! You just received ${convertCurrencyToWords(amount.toFixed(2))} from ${senderUsername}.`;
+                  if (command.args.memo) {
+                    naturalVoiceMessage += ` They said: ${command.args.memo}.`;
+                  }
+                  if (recipientSession.flashUserId) {
+                    const balance = await this.balanceService.getUserBalance(
+                      recipientSession.flashUserId,
+                      recipientSession.flashAuthToken,
+                    );
+                    naturalVoiceMessage += ` Your new balance is ${convertCurrencyToWords(balance.fiatBalance.toFixed(2))}.`;
+                  }
+                  naturalVoiceMessage += ` The payment was confirmed instantly.`;
+
+                  // Generate voice audio
+                  const audioBuffer = await this.ttsService.textToSpeech(
+                    naturalVoiceMessage,
+                    'en',
+                    recipientSession.whatsappId,
+                  );
+
+                  // Send voice-only notification (no text)
                   if (this.whatsappWebService?.isClientReady()) {
-                    await this.whatsappWebService.sendMessage(
+                    await this.whatsappWebService.sendVoiceMessage(
                       recipientSession.whatsappId,
-                      recipientMessage,
+                      audioBuffer,
                     );
                   }
                 }
@@ -2224,9 +2190,32 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
                   if (this.whatsappWebService) {
                     try {
                       const recipientWhatsApp = `${contact.phone}@c.us`;
-                      const notificationMsg =
-                        this.pendingPaymentService.formatPendingPaymentMessage(pendingPayment);
-                      await this.whatsappWebService.sendMessage(recipientWhatsApp, notificationMsg);
+                      
+                      // Set recipient to 'voice on' mode
+                      if (this.userVoiceSettingsService) {
+                        const currentSettings = await this.userVoiceSettingsService.getUserVoiceSettings(recipientWhatsApp);
+                        if (!currentSettings || currentSettings.mode === UserVoiceMode.OFF) {
+                          await this.userVoiceSettingsService.setUserVoiceMode(recipientWhatsApp, UserVoiceMode.ON);
+                          this.logger.log(`Set voice mode to ON for pending payment recipient ${recipientWhatsApp}`);
+                        }
+                      }
+
+                      // Generate natural voice message for pending payment
+                      let naturalVoiceMessage = `Hi ${targetUsername}! You have a pending payment of ${convertCurrencyToWords(amount.toFixed(2))} from ${senderUsername}.`;
+                      if (command.args.memo) {
+                        naturalVoiceMessage += ` They said: ${command.args.memo}.`;
+                      }
+                      naturalVoiceMessage += ` To claim this money, you'll need to join Flash by typing 'link'. Your claim code is ${pendingPayment.claimCode.split('').join(' ')}. This payment will be waiting for you for 30 days.`;
+
+                      // Generate voice audio
+                      const audioBuffer = await this.ttsService.textToSpeech(
+                        naturalVoiceMessage,
+                        'en',
+                        recipientWhatsApp,
+                      );
+
+                      // Send voice-only notification (no text)
+                      await this.whatsappWebService.sendVoiceMessage(recipientWhatsApp, audioBuffer);
                     } catch (notifyError) {
                       this.logger.error(`Failed to notify recipient: ${notifyError.message}`);
                     }
@@ -2330,9 +2319,32 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
           if (this.whatsappWebService) {
             try {
               const recipientWhatsApp = `${targetPhone}@c.us`;
-              const notificationMsg =
-                this.pendingPaymentService.formatPendingPaymentMessage(pendingPayment);
-              await this.whatsappWebService.sendMessage(recipientWhatsApp, notificationMsg);
+              
+              // Set recipient to 'voice on' mode
+              if (this.userVoiceSettingsService) {
+                const currentSettings = await this.userVoiceSettingsService.getUserVoiceSettings(recipientWhatsApp);
+                if (!currentSettings || currentSettings.mode === UserVoiceMode.OFF) {
+                  await this.userVoiceSettingsService.setUserVoiceMode(recipientWhatsApp, UserVoiceMode.ON);
+                  this.logger.log(`Set voice mode to ON for pending payment recipient ${recipientWhatsApp}`);
+                }
+              }
+
+              // Generate natural voice message for pending payment
+              let naturalVoiceMessage = `Hi! You have a pending payment of ${convertCurrencyToWords(amount.toFixed(2))} from ${senderUsername}.`;
+              if (command.args.memo) {
+                naturalVoiceMessage += ` They said: ${command.args.memo}.`;
+              }
+              naturalVoiceMessage += ` To claim this money, you'll need to join Flash by typing 'link'. Your claim code is ${pendingPayment.claimCode.split('').join(' ')}. This payment will be waiting for you for 30 days.`;
+
+              // Generate voice audio
+              const audioBuffer = await this.ttsService.textToSpeech(
+                naturalVoiceMessage,
+                'en',
+                recipientWhatsApp,
+              );
+
+              // Send voice-only notification (no text)
+              await this.whatsappWebService.sendVoiceMessage(recipientWhatsApp, audioBuffer);
             } catch (notifyError) {
               this.logger.error(`Failed to notify recipient: ${notifyError.message}`);
             }
@@ -3047,9 +3059,9 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
   ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
     let message: string;
     if (!session || !session.isVerified) {
-      message = `Keep your finger on it. Type 'link' to connect or 'help' for commands.`;
+      message = `I didn't understand that. Type 'help' for commands.`;
     } else {
-      message = `Keep your finger on it. Try 'help' or 'balance'.`;
+      message = `I didn't understand. Try 'help' or 'balance'.`;
     }
 
     if (whatsappId) {
@@ -4742,7 +4754,7 @@ ${voiceList}`;
    * Get standardized "not linked" error message
    */
   private getNotLinkedMessage(): string {
-    return `🔗 Account not linked yet!\n\n📱 To use Pulse, you need to connect your Flash account:\n\n1️⃣ Type 'link' to start\n2️⃣ Enter your Flash phone number\n3️⃣ Enter the 6-digit code we send you\n\n⏱️ Takes just 30 seconds!`;
+    return `Connect your Flash account to use this feature.\n\nType \`link\` to start.`;
   }
 
   /**
