@@ -121,8 +121,6 @@ export class VoiceResponseService {
         return `${greeting}Your Flash balance is currently empty. To add funds, you can ask someone to send you money, or say "receive" followed by an amount to create a payment request.`;
       } else if (data.usdAmount < 5) {
         return `${greeting}Your Flash balance is ${amountInWords}. Your balance is getting a bit low. You might want to add more funds soon.`;
-      } else if (data.usdAmount > 100) {
-        return `${greeting}Your Flash balance is ${amountInWords}. You have a healthy balance! You can send money by saying "send" followed by the amount and recipient.`;
       } else {
         return `${greeting}Your Flash balance is ${amountInWords}.`;
       }

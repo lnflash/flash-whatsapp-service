@@ -117,7 +117,7 @@ describe('VoiceResponseService', () => {
       );
 
       expect(response).toContain('two hundred fifty dollars');
-      expect(response).toContain('healthy balance');
+      expect(response).not.toContain('healthy balance');
     });
 
     it('should handle transaction history response', async () => {

@@ -126,8 +126,6 @@ export class BalanceTemplate {
       message += ' Your balance is empty. To add funds, say "receive" followed by the amount.';
     } else if (data.fiatBalance < 5) {
       message += ' Your balance is getting low. You might want to add more funds.';
-    } else if (data.fiatBalance > 100) {
-      message += ' You have a healthy balance!';
     }
 
     return message;
