@@ -116,6 +116,67 @@ export class CommandParserService {
 
       // Apply smart command corrections
       trimmedText = this.applyCommandCorrections(trimmedText);
+      
+      // Check for voice only patterns before natural language parsing
+      const voiceOnlyPatterns = [
+        'voice only',
+        'voicenote only',
+        'voice note only',
+        'only voice',
+        'only voicenote',
+        'only voice note',
+        'just voice',
+        'just voicenote',
+        'just voice note',
+        'voice notes only',
+        'voicenotes only',
+        'just voice notes',
+        'just voicenotes',
+        'only voice notes',
+        'only voicenotes'
+      ];
+      
+      const lowerTrimmed = trimmedText.toLowerCase();
+      // Check exact matches first
+      if (voiceOnlyPatterns.includes(lowerTrimmed)) {
+        return {
+          type: CommandType.VOICE,
+          args: { action: 'only' },
+          rawText: originalText,
+        };
+      }
+      
+      // Check for patterns with extra words
+      const voiceOnlyPhrases = [
+        'voice only',
+        'voicenote only',
+        'voice note only',
+        'only voice',
+        'only voicenote',
+        'only voice note',
+        'just voice',
+        'just voicenote',
+        'just voice note',
+        'i want voice only',
+        'i want voicenote only',
+        'i want voice note only',
+        'i want only voice',
+        'i want only voicenote',
+        'i want only voice note',
+        'i want just voice',
+        'i want just voicenote',
+        'i want just voice note'
+      ];
+      
+      for (const phrase of voiceOnlyPhrases) {
+        if (lowerTrimmed.includes(phrase)) {
+          return {
+            type: CommandType.VOICE,
+            args: { action: 'only' },
+            rawText: originalText,
+          };
+        }
+      }
 
       // If this is voice input, try natural language patterns first
       if (isVoiceInput) {
@@ -750,7 +811,46 @@ export class CommandParserService {
       }
     }
 
-    // Voice settings variations
+    // Voice settings - check for "voice only" and variations first
+    if (
+      lowerText === 'voice only' ||
+      lowerText === 'voicenote only' ||
+      lowerText === 'voice note only' ||
+      lowerText === 'only voice' ||
+      lowerText === 'only voicenote' ||
+      lowerText === 'only voice note' ||
+      lowerText === 'just voice' ||
+      lowerText === 'just voicenote' ||
+      lowerText === 'just voice note' ||
+      lowerText === 'voice notes only' ||
+      lowerText === 'voicenotes only' ||
+      lowerText === 'just voice notes' ||
+      lowerText === 'just voicenotes' ||
+      lowerText === 'only voice notes' ||
+      lowerText === 'only voicenotes' ||
+      lowerText.includes('voice only') ||
+      lowerText.includes('voicenote only') ||
+      lowerText.includes('voice note only') ||
+      lowerText.includes('only voice') ||
+      lowerText.includes('only voicenote') ||
+      lowerText.includes('only voice note') ||
+      lowerText.includes('just voice') ||
+      lowerText.includes('just voicenote') ||
+      lowerText.includes('just voice note') ||
+      lowerText.includes('i want voice only') ||
+      lowerText.includes('i want voicenote only') ||
+      lowerText.includes('i want voice note only') ||
+      lowerText.includes('i want only voice') ||
+      lowerText.includes('i want only voicenote') ||
+      lowerText.includes('i want only voice note') ||
+      lowerText.includes('i want just voice') ||
+      lowerText.includes('i want just voicenote') ||
+      lowerText.includes('i want just voice note')
+    ) {
+      return { type: CommandType.VOICE, args: { action: 'only' }, rawText: text };
+    }
+    
+    // Other voice settings variations
     if (
       lowerText.includes('voice settings') ||
       lowerText.includes('voice mode') ||
@@ -767,9 +867,6 @@ export class CommandParserService {
       lowerText.includes('deactivate voice') ||
       lowerText.includes('voice on') ||
       lowerText.includes('voice off') ||
-      lowerText.includes('voice only') ||
-      lowerText.includes('only voice') ||
-      lowerText.includes('just voice') ||
       lowerText.includes('voice status') ||
       lowerText.includes('check voice') ||
       lowerText.includes('voice help') ||
@@ -785,6 +882,8 @@ export class CommandParserService {
       lowerText.includes('text only') ||
       lowerText.includes('no audio') ||
       lowerText === 'voice' ||
+      lowerText === 'voicenote' ||
+      lowerText === 'voice note' ||
       lowerText === 'audio' ||
       lowerText === 'speech' ||
       lowerText === 'tts'
@@ -1155,6 +1254,11 @@ export class CommandParserService {
             // Assume it's a voice name selection
             args.action = 'select';
             args.voiceName = voiceArgs;
+          }
+        } else {
+          // No arguments, check if we already have action from natural language parsing
+          if (!args.action) {
+            args.action = 'status'; // Default to status when no args
           }
         }
         break;

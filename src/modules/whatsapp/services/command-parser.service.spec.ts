@@ -361,7 +361,7 @@ describe('CommandParserService - Natural Language', () => {
     it('should parse "voice" alone as voice command', () => {
       const result = service.parseCommand('voice');
       expect(result.type).toBe(CommandType.VOICE);
-      expect(result.args.action).toBeUndefined();
+      expect(result.args.action).toBe('status');
     });
 
     it('should parse "voice balance" as voice command with balance action', () => {

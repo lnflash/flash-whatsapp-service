@@ -4504,8 +4504,8 @@ ${voiceList}`;
    * Add contextual hints to messages
    */
   private addHint(message: string, session: UserSession | null, command?: ParsedCommand): string {
-    // Don't add hints to admin commands or help messages
-    if (command?.type === CommandType.ADMIN || command?.type === CommandType.HELP) {
+    // Don't add hints to admin commands
+    if (command?.type === CommandType.ADMIN) {
       return message;
     }
 
@@ -4524,24 +4524,27 @@ ${voiceList}`;
     } else {
       // User is linked and verified
       if (command?.type === CommandType.BALANCE) {
-        hints.push('Send money with `send 10 to @username`');
+        hints.push('Need assistance? Type `support`');
+      } else if (command?.type === CommandType.PRICE) {
+        hints.push('Need assistance? Type `support`');
+      } else if (command?.type === CommandType.HELP) {
+        hints.push('Need assistance? Type `support`');
       } else if (command?.type === CommandType.SEND) {
         hints.push('Check balance with `balance`');
       } else if (command?.type === CommandType.RECEIVE) {
         hints.push('Share this invoice to get paid');
-      } else if (command?.type === CommandType.PRICE) {
-        hints.push('Receive Bitcoin with `receive 20`');
       } else if (command?.type === CommandType.CONTACTS) {
         hints.push('Send to contacts: `send 5 to john`');
       } else {
-        // Random general hints
+        // Random general hints (excluding support)
         const generalHints = [
           'Type `help` to see all commands',
-          'Need assistance? Type `support`',
           'Set username for easy payments',
           'Save contacts with `contacts add`',
           'Check Bitcoin price with `price`',
           'View transactions with `history`',
+          'Send money with `send 10 to @username`',
+          'Receive Bitcoin with `receive 20`',
         ];
         hints.push(generalHints[Math.floor(Math.random() * generalHints.length)]);
       }
