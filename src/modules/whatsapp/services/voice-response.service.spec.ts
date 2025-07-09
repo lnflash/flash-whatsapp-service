@@ -23,7 +23,7 @@ describe('VoiceResponseService', () => {
       );
 
       expect(response).toContain('Hi John!');
-      expect(response).toContain('Your Flash balance is 50.00 dollars');
+      expect(response).toContain('Your Flash balance is fifty dollars');
       expect(response).not.toContain('*');
       expect(response).not.toContain('💰');
     });
@@ -36,7 +36,7 @@ describe('VoiceResponseService', () => {
         {},
       );
 
-      expect(response).toContain('successfully sent 10 dollars to alice');
+      expect(response).toContain('successfully sent ten dollars to alice');
       expect(response).toContain('instant');
       expect(response).not.toContain('✅');
     });
@@ -49,7 +49,7 @@ describe('VoiceResponseService', () => {
         {},
       );
 
-      expect(response).toContain('created a payment request for 20 dollars');
+      expect(response).toContain('created a payment request for twenty dollars');
       expect(response).toContain('share');
       expect(response).not.toContain('lnbc');
     });
@@ -62,8 +62,9 @@ describe('VoiceResponseService', () => {
         {},
       );
 
-      expect(response).toContain('current Bitcoin price is 65,432');
-      expect(response).toContain('US dollars');
+      expect(response).toContain('current Bitcoin price is');
+      expect(response).toContain('thousand');
+      expect(response).toContain('dollars');
       expect(response).not.toContain('₿');
       expect(response).not.toContain('*');
     });
@@ -103,7 +104,7 @@ describe('VoiceResponseService', () => {
         {},
       );
 
-      expect(response).toContain('3.50 dollars');
+      expect(response).toContain('three dollars and fifty cents');
       expect(response).toContain('getting a bit low');
     });
 
@@ -115,7 +116,7 @@ describe('VoiceResponseService', () => {
         {},
       );
 
-      expect(response).toContain('250.00 dollars');
+      expect(response).toContain('two hundred fifty dollars');
       expect(response).toContain('healthy balance');
     });
 

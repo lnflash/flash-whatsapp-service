@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ParsedCommand, CommandType } from './command-parser.service';
+import { convertCurrencyToWords, convertNumbersInText } from '../utils/number-to-words';
 
 @Injectable()
 export class VoiceResponseService {
@@ -114,15 +115,16 @@ export class VoiceResponseService {
 
     if (data.usdAmount !== undefined) {
       const amount = data.usdAmount.toFixed(2);
+      const amountInWords = convertCurrencyToWords(amount);
 
       if (data.usdAmount === 0) {
         return `${greeting}Your Flash balance is currently empty. To add funds, you can ask someone to send you money, or say "receive" followed by an amount to create a payment request.`;
       } else if (data.usdAmount < 5) {
-        return `${greeting}Your Flash balance is ${amount} dollars. Your balance is getting a bit low. You might want to add more funds soon.`;
+        return `${greeting}Your Flash balance is ${amountInWords}. Your balance is getting a bit low. You might want to add more funds soon.`;
       } else if (data.usdAmount > 100) {
-        return `${greeting}Your Flash balance is ${amount} dollars. You have a healthy balance! You can send money by saying "send" followed by the amount and recipient.`;
+        return `${greeting}Your Flash balance is ${amountInWords}. You have a healthy balance! You can send money by saying "send" followed by the amount and recipient.`;
       } else {
-        return `${greeting}Your Flash balance is ${amount} dollars.`;
+        return `${greeting}Your Flash balance is ${amountInWords}.`;
       }
     }
 
@@ -135,8 +137,9 @@ export class VoiceResponseService {
   private generateSendVoiceResponse(data: Record<string, any>, args?: Record<string, any>): string {
     if (data.isSuccess) {
       const amount = args?.amount || 'the payment';
+      const amountInWords = amount !== 'the payment' ? convertCurrencyToWords(amount) : amount;
       const recipient = args?.username || args?.recipient || 'them';
-      return `Great! I've successfully sent ${amount} dollars to ${recipient}. The payment was instant and they should have received it already.`;
+      return `Great! I've successfully sent ${amountInWords} to ${recipient}. The payment was instant and they should have received it already.`;
     } else if (data.isError) {
       if (data.originalResponse?.includes('Insufficient balance')) {
         return `Sorry, you don't have enough funds to complete this payment. Please check your balance first.`;
@@ -158,7 +161,8 @@ export class VoiceResponseService {
 
     if (data.isSuccess) {
       if (amount) {
-        return `Perfect! I've created a payment request for ${amount} dollars. You can share this invoice with anyone, and they'll be able to pay you instantly through the Lightning Network.`;
+        const amountInWords = convertCurrencyToWords(amount);
+        return `Perfect! I've created a payment request for ${amountInWords}. You can share this invoice with anyone, and they'll be able to pay you instantly through the Lightning Network.`;
       }
       return `I've created your payment request. Share this invoice to receive payment instantly.`;
     }
@@ -201,7 +205,9 @@ export class VoiceResponseService {
    */
   private generatePriceVoiceResponse(data: Record<string, any>): string {
     if (data.btcPrice) {
+      // For large numbers like Bitcoin price, we'll use a formatted version
       const price = data.btcPrice.toLocaleString();
+      const priceInWords = this.convertLargeNumberToWords(data.btcPrice);
 
       // Add market context
       let marketContext = '';
@@ -211,7 +217,7 @@ export class VoiceResponseService {
         marketContext = ' The price is quite strong today.';
       }
 
-      return `The current Bitcoin price is ${price} US dollars.${marketContext} Remember, when you send or receive money through Flash, it's always in US dollars, not Bitcoin.`;
+      return `The current Bitcoin price is ${priceInWords}.${marketContext} Remember, when you send or receive money through Flash, it's always in US dollars, not Bitcoin.`;
     }
 
     return `I'm checking the current Bitcoin price for you. This will just take a moment.`;
@@ -254,8 +260,9 @@ export class VoiceResponseService {
   ): string {
     if (data.isSuccess) {
       const amount = args?.amount || 'the amount';
+      const amountInWords = amount !== 'the amount' ? convertCurrencyToWords(amount) : amount;
       const from = args?.username || 'them';
-      return `I've sent a payment request for ${amount} dollars to ${from}. They'll receive a notification and can pay you instantly.`;
+      return `I've sent a payment request for ${amountInWords} to ${from}. They'll receive a notification and can pay you instantly.`;
     }
 
     return `I'm creating your payment request now. The recipient will be notified right away.`;
@@ -368,6 +375,26 @@ export class VoiceResponseService {
     }
 
     return cleaned;
+  }
+
+  /**
+   * Convert large numbers to natural speech format
+   */
+  private convertLargeNumberToWords(num: number): string {
+    if (num >= 1000000) {
+      const millions = (num / 1000000).toFixed(1);
+      return `${millions} million dollars`;
+    } else if (num >= 1000) {
+      const thousands = Math.floor(num / 1000);
+      const remainder = num % 1000;
+      if (remainder === 0) {
+        return `${thousands} thousand dollars`;
+      } else {
+        return `${thousands} thousand ${remainder} dollars`;
+      }
+    } else {
+      return convertCurrencyToWords(num);
+    }
   }
 
   /**

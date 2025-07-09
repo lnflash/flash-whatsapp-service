@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { convertCurrencyToWords } from '../utils/number-to-words';
 
 export interface BalanceTemplateData {
   btcBalance: number;
@@ -114,8 +115,11 @@ export class BalanceTemplate {
     const greeting = data.userName ? `Hi ${data.userName}! ` : '';
     const amount = data.fiatBalance.toFixed(2);
     const currency = data.fiatCurrency === 'USD' ? 'dollars' : data.fiatCurrency;
+    
+    // Convert amount to natural speech
+    const amountInWords = convertCurrencyToWords(amount, currency);
 
-    let message = `${greeting}Your Flash balance is ${amount} ${currency}.`;
+    let message = `${greeting}Your Flash balance is ${amountInWords}.`;
 
     // Add contextual tips
     if (data.fiatBalance === 0) {
