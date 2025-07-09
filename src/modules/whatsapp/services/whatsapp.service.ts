@@ -94,6 +94,26 @@ export class WhatsappService {
   }
 
   /**
+   * Helper to convert error messages to natural voice in voice-only mode
+   */
+  private async convertToVoiceOnlyResponse(
+    message: string,
+    whatsappId: string,
+  ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
+    const isVoiceOnly = await this.ttsService.shouldSendVoiceOnly(whatsappId);
+    if (isVoiceOnly) {
+      const naturalResponse = await this.voiceResponseService.convertToNaturalSpeech(message);
+      const audioBuffer = await this.ttsService.textToSpeech(naturalResponse, 'en', whatsappId);
+      return {
+        text: '',
+        voice: audioBuffer,
+        voiceOnly: true,
+      };
+    }
+    return message;
+  }
+
+  /**
    * Process incoming message from WhatsApp Cloud API
    */
   async processCloudMessage(messageData: {
@@ -537,7 +557,7 @@ export class WhatsappService {
             );
             return this.handleAiQuery(command.rawText, session, shouldUseVoice);
           } else {
-            return this.getUnknownCommandMessage(session);
+            return this.getUnknownCommandMessage(session, whatsappId);
           }
         }
       }
@@ -2577,7 +2597,7 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
     command: ParsedCommand,
     whatsappId: string,
     session: UserSession | null,
-  ): Promise<string> {
+  ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
     try {
       // Check if user has a linked account
       if (!session || !session.isVerified) {
@@ -2682,7 +2702,8 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
         default: {
           const savedContacts = await this.redisService.get(contactsKey);
           if (!savedContacts) {
-            return 'You have no saved contacts.\n\nTo add a contact: contacts add [name] [phone]';
+            const noContactsMsg = 'You have no saved contacts.\n\nTo add a contact: contacts add [name] [phone]';
+            return await this.convertToVoiceOnlyResponse(noContactsMsg, whatsappId);
           }
 
           const contactData = JSON.parse(savedContacts);
@@ -2693,7 +2714,8 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
           }>;
 
           if (contactEntries.length === 0) {
-            return 'You have no saved contacts.\n\nTo add a contact: contacts add [name] [phone]';
+            const noContactsMsg = 'You have no saved contacts.\n\nTo add a contact: contacts add [name] [phone]';
+            return await this.convertToVoiceOnlyResponse(noContactsMsg, whatsappId);
           }
 
           let message = '📇 *Your Saved Contacts*\n\n';
@@ -2711,12 +2733,47 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
           }
           message += '\n_Type "contacts history [name]" to see request history_';
 
+          // Check if we're in voice-only mode
+          const isVoiceOnly = await this.ttsService.shouldSendVoiceOnly(whatsappId);
+          if (isVoiceOnly) {
+            // Generate natural language response for contacts list
+            let naturalResponse = '';
+            if (contactEntries.length === 1) {
+              const contact = contactEntries[0];
+              naturalResponse = `You have one saved contact: ${contact.name} with phone number ${contact.phone}.`;
+              const histKey = `contact_history:${whatsappId}:${contact.name.toLowerCase()}`;
+              const hist = await this.redisService.get(histKey);
+              if (hist) {
+                const histData = JSON.parse(hist);
+                naturalResponse += ` You've made ${histData.length} payment requests to them.`;
+              }
+            } else {
+              naturalResponse = `You have ${contactEntries.length} saved contacts. `;
+              const names = contactEntries.map(c => c.name);
+              if (names.length <= 3) {
+                naturalResponse += `They are: ${names.join(', ')}.`;
+              } else {
+                const lastContact = names.pop();
+                naturalResponse += `They are: ${names.slice(0, 2).join(', ')}, and ${names.length} others including ${lastContact}.`;
+              }
+            }
+            naturalResponse += ` To see the history for a contact, say 'contacts history' followed by their name.`;
+            
+            const audioBuffer = await this.ttsService.textToSpeech(naturalResponse, 'en', whatsappId);
+            return {
+              text: '',
+              voice: audioBuffer,
+              voiceOnly: true,
+            };
+          }
+
           return message;
         }
       }
     } catch (error) {
       this.logger.error(`Error handling contacts command: ${error.message}`, error.stack);
-      return '❌ Failed to manage contacts. Please try again later.';
+      const errorMsg = '❌ Failed to manage contacts. Please try again later.';
+      return await this.convertToVoiceOnlyResponse(errorMsg, whatsappId);
     }
   }
 
@@ -2865,12 +2922,21 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
   /**
    * Get unknown command message based on session status
    */
-  private getUnknownCommandMessage(session: UserSession | null): string {
+  private async getUnknownCommandMessage(
+    session: UserSession | null,
+    whatsappId?: string,
+  ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
+    let message: string;
     if (!session || !session.isVerified) {
-      return `Keep your finger on it. Type 'link' to connect or 'help' for commands.`;
+      message = `Keep your finger on it. Type 'link' to connect or 'help' for commands.`;
+    } else {
+      message = `Keep your finger on it. Try 'help' or 'balance'.`;
     }
 
-    return `Keep your finger on it. Try 'help' or 'balance'.`;
+    if (whatsappId) {
+      return await this.convertToVoiceOnlyResponse(message, whatsappId);
+    }
+    return message;
   }
 
   /**
@@ -3818,7 +3884,10 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
   /**
    * Handle voice settings command
    */
-  private async handleVoiceCommand(command: ParsedCommand, whatsappId: string): Promise<string> {
+  private async handleVoiceCommand(
+    command: ParsedCommand,
+    whatsappId: string,
+  ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
     const action = command.args.action;
 
     try {
@@ -3867,8 +3936,30 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
           await this.userVoiceSettingsService.setUserVoiceMode(whatsappId, UserVoiceMode.ONLY);
           return "🎤 Voice ONLY - You'll only receive voice responses (no text).";
 
-        case 'list':
-          return await this.voiceManagementService.formatVoiceList();
+        case 'list': {
+          const formattedList = await this.voiceManagementService.formatVoiceList();
+          
+          // Check if we're in voice-only mode
+          const isVoiceOnly = await this.ttsService.shouldSendVoiceOnly(whatsappId);
+          if (isVoiceOnly) {
+            // Get natural language voice list
+            const voiceListDetails = await this.voiceManagementService.getVoiceListWithDetails();
+            const naturalResponse = await this.voiceResponseService.generateNaturalVoiceListResponse(
+              voiceListDetails,
+              null,
+            );
+            
+            // Generate voice and return voice-only response
+            const audioBuffer = await this.ttsService.textToSpeech(naturalResponse, 'en', whatsappId);
+            return {
+              text: '', // Empty text for voice-only mode
+              voice: audioBuffer,
+              voiceOnly: true,
+            };
+          }
+          
+          return formattedList;
+        }
 
         case 'add': {
           const { voiceName, voiceId } = command.args;
@@ -3906,22 +3997,115 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
         case 'select': {
           const { voiceName } = command.args;
           if (!voiceName) {
-            return '❌ Please specify a voice name.';
+            const errorMsg = '❌ Please specify a voice name.';
+            
+            // Check if we're in voice-only mode
+            const isVoiceOnly = await this.ttsService.shouldSendVoiceOnly(whatsappId);
+            if (isVoiceOnly) {
+              const naturalResponse = await this.voiceResponseService.convertToNaturalSpeech(errorMsg);
+              const audioBuffer = await this.ttsService.textToSpeech(naturalResponse, 'en', whatsappId);
+              return {
+                text: '',
+                voice: audioBuffer,
+                voiceOnly: true,
+              };
+            }
+            return errorMsg;
           }
 
           // Check if voice exists
           const voiceExists = await this.voiceManagementService.voiceExists(voiceName);
           if (!voiceExists) {
+            // Check if we're in voice-only mode
+            const isVoiceOnly = await this.ttsService.shouldSendVoiceOnly(whatsappId);
+            if (isVoiceOnly) {
+              // Get natural language response for voice not found
+              const voiceListDetails = await this.voiceManagementService.getVoiceListWithDetails();
+              const naturalResponse = await this.voiceResponseService.generateNaturalVoiceListResponse(
+                voiceListDetails,
+                voiceName, // Pass the requested voice name
+              );
+              
+              const audioBuffer = await this.ttsService.textToSpeech(naturalResponse, 'en', whatsappId);
+              return {
+                text: '',
+                voice: audioBuffer,
+                voiceOnly: true,
+              };
+            }
+            
             const voiceList = await this.voiceManagementService.formatVoiceList();
             return `❌ Voice "${voiceName}" not found.\n\n${voiceList}`;
           }
 
           // Set as user's active voice
           await this.userVoiceSettingsService.setUserVoice(whatsappId, voiceName);
-          return `🎙️ Voice changed to "${voiceName}".`;
+          const successMsg = `🎙️ Voice changed to "${voiceName}".`;
+          
+          // Check if we're in voice-only mode
+          const isVoiceOnly = await this.ttsService.shouldSendVoiceOnly(whatsappId);
+          if (isVoiceOnly) {
+            const naturalResponse = `Your voice has been changed to ${voiceName}.`;
+            const audioBuffer = await this.ttsService.textToSpeech(naturalResponse, 'en', whatsappId);
+            return {
+              text: '',
+              voice: audioBuffer,
+              voiceOnly: true,
+            };
+          }
+          
+          return successMsg;
         }
 
         default: {
+          // If a voice name was provided directly (e.g., "voice your")
+          if (command.args.voiceName) {
+            // Try to select the voice
+            const voiceName = command.args.voiceName;
+            const voiceExists = await this.voiceManagementService.voiceExists(voiceName);
+            
+            if (!voiceExists) {
+              // Check if we're in voice-only mode
+              const isVoiceOnly = await this.ttsService.shouldSendVoiceOnly(whatsappId);
+              if (isVoiceOnly) {
+                // Get natural language response for voice not found
+                const voiceListDetails = await this.voiceManagementService.getVoiceListWithDetails();
+                const naturalResponse = await this.voiceResponseService.generateNaturalVoiceListResponse(
+                  voiceListDetails,
+                  voiceName, // Pass the requested voice name
+                );
+                
+                const audioBuffer = await this.ttsService.textToSpeech(naturalResponse, 'en', whatsappId);
+                return {
+                  text: '',
+                  voice: audioBuffer,
+                  voiceOnly: true,
+                };
+              }
+              
+              const voiceList = await this.voiceManagementService.formatVoiceList();
+              return `❌ Voice "${voiceName}" not found.\n\n${voiceList}`;
+            }
+            
+            // Voice exists, select it
+            await this.userVoiceSettingsService.setUserVoice(whatsappId, voiceName);
+            const successMsg = `🎙️ Voice changed to "${voiceName}".`;
+            
+            // Check if we're in voice-only mode
+            const isVoiceOnly = await this.ttsService.shouldSendVoiceOnly(whatsappId);
+            if (isVoiceOnly) {
+              const naturalResponse = `Your voice has been changed to ${voiceName}.`;
+              const audioBuffer = await this.ttsService.textToSpeech(naturalResponse, 'en', whatsappId);
+              return {
+                text: '',
+                voice: audioBuffer,
+                voiceOnly: true,
+              };
+            }
+            
+            return successMsg;
+          }
+          
           // No action specified, show help
           return this.getVoiceHelp();
         }

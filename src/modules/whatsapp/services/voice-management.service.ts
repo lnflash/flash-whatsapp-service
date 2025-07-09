@@ -289,4 +289,45 @@ export class VoiceManagementService {
     const voiceList = await this.getVoiceList();
     return !!voiceList[normalizedName];
   }
+
+  /**
+   * Get voice list with details for natural language formatting
+   */
+  async getVoiceListWithDetails(): Promise<Record<string, any>> {
+    try {
+      const voiceList = await this.getVoiceList();
+      const voiceDetails: Record<string, any> = {};
+
+      for (const name of Object.keys(voiceList)) {
+        const details = await this.getVoiceDetails(name);
+        let addedBy = 'unknown';
+        
+        if (details?.addedBy) {
+          try {
+            // Get session by whatsappId
+            const session = await this.sessionService.getSessionByWhatsappId(details.addedBy);
+            if (session?.flashAuthToken) {
+              const username = await this.usernameService.getUsername(session.flashAuthToken);
+              if (username) {
+                addedBy = username;
+              }
+            }
+          } catch (error) {
+            this.logger.debug(`Could not fetch username for ${details.addedBy}`);
+          }
+        }
+
+        voiceDetails[name] = {
+          voiceId: voiceList[name],
+          addedBy: addedBy,
+          addedAt: details?.addedAt,
+        };
+      }
+
+      return voiceDetails;
+    } catch (error) {
+      this.logger.error(`Error getting voice list with details: ${error.message}`);
+      return {};
+    }
+  }
 }

@@ -384,4 +384,141 @@ export class VoiceResponseService {
       .replace(/\.\s*\./g, '.') // Remove double periods
       .trim();
   }
+
+  /**
+   * Convert formatted responses to natural speech for voice-only mode
+   * This is used for command responses that need to be more conversational
+   */
+  async convertToNaturalSpeech(formattedResponse: string, context?: Record<string, any>): string {
+    // Remove all formatting and emojis
+    let naturalResponse = this.cleanTextForVoice(formattedResponse);
+
+    // Convert bullet points and lists to natural language
+    if (naturalResponse.includes('•')) {
+      const lines = naturalResponse.split('.');
+      const items: string[] = [];
+      let mainMessage = '';
+
+      lines.forEach((line) => {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('•')) {
+          items.push(trimmed.substring(1).trim());
+        } else if (trimmed) {
+          mainMessage += trimmed + '. ';
+        }
+      });
+
+      if (items.length > 0) {
+        naturalResponse = mainMessage;
+        if (items.length === 1) {
+          naturalResponse += `You have ${items[0]}.`;
+        } else if (items.length === 2) {
+          naturalResponse += `You have ${items[0]} and ${items[1]}.`;
+        } else {
+          const lastItem = items.pop();
+          naturalResponse += `You have ${items.join(', ')}, and ${lastItem}.`;
+        }
+      }
+    }
+
+    // Handle error messages - make them more conversational
+    if (formattedResponse.includes('❌')) {
+      // Extract the error message
+      const errorMatch = naturalResponse.match(/([^.]+)/);
+      if (errorMatch) {
+        const errorMsg = errorMatch[1].trim();
+        
+        // Check for specific error patterns
+        if (errorMsg.includes('not found')) {
+          naturalResponse = `I'm sorry, but ${errorMsg.toLowerCase()}. Please check the spelling and try again.`;
+        } else if (errorMsg.includes('Usage:') || errorMsg.includes('usage:')) {
+          // Convert usage instructions to natural language
+          naturalResponse = naturalResponse.replace(/Usage:/gi, 'To use this command, you need to say');
+          naturalResponse = naturalResponse.replace(/\[([^\]]+)\]/g, 'followed by $1');
+        } else {
+          naturalResponse = `I'm sorry, but ${errorMsg.toLowerCase()}.`;
+        }
+      }
+    }
+
+    // Handle success messages
+    if (formattedResponse.includes('✅')) {
+      naturalResponse = naturalResponse.replace(/^([^.]+)/, 'Great! $1');
+    }
+
+    // Convert technical formatting to natural speech
+    naturalResponse = naturalResponse
+      .replace(/\b(\w+)\s*\([^)]+\)/g, '$1') // Remove parenthetical info
+      .replace(/Type\s+['"]([^'"]+)['"]/gi, 'Say $1') // Convert "Type" to "Say"
+      .replace(/\bOR\b/g, 'or') // Lowercase OR
+      .replace(/\be\.g\./gi, 'for example')
+      .replace(/\bi\.e\./gi, 'that is')
+      .replace(/\betc\./gi, 'and so on');
+
+    // Remove URLs and technical identifiers
+    naturalResponse = naturalResponse.replace(/https?:\/\/[^\s]+/g, '');
+    naturalResponse = naturalResponse.replace(/#[A-Za-z0-9]+/g, '');
+
+    // Clean up any double spaces or periods
+    naturalResponse = naturalResponse
+      .replace(/\s+/g, ' ')
+      .replace(/\.\s*\./g, '.')
+      .replace(/,\s*,/g, ',')
+      .trim();
+
+    return naturalResponse;
+  }
+
+  /**
+   * Generate natural voice list response
+   */
+  async generateNaturalVoiceListResponse(
+    voiceList: Record<string, any>,
+    requestedVoice?: string,
+  ): string {
+    const voiceNames = Object.keys(voiceList);
+
+    if (requestedVoice) {
+      // User asked for a specific voice that wasn't found
+      if (voiceNames.length === 0) {
+        return `I couldn't find a voice named '${requestedVoice}'. You don't have any voices available yet. You can add a new voice by saying 'voice add' followed by the voice ID.`;
+      } else if (voiceNames.length === 1) {
+        const voiceName = voiceNames[0];
+        const voiceDetails = voiceList[voiceName];
+        let response = `I couldn't find a voice named '${requestedVoice}'. `;
+        response += `You currently have one voice available: ${voiceName}`;
+        if (voiceDetails.addedBy) {
+          response += `, which was added by ${voiceDetails.addedBy}`;
+        }
+        response += `. You can select it by saying 'voice ${voiceName}' or add a new voice by saying 'voice add' followed by the voice ID.`;
+        return response;
+      } else {
+        const lastVoice = voiceNames.pop();
+        let response = `I couldn't find a voice named '${requestedVoice}'. `;
+        response += `You have ${voiceNames.length + 1} voices available: ${voiceNames.join(', ')}, and ${lastVoice}. `;
+        response += `You can select any of them by saying 'voice' followed by the name, or add a new voice by saying 'voice add' followed by the voice ID.`;
+        return response;
+      }
+    }
+
+    // Regular voice list request
+    if (voiceNames.length === 0) {
+      return `You don't have any voices available yet. To add a voice, say 'voice add' followed by the voice ID.`;
+    } else if (voiceNames.length === 1) {
+      const voiceName = voiceNames[0];
+      const voiceDetails = voiceList[voiceName];
+      let response = `You have one voice available: ${voiceName}`;
+      if (voiceDetails.addedBy) {
+        response += `, added by ${voiceDetails.addedBy}`;
+      }
+      response += `. To use it, say 'voice ${voiceName}'.`;
+      return response;
+    } else {
+      const lastVoice = voiceNames.pop();
+      let response = `You have ${voiceNames.length + 1} voices available: ${voiceNames.join(', ')}, and ${lastVoice}. `;
+      response += `To select a voice, say 'voice' followed by the name. For example, 'voice ${voiceNames[0]}'. `;
+      response += `You can also add new voices or remove existing ones.`;
+      return response;
+    }
+  }
 }
