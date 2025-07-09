@@ -1545,107 +1545,56 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
     };
   }> {
     try {
-      // Check if user has a linked account
-      if (!session || !session.isVerified || !session.flashAuthToken) {
-        return { error: this.getNotLinkedMessage() };
+      // Validate session
+      const sessionError = this.validateSession(session);
+      if (sessionError) {
+        return { error: sessionError };
       }
 
-      // Parse amount
-      const amountStr = command.args.amount;
-      if (!amountStr) {
-        return { error: 'Please specify amount in USD. Usage: send [amount] to [recipient]' };
+      // Validate amount
+      const amountError = this.validateSendAmount(command.args.amount);
+      if (amountError) {
+        return { error: amountError };
       }
 
-      const parsedResult = parseAndValidateAmount(amountStr);
-      if (parsedResult.error) {
-        return { error: parsedResult.error };
+      // Extract recipient information
+      const recipientData = this.extractRecipientData(command);
+
+      // Check various recipient types in order
+      const lightningInvoiceCheck = this.checkLightningInvoice(recipientData.lightningAddress);
+      if (lightningInvoiceCheck) {
+        return { recipientInfo: lightningInvoiceCheck };
       }
 
-      // Determine recipient type
-      const targetUsername = command.args.username;
-      const targetPhone = command.args.phoneNumber;
-      const lightningAddress = command.args.recipient;
-
-      // Check if it's a Lightning invoice
-      if (lightningAddress?.startsWith('lnbc')) {
-        return {
-          recipientInfo: {
-            type: 'lightning_invoice',
-            display: 'Lightning Invoice',
-          },
-        };
+      const lightningAddressCheck = this.checkLightningAddress(recipientData.lightningAddress);
+      if (lightningAddressCheck) {
+        return { recipientInfo: lightningAddressCheck };
       }
 
-      // Check if it's a Lightning address
-      if (lightningAddress?.includes('@')) {
-        return {
-          recipientInfo: {
-            type: 'lightning_address',
-            display: lightningAddress,
-          },
-        };
+      const savedContactCheck = await this.checkSavedContact(
+        recipientData.targetUsername || recipientData.lightningAddress,
+        session!.whatsappId,
+      );
+      if (savedContactCheck) {
+        return { recipientInfo: savedContactCheck };
       }
 
-      // Check if it's a saved contact
-      if (targetUsername || lightningAddress) {
-        const possibleContactName = targetUsername || lightningAddress;
-        const contactsKey = `contacts:${session.whatsappId}`;
-        const savedContacts = await this.redisService.get(contactsKey);
-
-        if (savedContacts) {
-          const contacts = JSON.parse(savedContacts);
-          const contactKey = possibleContactName.toLowerCase();
-
-          if (contacts[contactKey]) {
-            const contactInfo = contacts[contactKey];
-            const contactPhone = typeof contactInfo === 'string' ? contactInfo : contactInfo.phone;
-            return {
-              recipientInfo: {
-                type: 'contact',
-                display: `${possibleContactName} (${contactPhone})`,
-              },
-            };
-          }
+      if (recipientData.targetUsername && session?.flashAuthToken) {
+        const usernameValidation = await this.validateUsername(
+          recipientData.targetUsername,
+          session.flashAuthToken,
+        );
+        if (usernameValidation.error) {
+          return { error: usernameValidation.error };
+        }
+        if (usernameValidation.recipientInfo) {
+          return { recipientInfo: usernameValidation.recipientInfo };
         }
       }
 
-      // Check if it's a username
-      if (targetUsername) {
-        try {
-          // Verify username exists
-          const walletCheck = await this.flashApiService.executeQuery<any>(
-            ACCOUNT_DEFAULT_WALLET_QUERY,
-            { username: targetUsername },
-            session.flashAuthToken,
-          );
-
-          if (walletCheck?.accountDefaultWallet?.id) {
-            return {
-              recipientInfo: {
-                type: 'username',
-                display: `@${targetUsername}`,
-                walletId: walletCheck.accountDefaultWallet.id,
-              },
-            };
-          } else {
-            return {
-              error: `❌ Username @${targetUsername} not found.\n\n💡 Tips:\n• Check the spelling\n• Ask them to set a username\n• Use their phone number instead`,
-            };
-          }
-        } catch (error) {
-          this.logger.error(`Error validating username: ${error.message}`);
-          return { error: `❌ Unable to verify username @${targetUsername}. Please try again.` };
-        }
-      }
-
-      // Check if it's a phone number
-      if (targetPhone) {
-        return {
-          recipientInfo: {
-            type: 'phone',
-            display: targetPhone,
-          },
-        };
+      const phoneNumberCheck = this.checkPhoneNumber(recipientData.targetPhone);
+      if (phoneNumberCheck) {
+        return { recipientInfo: phoneNumberCheck };
       }
 
       return {
@@ -1656,6 +1605,171 @@ Type \`help\` anytime to see all commands, or \`support\` if you need assistance
       this.logger.error(`Error validating recipient: ${error.message}`);
       return { error: '❌ Failed to validate recipient. Please try again.' };
     }
+  }
+
+  /**
+   * Validate user session
+   */
+  private validateSession(session: UserSession | null): string | null {
+    if (!session || !session.isVerified || !session.flashAuthToken) {
+      return this.getNotLinkedMessage();
+    }
+    return null;
+  }
+
+  /**
+   * Validate send amount
+   */
+  private validateSendAmount(amountStr?: string): string | null {
+    if (!amountStr) {
+      return 'Please specify amount in USD. Usage: send [amount] to [recipient]';
+    }
+
+    const parsedResult = parseAndValidateAmount(amountStr);
+    if (parsedResult.error) {
+      return parsedResult.error;
+    }
+
+    return null;
+  }
+
+  /**
+   * Extract recipient data from command
+   */
+  private extractRecipientData(command: ParsedCommand): {
+    targetUsername?: string;
+    targetPhone?: string;
+    lightningAddress?: string;
+  } {
+    return {
+      targetUsername: command.args.username,
+      targetPhone: command.args.phoneNumber,
+      lightningAddress: command.args.recipient,
+    };
+  }
+
+  /**
+   * Check if recipient is a Lightning invoice
+   */
+  private checkLightningInvoice(lightningAddress?: string): {
+    type: string;
+    display: string;
+  } | null {
+    if (lightningAddress?.startsWith('lnbc')) {
+      return {
+        type: 'lightning_invoice',
+        display: 'Lightning Invoice',
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Check if recipient is a Lightning address
+   */
+  private checkLightningAddress(lightningAddress?: string): {
+    type: string;
+    display: string;
+  } | null {
+    if (lightningAddress?.includes('@')) {
+      return {
+        type: 'lightning_address',
+        display: lightningAddress,
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Check if recipient is a saved contact
+   */
+  private async checkSavedContact(
+    possibleContactName: string | undefined,
+    whatsappId: string,
+  ): Promise<{
+    type: string;
+    display: string;
+  } | null> {
+    if (!possibleContactName) {
+      return null;
+    }
+
+    const contactsKey = `contacts:${whatsappId}`;
+    const savedContacts = await this.redisService.get(contactsKey);
+
+    if (!savedContacts) {
+      return null;
+    }
+
+    const contacts = JSON.parse(savedContacts);
+    const contactKey = possibleContactName.toLowerCase();
+
+    if (contacts[contactKey]) {
+      const contactInfo = contacts[contactKey];
+      const contactPhone = typeof contactInfo === 'string' ? contactInfo : contactInfo.phone;
+      return {
+        type: 'contact',
+        display: `${possibleContactName} (${contactPhone})`,
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Validate Flash username
+   */
+  private async validateUsername(
+    targetUsername: string,
+    authToken: string,
+  ): Promise<{
+    error?: string;
+    recipientInfo?: {
+      type: string;
+      display: string;
+      walletId: string;
+    };
+  }> {
+    try {
+      const walletCheck = await this.flashApiService.executeQuery<any>(
+        ACCOUNT_DEFAULT_WALLET_QUERY,
+        { username: targetUsername },
+        authToken,
+      );
+
+      if (walletCheck?.accountDefaultWallet?.id) {
+        return {
+          recipientInfo: {
+            type: 'username',
+            display: `@${targetUsername}`,
+            walletId: walletCheck.accountDefaultWallet.id,
+          },
+        };
+      } else {
+        return {
+          error: `❌ Username @${targetUsername} not found.\n\n💡 Tips:\n• Check the spelling\n• Ask them to set a username\n• Use their phone number instead`,
+        };
+      }
+    } catch (error) {
+      this.logger.error(`Error validating username: ${error.message}`);
+      return { error: `❌ Unable to verify username @${targetUsername}. Please try again.` };
+    }
+  }
+
+  /**
+   * Check if recipient is a phone number
+   */
+  private checkPhoneNumber(targetPhone?: string): {
+    type: string;
+    display: string;
+  } | null {
+    if (targetPhone) {
+      return {
+        type: 'phone',
+        display: targetPhone,
+      };
+    }
+    return null;
   }
 
   /**
@@ -4693,57 +4807,106 @@ ${voiceList}`;
    * Add contextual hints to messages
    */
   private addHint(message: string, session: UserSession | null, command?: ParsedCommand): string {
+    // Check if hint should be added
+    if (!this.shouldAddHint(message, command)) {
+      return message;
+    }
+
+    // Get appropriate hint based on context
+    const hint = this.getContextualHint(session, command);
+    
+    // Format and return message with hint
+    return hint ? this.formatMessageWithHint(message, hint) : message;
+  }
+
+  /**
+   * Check if a hint should be added to the message
+   */
+  private shouldAddHint(message: string, command?: ParsedCommand): boolean {
     // Don't add hints to admin commands
     if (command?.type === CommandType.ADMIN) {
-      return message;
+      return false;
     }
 
     // Don't add hints if message already has a hint (contains 💡)
     if (message.includes('💡')) {
-      return message;
+      return false;
     }
 
-    const hints: string[] = [];
+    return true;
+  }
 
-    // Context-based hints
+  /**
+   * Get contextual hint based on session state and command
+   */
+  private getContextualHint(session: UserSession | null, command?: ParsedCommand): string | null {
     if (!session) {
-      hints.push('Type `link` to connect your Flash account');
-    } else if (!session.isVerified) {
-      hints.push('Enter your 6-digit verification code');
-    } else {
-      // User is linked and verified
-      if (command?.type === CommandType.BALANCE) {
-        hints.push('Need assistance? Type `support`');
-      } else if (command?.type === CommandType.PRICE) {
-        hints.push('Need assistance? Type `support`');
-      } else if (command?.type === CommandType.HELP) {
-        hints.push('Need assistance? Type `support`');
-      } else if (command?.type === CommandType.SEND) {
-        hints.push('Check balance with `balance`');
-      } else if (command?.type === CommandType.RECEIVE) {
-        hints.push('Share this invoice to get paid');
-      } else if (command?.type === CommandType.CONTACTS) {
-        hints.push('Send to contacts: `send 5 to john`');
-      } else {
-        // Random general hints (excluding support)
-        const generalHints = [
-          'Type `help` to see all commands',
-          'Set username for easy payments',
-          'Save contacts with `contacts add`',
-          'Check Bitcoin price with `price`',
-          'View transactions with `history`',
-          'Send money with `send 10 to @username`',
-          'Receive Bitcoin with `receive 20`',
-        ];
-        hints.push(generalHints[Math.floor(Math.random() * generalHints.length)]);
-      }
+      return this.getHintForUnauthorizedUser();
+    }
+    
+    if (!session.isVerified) {
+      return this.getHintForUnverifiedUser();
+    }
+    
+    return this.getHintForVerifiedUser(command);
+  }
+
+  /**
+   * Get hint for users without a session
+   */
+  private getHintForUnauthorizedUser(): string {
+    return 'Type `link` to connect your Flash account';
+  }
+
+  /**
+   * Get hint for unverified users
+   */
+  private getHintForUnverifiedUser(): string {
+    return 'Enter your 6-digit verification code';
+  }
+
+  /**
+   * Get hint for verified users based on command type
+   */
+  private getHintForVerifiedUser(command?: ParsedCommand): string {
+    if (!command) {
+      return this.getRandomGeneralHint();
     }
 
-    if (hints.length > 0) {
-      return `${message}\n\n💡 ${hints[0]}`;
-    }
+    const commandHints: Partial<Record<CommandType, string>> = {
+      [CommandType.BALANCE]: 'Need assistance? Type `support`',
+      [CommandType.PRICE]: 'Need assistance? Type `support`',
+      [CommandType.HELP]: 'Need assistance? Type `support`',
+      [CommandType.SEND]: 'Check balance with `balance`',
+      [CommandType.RECEIVE]: 'Share this invoice to get paid',
+      [CommandType.CONTACTS]: 'Send to contacts: `send 5 to john`',
+    };
 
-    return message;
+    return commandHints[command.type] || this.getRandomGeneralHint();
+  }
+
+  /**
+   * Get a random general hint
+   */
+  private getRandomGeneralHint(): string {
+    const generalHints = [
+      'Type `help` to see all commands',
+      'Set username for easy payments',
+      'Save contacts with `contacts add`',
+      'Check Bitcoin price with `price`',
+      'View transactions with `history`',
+      'Send money with `send 10 to @username`',
+      'Receive Bitcoin with `receive 20`',
+    ];
+    
+    return generalHints[Math.floor(Math.random() * generalHints.length)];
+  }
+
+  /**
+   * Format message with hint
+   */
+  private formatMessageWithHint(message: string, hint: string): string {
+    return `${message}\n\n💡 ${hint}`;
   }
 
   /**

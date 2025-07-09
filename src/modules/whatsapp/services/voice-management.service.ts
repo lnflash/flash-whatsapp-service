@@ -26,30 +26,53 @@ export class VoiceManagementService {
     private readonly usernameService: UsernameService,
   ) {}
 
+  // Voice name pool for random generation
+  private readonly VOICE_NAME_POOL = [
+    'aurora', 'blaze', 'cascade', 'delta', 'echo', 'flux', 'galaxy', 'horizon',
+    'iris', 'jazz', 'koda', 'luna', 'matrix', 'nova', 'orbit', 'phoenix',
+    'quantum', 'ripple', 'spark', 'tide', 'ultra', 'vortex', 'wave', 'xenon',
+    'yonder', 'zephyr', 'cosmo', 'dusk', 'ember', 'frost', 'glimmer', 'halo',
+    'indigo', 'jade', 'karma', 'lumen', 'mystic', 'nebula', 'opal', 'prism',
+    'quartz', 'radiant', 'storm', 'twilight', 'umbra', 'velvet', 'whisper', 'zion'
+  ];
+
   /**
    * Generate a random voice name
    */
   private async generateRandomVoiceName(): Promise<string> {
-    const funNames = [
-      'aurora', 'blaze', 'cascade', 'delta', 'echo', 'flux', 'galaxy', 'horizon',
-      'iris', 'jazz', 'koda', 'luna', 'matrix', 'nova', 'orbit', 'phoenix',
-      'quantum', 'ripple', 'spark', 'tide', 'ultra', 'vortex', 'wave', 'xenon',
-      'yonder', 'zephyr', 'cosmo', 'dusk', 'ember', 'frost', 'glimmer', 'halo',
-      'indigo', 'jade', 'karma', 'lumen', 'mystic', 'nebula', 'opal', 'prism',
-      'quartz', 'radiant', 'storm', 'twilight', 'umbra', 'velvet', 'whisper', 'zion'
-    ];
-    
-    // Try to find an unused name
     const voiceList = await this.getVoiceList();
-    for (let i = 0; i < funNames.length; i++) {
-      const randomIndex = Math.floor(Math.random() * funNames.length);
-      const name = funNames[randomIndex];
+    
+    // Try to find an unused name from the pool
+    const unusedName = await this.findUnusedNameFromPool(voiceList);
+    if (unusedName) {
+      return unusedName;
+    }
+    
+    // If all names are taken, generate a numbered name
+    return this.generateNumberedVoiceName(voiceList);
+  }
+
+  /**
+   * Find an unused name from the voice name pool
+   */
+  private async findUnusedNameFromPool(voiceList: VoiceList): Promise<string | null> {
+    // Shuffle the names for randomness
+    const shuffled = [...this.VOICE_NAME_POOL].sort(() => Math.random() - 0.5);
+    
+    // Find the first unused name
+    for (const name of shuffled) {
       if (!voiceList[name]) {
         return name;
       }
     }
     
-    // If all fun names are taken, generate a numbered name
+    return null;
+  }
+
+  /**
+   * Generate a numbered voice name (voice1, voice2, etc.)
+   */
+  private generateNumberedVoiceName(voiceList: VoiceList): string {
     let counter = 1;
     while (voiceList[`voice${counter}`]) {
       counter++;

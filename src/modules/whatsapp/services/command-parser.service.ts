@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { VOICE_SWITCH_PATTERNS } from '../constants/voice-patterns.constants';
 
 export enum CommandType {
   HELP = 'help',
@@ -798,27 +799,8 @@ export class CommandParserService {
       return { type: CommandType.USERNAME, args: {}, rawText: text };
     }
 
-    // Voice switching variations with natural language
-    const voiceSwitchPatterns = [
-      /switch\s+(?:voices?\s+)?to\s+(\w+)/i,
-      /change\s+(?:(?:the|my)\s+)?voice\s+to\s+(\w+)/i,
-      /change\s+(?:your\s+)?voice\s+to\s+(\w+)/i,
-      /let\s+me\s+(?:speak|talk)\s+(?:to|with)\s+(\w+)/i,
-      /(?:i\s+)?(?:want|wanna)\s+(?:to\s+)?(?:speak|talk)\s+(?:to|with)\s+(\w+)/i,
-      /(?:can\s+)?(?:i|you)\s+(?:speak|talk)\s+(?:to|with)\s+(\w+)/i,
-      /use\s+(\w+)(?:'s)?\s+voice/i,
-      /speak\s+(?:as|like)\s+(\w+)/i,
-      /talk\s+(?:as|like)\s+(\w+)/i,
-      /(?:i\s+)?(?:want|wanna)\s+(\w+)(?:'s)?\s+voice/i,
-      /(?:can\s+)?(?:you\s+)?(?:be|sound\s+like)\s+(\w+)/i,
-      /(?:please\s+)?(?:be|become)\s+(\w+)/i,
-      /set\s+(?:(?:the|my|your)\s+)?voice\s+to\s+(\w+)/i,
-      /make\s+(?:it|your\s+voice)\s+(\w+)/i,
-      /(?:hey\s+)?(\w+)\s+(?:please|voice)/i,
-    ];
-
-    // Check voice switching patterns
-    for (const pattern of voiceSwitchPatterns) {
+    // Check voice switching patterns using imported constants
+    for (const pattern of VOICE_SWITCH_PATTERNS) {
       const match = lowerText.match(pattern);
       if (match) {
         const voiceName = match[1];

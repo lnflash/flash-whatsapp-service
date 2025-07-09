@@ -418,80 +418,126 @@ export class VoiceResponseService {
     // Remove all formatting and emojis
     let naturalResponse = this.cleanTextForVoice(formattedResponse);
 
-    // Convert bullet points and lists to natural language
-    if (naturalResponse.includes('•')) {
-      const lines = naturalResponse.split('.');
-      const items: string[] = [];
-      let mainMessage = '';
+    // Process different types of content
+    naturalResponse = this.convertBulletListsToSpeech(naturalResponse);
+    naturalResponse = this.handleErrorMessages(naturalResponse, formattedResponse);
+    naturalResponse = this.handleSuccessMessages(naturalResponse, formattedResponse);
+    naturalResponse = this.convertTechnicalTermsToSpeech(naturalResponse);
+    naturalResponse = this.removeUrlsAndIdentifiers(naturalResponse);
+    naturalResponse = this.cleanupFinalText(naturalResponse);
 
-      lines.forEach((line) => {
-        const trimmed = line.trim();
-        if (trimmed.startsWith('•')) {
-          items.push(trimmed.substring(1).trim());
-        } else if (trimmed) {
-          mainMessage += trimmed + '. ';
-        }
-      });
+    return naturalResponse;
+  }
 
-      if (items.length > 0) {
-        naturalResponse = mainMessage;
-        if (items.length === 1) {
-          naturalResponse += `You have ${items[0]}.`;
-        } else if (items.length === 2) {
-          naturalResponse += `You have ${items[0]} and ${items[1]}.`;
-        } else {
-          const lastItem = items.pop();
-          naturalResponse += `You have ${items.join(', ')}, and ${lastItem}.`;
-        }
+  /**
+   * Convert bullet point lists to natural language
+   */
+  private convertBulletListsToSpeech(text: string): string {
+    if (!text.includes('•')) {
+      return text;
+    }
+
+    const lines = text.split('.');
+    const items: string[] = [];
+    let mainMessage = '';
+
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('•')) {
+        items.push(trimmed.substring(1).trim());
+      } else if (trimmed) {
+        mainMessage += trimmed + '. ';
       }
+    });
+
+    if (items.length === 0) {
+      return text;
     }
 
-    // Handle error messages - make them more conversational
-    if (formattedResponse.includes('❌')) {
-      // Extract the error message
-      const errorMatch = naturalResponse.match(/([^.]+)/);
-      if (errorMatch) {
-        const errorMsg = errorMatch[1].trim();
-        
-        // Check for specific error patterns
-        if (errorMsg.includes('not found')) {
-          naturalResponse = `I'm sorry, but ${errorMsg.toLowerCase()}. Please check the spelling and try again.`;
-        } else if (errorMsg.includes('Usage:') || errorMsg.includes('usage:')) {
-          // Convert usage instructions to natural language
-          naturalResponse = naturalResponse.replace(/Usage:/gi, 'To use this command, you need to say');
-          naturalResponse = naturalResponse.replace(/\[([^\]]+)\]/g, 'followed by $1');
-        } else {
-          naturalResponse = `I'm sorry, but ${errorMsg.toLowerCase()}.`;
-        }
-      }
+    let result = mainMessage;
+    if (items.length === 1) {
+      result += `You have ${items[0]}.`;
+    } else if (items.length === 2) {
+      result += `You have ${items[0]} and ${items[1]}.`;
+    } else {
+      const lastItem = items.pop();
+      result += `You have ${items.join(', ')}, and ${lastItem}.`;
     }
 
-    // Handle success messages
-    if (formattedResponse.includes('✅')) {
-      naturalResponse = naturalResponse.replace(/^([^.]+)/, 'Great! $1');
+    return result;
+  }
+
+  /**
+   * Handle error messages and make them conversational
+   */
+  private handleErrorMessages(text: string, originalResponse: string): string {
+    if (!originalResponse.includes('❌')) {
+      return text;
     }
 
-    // Convert technical formatting to natural speech
-    naturalResponse = naturalResponse
+    const errorMatch = text.match(/([^.]+)/);
+    if (!errorMatch) {
+      return text;
+    }
+
+    const errorMsg = errorMatch[1].trim();
+    
+    // Check for specific error patterns
+    if (errorMsg.includes('not found')) {
+      return `I'm sorry, but ${errorMsg.toLowerCase()}. Please check the spelling and try again.`;
+    } 
+    
+    if (errorMsg.includes('Usage:') || errorMsg.includes('usage:')) {
+      // Convert usage instructions to natural language
+      let result = text.replace(/Usage:/gi, 'To use this command, you need to say');
+      result = result.replace(/\[([^\]]+)\]/g, 'followed by $1');
+      return result;
+    }
+    
+    return `I'm sorry, but ${errorMsg.toLowerCase()}.`;
+  }
+
+  /**
+   * Handle success messages
+   */
+  private handleSuccessMessages(text: string, originalResponse: string): string {
+    if (originalResponse.includes('✅')) {
+      return text.replace(/^([^.]+)/, 'Great! $1');
+    }
+    return text;
+  }
+
+  /**
+   * Convert technical terms to natural speech
+   */
+  private convertTechnicalTermsToSpeech(text: string): string {
+    return text
       .replace(/\b(\w+)\s*\([^)]+\)/g, '$1') // Remove parenthetical info
       .replace(/Type\s+['"]([^'"]+)['"]/gi, 'Say $1') // Convert "Type" to "Say"
       .replace(/\bOR\b/g, 'or') // Lowercase OR
       .replace(/\be\.g\./gi, 'for example')
       .replace(/\bi\.e\./gi, 'that is')
       .replace(/\betc\./gi, 'and so on');
+  }
 
-    // Remove URLs and technical identifiers
-    naturalResponse = naturalResponse.replace(/https?:\/\/[^\s]+/g, '');
-    naturalResponse = naturalResponse.replace(/#[A-Za-z0-9]+/g, '');
+  /**
+   * Remove URLs and technical identifiers
+   */
+  private removeUrlsAndIdentifiers(text: string): string {
+    return text
+      .replace(/https?:\/\/[^\s]+/g, '')
+      .replace(/#[A-Za-z0-9]+/g, '');
+  }
 
-    // Clean up any double spaces or periods
-    naturalResponse = naturalResponse
+  /**
+   * Clean up final text formatting
+   */
+  private cleanupFinalText(text: string): string {
+    return text
       .replace(/\s+/g, ' ')
       .replace(/\.\s*\./g, '.')
       .replace(/,\s*,/g, ',')
       .trim();
-
-    return naturalResponse;
   }
 
   /**
