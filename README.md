@@ -468,6 +468,9 @@ This automated script handles the complete production setup including SSL, PM2, 
 - [Production Deployment Guide](docs/PRODUCTION_DEPLOYMENT_GUIDE.md) - Complete deployment instructions
 - [Admin Panel Guide](docs/ADMIN_PANEL.md) - Admin dashboard documentation
 - [Security Checklist](SECURITY_CHECKLIST.md) - Pre-deployment security verification
+- [Security Roadmap Summary](docs/SECURITY_ROADMAP_SUMMARY.md) - Executive security overview
+- [Complete Security Roadmap](docs/SECURITY_HARDENING_ROADMAP_COMPLETE.md) - Detailed security implementation plan
+- [Knowledge Base Security](docs/SECURITY_HARDENING_ROADMAP.md) - Security for learning features
 - [Environment Template](.env.example) - Configuration template
 
 ### Post-Deployment Configuration
@@ -491,7 +494,18 @@ Pulse implements enterprise-grade security:
 - **🛡️ Webhook Security**: HMAC signature validation
 - **🔒 Secrets Management**: Environment-based configuration with validation
 
+### Security Roadmap
+
+We're committed to continuous security improvement. Our comprehensive security roadmap includes:
+
+**Phase 1 (Current)**: Foundation security with encryption, authentication, and basic protections
+**Phase 2 (Q1 2025)**: Advanced threat detection and compliance preparations  
+**Phase 3 (Q2 2025)**: Enterprise security features and certifications
+**Phase 4 (Q3 2025)**: Full compliance (SOC 2, ISO 27001) and advanced protections
+
 For detailed security documentation, see:
+- [Security Roadmap Summary](docs/SECURITY_ROADMAP_SUMMARY.md) - Quick overview for executives
+- [Complete Security Roadmap](docs/SECURITY_HARDENING_ROADMAP_COMPLETE.md) - Detailed implementation plan
 - [Security Implementation Guide](docs/SECURITY.md)
 - [Security Improvements](docs/SECURITY_IMPROVEMENTS.md)
 - [Known Vulnerabilities](docs/KNOWN_VULNERABILITIES.md)
