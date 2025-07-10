@@ -85,7 +85,7 @@ export class CommandParserService {
     { type: CommandType.UNDO, pattern: /^undo$/i },
     { type: CommandType.TEMPLATE, pattern: /^template(?:\s+(add|remove|list))?(?:\s+(.+))?$/i },
     { type: CommandType.SKIP, pattern: /^skip\s+onboarding$/i },
-    { type: CommandType.LEARN, pattern: /^learn(?:\s+(search|category|delete|stats|reset))?(?:\s+(.+))?$/i },
+    { type: CommandType.LEARN, pattern: /^learn(?:\s+(category|delete|stats|reset))?(?:\s+(.+))?$/i },
   ];
 
   /**

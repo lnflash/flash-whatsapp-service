@@ -249,9 +249,9 @@ export class UserKnowledgeBaseService {
     });
 
     message += `\n💡 *Tips:*\n`;
-    message += `• Type "learn search [topic]" to find specific knowledge\n`;
     message += `• Type "learn category [name]" to see entries by category\n`;
-    message += `• Type "learn delete [ID]" to remove an entry`;
+    message += `• Type "learn delete [ID]" to remove an entry\n`;
+    message += `• Type "learn stats" to see your statistics`;
 
     return message;
   }

@@ -67,7 +67,7 @@ This service uses WhatsApp Web.js to provide a seamless integration between Flas
 - ✅ Admin analytics dashboard with daily/weekly reports
 - ✅ Default voice settings for organization-wide preferences
 - ✅ Personalized learning system - Pulse learns about you through Q&A
-- ✅ User knowledge base with search and categorization
+- ✅ User knowledge base with categorization and statistics
 
 ## Prerequisites
 
@@ -171,7 +171,6 @@ Users can send these commands to the WhatsApp bot:
 - `voice remove [name]` - Remove a voice
 - `settings` - View all your settings and preferences
 - `learn` - Let Pulse ask you questions to learn about you
-- `learn search [query]` - Search your personal knowledge base
 - `learn category [name]` - View knowledge by category
 - `learn stats` - View your knowledge base statistics
 - `help` - Show available commands

@@ -42,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Personalized learning system with `learn` command
 - Random question generator for user engagement
 - User knowledge base with encrypted storage
-- Knowledge search and categorization features
+- Knowledge categorization and statistics features
 - 30-day retention for user-provided answers
 - Security hardening roadmap for knowledge base feature
 

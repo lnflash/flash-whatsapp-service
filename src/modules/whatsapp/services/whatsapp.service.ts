@@ -164,7 +164,7 @@ export class WhatsappService {
         if (pendingQuestion.followUp) {
           response += `${pendingQuestion.followUp}\n\n`;
         }
-        response += `💡 Type "learn" for another question or "learn search" to find your stored knowledge.`;
+        response += `💡 Type "learn" for another question or view your knowledge anytime.`;
         
         return response;
       }
@@ -1357,7 +1357,7 @@ Try: \`balance\``;
 
 *Learn & Teach:*
 • \`learn\` - answer questions
-• \`learn search\` - find knowledge
+• \`learn stats\` - view your knowledge
 
 Type \`help [topic]\` for details`;
   }
@@ -5372,35 +5372,6 @@ Type \`templates\` to see your saved templates.`;
           return this.randomQuestionService.formatQuestion(question);
         }
 
-        case 'search': {
-          const query = command.args.query;
-          if (!query) {
-            return '🔍 Please provide a search term. Example: `learn search bitcoin`';
-          }
-
-          const results = await this.userKnowledgeBaseService.searchUserKnowledge(
-            whatsappId,
-            query,
-          );
-
-          if (results.length === 0) {
-            return `🔍 No knowledge found matching "${query}".`;
-          }
-
-          let message = `🔍 *Search Results for "${query}"*\n\n`;
-          results.slice(0, 5).forEach((entry) => {
-            const date = new Date(entry.timestamp).toLocaleDateString();
-            message += `❓ ${entry.question}\n`;
-            message += `💡 ${entry.answer}\n`;
-            message += `📅 ${date} • 🏷️ ${entry.category}\n\n`;
-          });
-
-          if (results.length > 5) {
-            message += `_...and ${results.length - 5} more results_`;
-          }
-
-          return message;
-        }
 
         case 'category': {
           const category = command.args.query;
