@@ -60,7 +60,7 @@ This service uses WhatsApp Web.js to provide a seamless integration between Flas
 - ✅ Dynamic voice management system with custom ElevenLabs voices
 - ✅ Voice-only payment notifications for recipients
 - ✅ Automatic voice mode activation for payment recipients
-- ✅ Interactive onboarding with progress tracking
+- ✅ Intuitive onboarding flow for new users
 - ✅ Smart contextual help that detects confusion patterns
 - ✅ Undo transactions within 30 seconds (intraledger only)
 - ✅ Payment templates for recurring transactions

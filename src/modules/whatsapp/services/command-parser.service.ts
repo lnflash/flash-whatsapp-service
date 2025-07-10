@@ -84,7 +84,7 @@ export class CommandParserService {
     { type: CommandType.SETTINGS, pattern: /^settings?$/i },
     { type: CommandType.UNDO, pattern: /^undo$/i },
     { type: CommandType.TEMPLATE, pattern: /^template(?:\s+(add|remove|list))?(?:\s+(.+))?$/i },
-    { type: CommandType.SKIP, pattern: /^skip\s+onboarding$/i },
+    { type: CommandType.SKIP, pattern: /^skip(?:\s+(?:onboarding|tutorial|intro))?$/i },
     { type: CommandType.LEARN, pattern: /^learn(?:\s+(category|delete|stats|reset))?(?:\s+(.+))?$/i },
   ];
 
@@ -1098,13 +1098,18 @@ export class CommandParserService {
 
     // Skip onboarding
     if (
+      lowerText === 'skip' ||
       lowerText === 'skip onboarding' ||
       lowerText === 'skip tutorial' ||
       lowerText === 'skip intro' ||
       lowerText === 'skip introduction' ||
+      lowerText === 'no tutorial' ||
+      lowerText === 'no onboarding' ||
       lowerText.includes('skip the onboarding') ||
       lowerText.includes('skip the tutorial') ||
-      lowerText.includes('already know')
+      lowerText.includes('already know') ||
+      lowerText.includes("i'm a pro") ||
+      lowerText.includes('i am a pro')
     ) {
       return { type: CommandType.SKIP, args: {}, rawText: text };
     }

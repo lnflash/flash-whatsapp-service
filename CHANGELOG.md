@@ -45,6 +45,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Knowledge categorization and statistics features
 - 30-day retention for user-provided answers
 - Security hardening roadmap for knowledge base feature
+- Improved onboarding flow with natural welcome message
+- Fixed help command to show help instead of onboarding progress
+- Made onboarding hints contextual and non-intrusive
+- Simplified skip command to just 'skip'
 
 ### Removed
 - Hardcoded voice selection (voice 1/2/3) replaced by dynamic voice management

@@ -186,12 +186,14 @@ export class WhatsappService {
         false,
       );
 
-      // Check if user is in onboarding
-      const isOnboarding = await this.onboardingService.isUserOnboarding(whatsappId);
-      if (isOnboarding && command.type !== CommandType.SKIP) {
-        // Update onboarding progress if command matches expected action
-        await this.onboardingService.detectAndUpdateProgress(whatsappId, command.rawText);
+      // Check if this is a new user and show welcome message
+      if (await this.onboardingService.isNewUser(whatsappId)) {
+        // For completely new users, show welcome regardless of command
+        return this.onboardingService.getWelcomeMessage(whatsappId);
       }
+
+      // Silently track onboarding progress in background
+      await this.onboardingService.detectAndUpdateProgress(whatsappId, command.rawText);
 
       // Check if user is in support mode
       if (await this.supportModeService.isInSupportMode(whatsappId)) {
@@ -242,10 +244,18 @@ export class WhatsappService {
           finalText += contextualHelp;
         }
 
-        // Add onboarding hint if user is in onboarding
-        if (isOnboarding && command.type === CommandType.HELP) {
-          const onboardingMessage = await this.onboardingService.getOnboardingMessage(whatsappId, session);
-          finalText = onboardingMessage;
+        // Add subtle onboarding hint if applicable (but not for help command)
+        if (command.type !== CommandType.HELP) {
+          const onboardingHint = await this.onboardingService.getContextualHint(whatsappId, session);
+          if (onboardingHint) {
+            finalText += onboardingHint;
+          }
+        }
+        
+        // Check for onboarding completion celebration
+        const completionMessage = await this.onboardingService.getCompletionMessage(whatsappId);
+        if (completionMessage) {
+          finalText += completionMessage;
         }
 
         // Add undo hint if applicable
@@ -5292,15 +5302,12 @@ Example: \`template add coffee 5 to john "Morning coffee"\``;
    * Handle skip onboarding command
    */
   private async handleSkipCommand(whatsappId: string): Promise<string> {
-    await this.onboardingService.skipOnboarding(whatsappId);
-    return `✅ Onboarding skipped!
+    await this.onboardingService.dismissOnboarding(whatsappId);
+    return `✅ Got it! I'll skip the tutorial.
 
-You can access all features with:
-• \`help\` - See commands
-• \`balance\` - Check wallet
-• \`send\` - Make payments
+Type \`help\` anytime to see available commands.
 
-Welcome back to Pulse! 🎉`;
+Welcome to Pulse! ⚡`;
   }
 
   /**

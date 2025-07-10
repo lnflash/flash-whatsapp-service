@@ -17,6 +17,8 @@ export interface OnboardingState {
   completedSteps: string[];
   startTime: Date;
   lastActivity: Date;
+  hasSeenWelcome: boolean;
+  dismissed: boolean;
 }
 
 @Injectable()
@@ -34,37 +36,37 @@ export class OnboardingService {
     {
       id: 'welcome',
       title: 'Welcome to Pulse!',
-      description: "I'm your personal payment assistant powered by Lightning Network",
+      description: "I'm your Bitcoin wallet assistant",
       action: 'link',
-      nextHint: 'Type `link` to connect your Flash account',
+      emoji: '👋',
     },
     {
       id: 'link_account',
-      title: 'Connect Your Account',
-      description: 'Linking your Flash wallet for secure payments',
+      title: 'Connect Flash Account',
+      description: 'Link your wallet to send & receive money',
       action: 'verify',
-      nextHint: 'Enter the 6-digit code sent to your phone',
+      emoji: '🔗',
     },
     {
       id: 'verify_account',
-      title: 'Verify Your Identity',
-      description: 'Confirming your phone number for security',
+      title: 'Verify Phone',
+      description: 'Secure your account with phone verification',
       action: 'balance',
-      nextHint: 'Type `balance` to see your wallet',
+      emoji: '✅',
     },
     {
       id: 'check_balance',
-      title: 'Check Your Balance',
+      title: 'Check Balance',
       description: 'View your available funds',
       action: 'send',
-      nextHint: 'Try sending money: `send 5 to demo`',
+      emoji: '💰',
     },
     {
       id: 'first_send',
-      title: 'Send Your First Payment',
-      description: 'Experience instant Lightning payments',
-      action: 'help',
-      nextHint: 'Type `help` to see all commands',
+      title: 'Send Payment',
+      description: 'Try sending your first Lightning payment',
+      action: 'complete',
+      emoji: '⚡',
     },
   ];
 
@@ -90,10 +92,58 @@ export class OnboardingService {
       completedSteps: [],
       startTime: new Date(),
       lastActivity: new Date(),
+      hasSeenWelcome: false,
+      dismissed: false,
     };
 
     await this.redisService.set(key, JSON.stringify(newState), this.ONBOARDING_TTL);
     return newState;
+  }
+
+  /**
+   * Get welcome message for new users
+   */
+  async getWelcomeMessage(whatsappId: string): Promise<string> {
+    const state = await this.getOnboardingState(whatsappId);
+    
+    if (!state.hasSeenWelcome) {
+      state.hasSeenWelcome = true;
+      const key = `${this.ONBOARDING_KEY_PREFIX}${whatsappId}`;
+      await this.redisService.set(key, JSON.stringify(state), this.ONBOARDING_TTL);
+      
+      return `👋 *Welcome to Pulse!*
+
+I'm your personal Bitcoin wallet assistant. I can help you:
+
+💸 Send & receive money instantly
+💰 Check your balance
+📱 Manage contacts
+🎤 Use voice commands
+
+*Ready to start?*
+Type \`link\` to connect your Flash account
+Type \`help\` to see all commands
+
+_Already a pro? Just start using any command!_`;
+    }
+
+    // Return simple help for returning users
+    return this.getSimpleHelp();
+  }
+
+  /**
+   * Get simple help message (not onboarding)
+   */
+  private getSimpleHelp(): string {
+    return `⚡ *Quick Commands*
+
+• \`link\` - Connect Flash account
+• \`balance\` - Check your money
+• \`send 10 to @john\` - Send payment
+• \`receive 20\` - Request money
+• \`help more\` - See all commands
+
+What would you like to do?`;
   }
 
   /**
@@ -104,7 +154,10 @@ export class OnboardingService {
     
     if (!state.completedSteps.includes(completedStepId)) {
       state.completedSteps.push(completedStepId);
-      state.currentStep = Math.min(state.currentStep + 1, this.onboardingSteps.length - 1);
+      const stepIndex = this.onboardingSteps.findIndex(s => s.id === completedStepId);
+      if (stepIndex >= 0 && stepIndex >= state.currentStep) {
+        state.currentStep = Math.min(stepIndex + 1, this.onboardingSteps.length - 1);
+      }
     }
     
     state.lastActivity = new Date();
@@ -114,96 +167,73 @@ export class OnboardingService {
   }
 
   /**
-   * Get current onboarding message with progress
+   * Get contextual onboarding hint (subtle, non-intrusive)
    */
-  async getOnboardingMessage(whatsappId: string, session: UserSession | null): Promise<string> {
+  async getContextualHint(whatsappId: string, session: UserSession | null): Promise<string | null> {
     const state = await this.getOnboardingState(whatsappId);
+    
+    // Don't show hints if user dismissed onboarding or completed it
+    if (state.dismissed || state.completedSteps.length >= this.onboardingSteps.length) {
+      return null;
+    }
+
+    // Only show hints occasionally, not on every message
+    const timeSinceLastActivity = Date.now() - new Date(state.lastActivity).getTime();
+    const shouldShowHint = timeSinceLastActivity > 60000; // 1 minute
+
+    if (!shouldShowHint) {
+      return null;
+    }
+
     const currentStep = this.onboardingSteps[state.currentStep];
-    const progress = this.getProgressBar(state.currentStep, this.onboardingSteps.length);
 
-    // Check if user has completed onboarding
-    if (state.completedSteps.length >= this.onboardingSteps.length) {
-      return this.getCompletionMessage(session);
+    // Contextual hints based on user state
+    if (!session && currentStep.id === 'welcome') {
+      return `\n\n💡 _New here? Type \`link\` to connect your Flash account_`;
     }
 
-    let message = `${progress}\n\n`;
-    message += `*${currentStep.title}* 🎯\n`;
-    message += `${currentStep.description}\n\n`;
-
-    // Add contextual help based on current step
-    if (currentStep.id === 'welcome' && !session) {
-      message += `👋 Ready to get started?\n\n`;
-      message += `${currentStep.nextHint}`;
-    } else if (currentStep.id === 'link_account' && session && !session.isVerified) {
-      message += `📱 Check your phone for the code\n\n`;
-      message += `${currentStep.nextHint}`;
-    } else if (currentStep.id === 'verify_account' && session?.isVerified) {
-      message += `✅ Great! You're verified!\n\n`;
-      message += `${currentStep.nextHint}`;
-    } else if (currentStep.id === 'check_balance') {
-      message += `💰 Your wallet is ready!\n\n`;
-      message += `${currentStep.nextHint}`;
-    } else if (currentStep.id === 'first_send') {
-      message += `⚡ Send instant payments!\n\n`;
-      message += `${currentStep.nextHint}`;
+    if (session && !session.isVerified && currentStep.id === 'link_account') {
+      return `\n\n💡 _Enter the 6-digit code to complete verification_`;
     }
 
-    // Add skip option for experienced users
-    if (state.currentStep > 0) {
-      message += `\n\n_Already know Pulse? Type \`skip onboarding\`_`;
+    if (session?.isVerified && state.completedSteps.length < 3) {
+      return `\n\n💡 _Try \`balance\` to see your funds_`;
     }
 
-    return message;
+    return null;
   }
 
   /**
-   * Generate progress bar
+   * Get progress indicator (simplified and clear)
    */
-  private getProgressBar(current: number, total: number): string {
-    const filled = '●';
-    const empty = '○';
-    const progress = Array(total)
-      .fill(empty)
-      .map((_, i) => (i <= current ? filled : empty))
-      .join(' ');
+  async getProgressIndicator(whatsappId: string): Promise<string> {
+    const state = await this.getOnboardingState(whatsappId);
+    const completed = state.completedSteps.length;
+    const total = this.onboardingSteps.length;
     
-    return `Progress: ${progress} (${current + 1}/${total})`;
-  }
-
-  /**
-   * Get completion message
-   */
-  private getCompletionMessage(session: UserSession | null): string {
-    if (!session?.isVerified) {
-      return `🎉 *Welcome to Pulse!*\n\nType \`link\` to connect your Flash account and start using all features.`;
+    if (completed >= total) {
+      return '✅ Setup Complete!';
     }
 
-    return `🎉 *Onboarding Complete!*
-
-You're all set! Here are some things to try:
-
-• \`voice on\` - Enable voice responses
-• \`contacts add\` - Save frequent recipients
-• \`help\` - See all available commands
-
-Need assistance? I'm here to help! 💪`;
+    // Show progress as fraction with current step
+    const currentStep = this.onboardingSteps[state.currentStep];
+    return `${currentStep.emoji} Step ${completed + 1}/${total}: ${currentStep.title}`;
   }
 
   /**
-   * Check if user is in onboarding
+   * Check if user should see onboarding content
    */
-  async isUserOnboarding(whatsappId: string): Promise<boolean> {
+  async shouldShowOnboarding(whatsappId: string): Promise<boolean> {
     const state = await this.getOnboardingState(whatsappId);
-    return state.completedSteps.length < this.onboardingSteps.length;
+    return !state.dismissed && state.completedSteps.length < this.onboardingSteps.length;
   }
 
   /**
-   * Skip onboarding for experienced users
+   * Skip/dismiss onboarding
    */
-  async skipOnboarding(whatsappId: string): Promise<void> {
+  async dismissOnboarding(whatsappId: string): Promise<void> {
     const state = await this.getOnboardingState(whatsappId);
-    state.completedSteps = this.onboardingSteps.map(s => s.id);
-    state.currentStep = this.onboardingSteps.length - 1;
+    state.dismissed = true;
     state.lastActivity = new Date();
 
     const key = `${this.ONBOARDING_KEY_PREFIX}${whatsappId}`;
@@ -211,18 +241,55 @@ Need assistance? I'm here to help! 💪`;
   }
 
   /**
-   * Detect user action and update progress accordingly
+   * Check if user is new (first interaction)
+   */
+  async isNewUser(whatsappId: string): Promise<boolean> {
+    const state = await this.getOnboardingState(whatsappId);
+    return !state.hasSeenWelcome;
+  }
+
+  /**
+   * Detect user action and silently update progress
    */
   async detectAndUpdateProgress(whatsappId: string, command: string): Promise<boolean> {
     const state = await this.getOnboardingState(whatsappId);
-    const currentStep = this.onboardingSteps[state.currentStep];
+    
+    // Don't track if dismissed
+    if (state.dismissed) {
+      return false;
+    }
 
-    // Check if the command matches the expected action
-    if (currentStep.action && command.toLowerCase().includes(currentStep.action)) {
-      await this.updateProgress(whatsappId, currentStep.id);
-      return true;
+    // Check each incomplete step to see if user completed it
+    for (const step of this.onboardingSteps) {
+      if (!state.completedSteps.includes(step.id) && 
+          step.action && 
+          command.toLowerCase().includes(step.action)) {
+        await this.updateProgress(whatsappId, step.id);
+        return true;
+      }
     }
 
     return false;
+  }
+
+  /**
+   * Get completion celebration (only shown once)
+   */
+  async getCompletionMessage(whatsappId: string): Promise<string | null> {
+    const state = await this.getOnboardingState(whatsappId);
+    
+    // Check if just completed
+    if (state.completedSteps.length === this.onboardingSteps.length && 
+        !state.completedSteps.includes('celebrated')) {
+      
+      // Mark as celebrated
+      state.completedSteps.push('celebrated');
+      const key = `${this.ONBOARDING_KEY_PREFIX}${whatsappId}`;
+      await this.redisService.set(key, JSON.stringify(state), this.ONBOARDING_TTL);
+      
+      return `\n\n🎉 *Awesome! You've mastered the basics!*\n\nExplore more features:\n• \`voice on\` - Enable voice mode\n• \`learn\` - Teach me about you\n• \`settings\` - Customize your experience`;
+    }
+
+    return null;
   }
 }
