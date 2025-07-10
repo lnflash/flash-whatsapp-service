@@ -646,9 +646,9 @@ _This limitation is due to WhatsApp's privacy features._`;
       const result = await this.authService.initiateAccountLinking(linkRequest);
 
       if (result.otpSent) {
-        return 'To link your Flash account, please enter the 6-digit verification code sent to your WhatsApp.';
+        return 'Enter the 6-digit verification code.';
       } else {
-        return 'Your Flash account is already linked! You can check your balance or use other commands.';
+        return 'Your Flash account is already linked.';
       }
     } catch (error) {
       this.logger.error(`Error handling link command: ${error.message}`, error.stack);
