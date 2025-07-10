@@ -24,6 +24,8 @@ import { ContextualHelpService } from './services/contextual-help.service';
 import { UndoTransactionService } from './services/undo-transaction.service';
 import { PaymentTemplatesService } from './services/payment-templates.service';
 import { AdminAnalyticsService } from './services/admin-analytics.service';
+import { UserKnowledgeBaseService } from './services/user-knowledge-base.service';
+import { RandomQuestionService } from './services/random-question.service';
 
 // Guards and Templates
 import { RateLimiterGuard } from '../../common/guards/rate-limiter.guard';
@@ -74,6 +76,8 @@ import { SpeechModule } from '../speech/speech.module';
     UndoTransactionService,
     PaymentTemplatesService,
     AdminAnalyticsService,
+    UserKnowledgeBaseService,
+    RandomQuestionService,
   ],
   exports: [
     WhatsappService,
@@ -87,6 +91,8 @@ import { SpeechModule } from '../speech/speech.module';
     UndoTransactionService,
     PaymentTemplatesService,
     AdminAnalyticsService,
+    UserKnowledgeBaseService,
+    RandomQuestionService,
   ],
 })
 export class WhatsappModule {}

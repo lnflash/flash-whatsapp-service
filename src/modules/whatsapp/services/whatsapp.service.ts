@@ -46,6 +46,8 @@ import { ContextualHelpService } from './contextual-help.service';
 import { UndoTransactionService } from './undo-transaction.service';
 import { PaymentTemplatesService } from './payment-templates.service';
 import { AdminAnalyticsService } from './admin-analytics.service';
+import { UserKnowledgeBaseService } from './user-knowledge-base.service';
+import { RandomQuestionService } from './random-question.service';
 // import { WhatsAppCloudService } from './whatsapp-cloud.service'; // Disabled for prototype branch
 
 @Injectable()
@@ -82,6 +84,8 @@ export class WhatsappService {
     private readonly undoTransactionService: UndoTransactionService,
     private readonly paymentTemplatesService: PaymentTemplatesService,
     private readonly adminAnalyticsService: AdminAnalyticsService,
+    private readonly userKnowledgeBaseService: UserKnowledgeBaseService,
+    private readonly randomQuestionService: RandomQuestionService,
     // private readonly whatsAppCloudService: WhatsAppCloudService, // Disabled for prototype branch
     @Inject(forwardRef(() => WhatsAppWebService))
     private readonly whatsappWebService?: WhatsAppWebService,
@@ -142,6 +146,28 @@ export class WhatsappService {
 
       // Store the incoming message for traceability
       await this.storeCloudMessage(messageData);
+
+      // Check if user is in a learning session
+      const pendingQuestion = await this.randomQuestionService.getPendingQuestion(whatsappId);
+      if (pendingQuestion && messageData.text.toLowerCase() !== 'skip') {
+        // Process the answer to the pending question
+        await this.userKnowledgeBaseService.storeUserKnowledge(
+          whatsappId,
+          pendingQuestion.question,
+          messageData.text,
+          pendingQuestion.category,
+        );
+        
+        await this.randomQuestionService.clearPendingQuestion(whatsappId);
+        
+        let response = `✅ Thanks for teaching me! I've stored your answer.\n\n`;
+        if (pendingQuestion.followUp) {
+          response += `${pendingQuestion.followUp}\n\n`;
+        }
+        response += `💡 Type "learn" for another question or "learn search" to find your stored knowledge.`;
+        
+        return response;
+      }
 
       // Parse command from message (with voice flag if it came from voice)
       const command = this.commandParserService.parseCommand(
@@ -504,6 +530,9 @@ export class WhatsappService {
 
         case CommandType.SKIP:
           return this.handleSkipCommand(whatsappId);
+
+        case CommandType.LEARN:
+          return this.handleLearnCommand(command, whatsappId, session);
 
         case CommandType.UNKNOWN:
         default: {
@@ -1325,6 +1354,10 @@ Try: \`balance\``;
 • \`settings\`
 • \`username\`
 • \`pending\`
+
+*Learn & Teach:*
+• \`learn\` - answer questions
+• \`learn search\` - find knowledge
 
 Type \`help [topic]\` for details`;
   }
@@ -5316,5 +5349,142 @@ Type \`templates\` to see your saved templates.`;
     }
 
     return result;
+  }
+
+  /**
+   * Handle learn command
+   */
+  private async handleLearnCommand(
+    command: ParsedCommand,
+    whatsappId: string,
+    session: UserSession | null,
+  ): Promise<string> {
+    try {
+      const action = command.args.action || 'ask';
+
+      switch (action) {
+        case 'ask': {
+          // Get a random question
+          const question = await this.randomQuestionService.getRandomQuestion(whatsappId);
+          if (!question) {
+            return '📚 No more questions available right now. Check back later!';
+          }
+          return this.randomQuestionService.formatQuestion(question);
+        }
+
+        case 'search': {
+          const query = command.args.query;
+          if (!query) {
+            return '🔍 Please provide a search term. Example: `learn search bitcoin`';
+          }
+
+          const results = await this.userKnowledgeBaseService.searchUserKnowledge(
+            whatsappId,
+            query,
+          );
+
+          if (results.length === 0) {
+            return `🔍 No knowledge found matching "${query}".`;
+          }
+
+          let message = `🔍 *Search Results for "${query}"*\n\n`;
+          results.slice(0, 5).forEach((entry) => {
+            const date = new Date(entry.timestamp).toLocaleDateString();
+            message += `❓ ${entry.question}\n`;
+            message += `💡 ${entry.answer}\n`;
+            message += `📅 ${date} • 🏷️ ${entry.category}\n\n`;
+          });
+
+          if (results.length > 5) {
+            message += `_...and ${results.length - 5} more results_`;
+          }
+
+          return message;
+        }
+
+        case 'category': {
+          const category = command.args.query;
+          if (!category) {
+            const categories = this.randomQuestionService.getCategories();
+            return `📂 *Available Categories:*\n\n${categories
+              .map((c) => `• ${c}`)
+              .join('\n')}\n\nType \`learn category [name]\` to see your answers in that category.`;
+          }
+
+          const results = await this.userKnowledgeBaseService.getUserKnowledgeByCategory(
+            whatsappId,
+            category.toLowerCase(),
+          );
+
+          if (results.length === 0) {
+            return `📂 No knowledge stored in category "${category}".`;
+          }
+
+          let message = `📂 *${category.charAt(0).toUpperCase() + category.slice(1)} Knowledge*\n\n`;
+          results.forEach((entry) => {
+            const date = new Date(entry.timestamp).toLocaleDateString();
+            message += `❓ ${entry.question}\n`;
+            message += `💡 ${entry.answer}\n`;
+            message += `📅 ${date}\n\n`;
+          });
+
+          return message;
+        }
+
+        case 'delete': {
+          const knowledgeId = command.args.query;
+          if (!knowledgeId) {
+            return '❌ Please provide the knowledge ID to delete. Example: `learn delete abc123`';
+          }
+
+          const success = await this.userKnowledgeBaseService.deleteUserKnowledge(
+            whatsappId,
+            knowledgeId,
+          );
+
+          if (success) {
+            return '✅ Knowledge entry deleted successfully.';
+          } else {
+            return '❌ Knowledge entry not found or already deleted.';
+          }
+        }
+
+        case 'stats': {
+          const stats = await this.userKnowledgeBaseService.getUserKnowledgeStats(whatsappId);
+
+          let message = '📊 *Your Knowledge Base Statistics*\n\n';
+          message += `📚 Total Entries: ${stats.totalEntries}\n`;
+
+          if (stats.totalEntries > 0) {
+            message += '\n*By Category:*\n';
+            Object.entries(stats.categoryCounts).forEach(([category, count]) => {
+              message += `• ${category}: ${count} entries\n`;
+            });
+
+            if (stats.oldestEntry && stats.newestEntry) {
+              message += `\n📅 First Entry: ${stats.oldestEntry.toLocaleDateString()}\n`;
+              message += `📅 Latest Entry: ${stats.newestEntry.toLocaleDateString()}\n`;
+            }
+          }
+
+          message += '\n💡 Keep teaching me with the `learn` command!';
+          return message;
+        }
+
+        case 'reset': {
+          await this.randomQuestionService.resetAskedQuestions(whatsappId);
+          return '♻️ Question history reset! You can now answer previously asked questions again.';
+        }
+
+        default: {
+          // Show all stored knowledge
+          const allKnowledge = await this.userKnowledgeBaseService.getUserKnowledge(whatsappId);
+          return this.userKnowledgeBaseService.formatKnowledgeList(allKnowledge);
+        }
+      }
+    } catch (error) {
+      this.logger.error('Error handling learn command:', error);
+      return '❌ Something went wrong with the learning feature. Please try again.';
+    }
   }
 }

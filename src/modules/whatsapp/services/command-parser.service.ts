@@ -25,6 +25,7 @@ export enum CommandType {
   UNDO = 'undo',
   TEMPLATE = 'template',
   SKIP = 'skip',
+  LEARN = 'learn',
   UNKNOWN = 'unknown',
 }
 
@@ -84,6 +85,7 @@ export class CommandParserService {
     { type: CommandType.UNDO, pattern: /^undo$/i },
     { type: CommandType.TEMPLATE, pattern: /^template(?:\s+(add|remove|list))?(?:\s+(.+))?$/i },
     { type: CommandType.SKIP, pattern: /^skip\s+onboarding$/i },
+    { type: CommandType.LEARN, pattern: /^learn(?:\s+(search|category|delete|stats|reset))?(?:\s+(.+))?$/i },
   ];
 
   /**
@@ -1107,6 +1109,28 @@ export class CommandParserService {
       return { type: CommandType.SKIP, args: {}, rawText: text };
     }
 
+    // Learn variations
+    if (
+      lowerText === 'learn' ||
+      lowerText === 'teach' ||
+      lowerText === 'ask me' ||
+      lowerText === 'ask me something' ||
+      lowerText === 'ask a question' ||
+      lowerText === 'random question' ||
+      lowerText === 'knowledge' ||
+      lowerText === 'my knowledge' ||
+      lowerText === 'what have i taught' ||
+      lowerText === 'what did i teach' ||
+      lowerText.includes('teach me') ||
+      lowerText.includes('learn from me') ||
+      lowerText.includes('ask me a question') ||
+      lowerText.includes('random question') ||
+      lowerText.includes('knowledge base') ||
+      lowerText.includes('my answers')
+    ) {
+      return { type: CommandType.LEARN, args: {}, rawText: text };
+    }
+
     return { type: CommandType.UNKNOWN, args: {}, rawText: text };
   }
 
@@ -1357,6 +1381,18 @@ export class CommandParserService {
 
       case CommandType.UNDO:
         // No additional args needed for undo
+        break;
+
+      case CommandType.LEARN:
+        // Extract learn action and parameters
+        if (match[1]) {
+          args.action = match[1].toLowerCase();
+          if (match[2]) {
+            args.query = match[2].trim();
+          }
+        } else {
+          args.action = 'ask'; // Default action is to ask a question
+        }
         break;
 
       case CommandType.SKIP:

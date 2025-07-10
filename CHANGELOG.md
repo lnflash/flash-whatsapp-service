@@ -39,6 +39,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - User activity tracking for insights
 - System health metrics in analytics reports
 - `skip onboarding` command for experienced users
+- Personalized learning system with `learn` command
+- Random question generator for user engagement
+- User knowledge base with encrypted storage
+- Knowledge search and categorization features
+- 30-day retention for user-provided answers
+- Security hardening roadmap for knowledge base feature
 
 ### Removed
 - Hardcoded voice selection (voice 1/2/3) replaced by dynamic voice management
