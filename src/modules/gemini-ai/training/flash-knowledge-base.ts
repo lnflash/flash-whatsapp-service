@@ -1079,6 +1079,91 @@ Bottom Line - You are never required to trust Flash or any other company with yo
     category: 'usage',
     keywords: ['buy', 'sell', 'flash', 'use', 'merchant'],
   },
+  // CashApp and external wallet integration
+  {
+    question: 'How can someone send me money from CashApp?',
+    answer:
+      'To receive money from CashApp: 1) Type "receive 10" (or any amount) to create a Lightning invoice. 2) Copy and share that invoice with the sender. 3) They open CashApp, go to their Bitcoin wallet, tap Send, paste the invoice, and confirm. 4) You\'ll receive the payment instantly to your Flash wallet! This works with CashApp or any Lightning-enabled wallet.',
+    category: 'receive',
+    keywords: ['cashapp', 'cash app', 'send', 'money', 'receive', 'external'],
+  },
+  {
+    question: 'How can I receive money from Cash App?',
+    answer:
+      'Easy! Type "receive" followed by the amount (like "receive 25" for $25). This creates a Lightning invoice. Send that invoice to the person with CashApp. They paste it in their CashApp Bitcoin wallet\'s Send feature, and you get paid instantly!',
+    category: 'receive',
+    keywords: ['cash app', 'cashapp', 'receive', 'payment', 'invoice'],
+  },
+  {
+    question: 'Can people send me money from other Bitcoin apps?',
+    answer:
+      'Yes! Any Lightning-enabled wallet can send you money. Just create an invoice with "receive [amount]" and share it. Works with CashApp, Strike, Wallet of Satoshi, Phoenix, Blue Wallet, and many others. The sender just needs to paste your invoice in their app.',
+    category: 'receive',
+    keywords: ['bitcoin', 'apps', 'wallets', 'lightning', 'receive', 'external'],
+  },
+  {
+    question: 'What wallets can send money to Flash?',
+    answer:
+      'Any Lightning Network wallet can send to Flash! Popular ones include: CashApp (Bitcoin wallet), Strike, Wallet of Satoshi, Phoenix, Blue Wallet, Breez, Muun, and Zeus. Just share your Lightning invoice from the "receive" command.',
+    category: 'receive',
+    keywords: ['wallets', 'compatible', 'lightning', 'send', 'apps'],
+  },
+  {
+    question: 'How do I receive Bitcoin from Strike/Phoenix/Blue Wallet?',
+    answer:
+      'Same process for all Lightning wallets: 1) Type "receive [amount]" in Flash to create an invoice. 2) Copy the invoice (starts with "lnbc"). 3) In the other wallet, choose Send/Pay, paste the invoice. 4) Confirm and you\'ll receive instantly!',
+    category: 'receive',
+    keywords: ['strike', 'phoenix', 'blue wallet', 'receive', 'lightning'],
+  },
+  {
+    question: 'Can someone from the US send me money through CashApp?',
+    answer:
+      'Absolutely! CashApp users anywhere can send to your Flash wallet. You create a Lightning invoice with "receive [amount]", they paste it in CashApp\'s Bitcoin wallet Send feature. Works internationally - that\'s the beauty of Lightning Network!',
+    category: 'receive',
+    keywords: ['us', 'united states', 'cashapp', 'international', 'send'],
+  },
+  {
+    question: 'Step by step: receiving from CashApp',
+    answer:
+      'Step 1: In Flash/Pulse WhatsApp, type "receive 50" (or your amount). Step 2: Copy the Lightning invoice it creates. Step 3: Send invoice to the CashApp user. Step 4: They open CashApp → Bitcoin tab → Send → Paste invoice → Confirm. Step 5: You receive $50 instantly! Your Pulse balance updates automatically.',
+    category: 'receive',
+    keywords: ['step by step', 'cashapp', 'tutorial', 'guide', 'receive'],
+  },
+  {
+    question: 'My friend has CashApp, how can they pay me?',
+    answer:
+      'Tell your friend: 1) You\'ll send them a Lightning invoice. 2) They open CashApp, tap the Bitcoin tab at bottom. 3) Tap Send button. 4) Paste your invoice. 5) Review and confirm. That\'s it! Create your invoice by typing "receive" plus the amount.',
+    category: 'receive',
+    keywords: ['friend', 'cashapp', 'pay', 'send', 'how to'],
+  },
+  {
+    question: 'What is a Lightning invoice?',
+    answer:
+      'A Lightning invoice is like a payment request - it starts with "lnbc" and contains the amount and where to send it. When you type "receive 10", Flash creates this invoice. Anyone with a Lightning wallet (like CashApp\'s Bitcoin wallet) can pay it. Think of it as a QR code for receiving money!',
+    category: 'lightning',
+    keywords: ['lightning', 'invoice', 'what is', 'lnbc', 'payment request'],
+  },
+  {
+    question: 'How long do Lightning invoices last?',
+    answer:
+      'Lightning invoices typically expire after 1 hour. If someone doesn\'t pay within that time, just create a new one with the "receive" command. Each invoice can only be paid once, so create a fresh one for each payment you want to receive.',
+    category: 'lightning',
+    keywords: ['invoice', 'expire', 'time', 'lightning', 'duration'],
+  },
+  {
+    question: 'Can I receive money without giving out my phone number?',
+    answer:
+      'Yes! Lightning invoices don\'t reveal any personal information. When you create an invoice with "receive", it only contains payment instructions - no phone number, name, or other details. Perfect for privacy-conscious transactions!',
+    category: 'privacy',
+    keywords: ['privacy', 'phone number', 'anonymous', 'invoice', 'receive'],
+  },
+  {
+    question: 'Do I need to be online to receive Lightning payments?',
+    answer:
+      'You don\'t need to be online when someone sends the payment, but you do need to have created the invoice beforehand. Once someone pays your invoice, the money goes to your Flash wallet automatically - you\'ll see it next time you check your balance.',
+    category: 'receive',
+    keywords: ['online', 'offline', 'receive', 'lightning', 'payment'],
+  },
 ];
 
 export const CONVERSATION_CONTEXT = {
