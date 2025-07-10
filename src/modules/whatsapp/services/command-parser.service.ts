@@ -22,6 +22,9 @@ export enum CommandType {
   PENDING = 'pending',
   VOICE = 'voice',
   SETTINGS = 'settings',
+  UNDO = 'undo',
+  TEMPLATE = 'template',
+  SKIP = 'skip',
   UNKNOWN = 'unknown',
 }
 
@@ -73,11 +76,14 @@ export class CommandParserService {
     {
       type: CommandType.ADMIN,
       pattern:
-        /^admin(?:\s+(help|disconnect|reconnect|status|clear-session|settings|lockdown|find|group|add|remove|voice))?\s*(?:support|admin)?\s*(.*)$/i,
+        /^admin(?:\s+(help|disconnect|reconnect|status|clear-session|settings|lockdown|find|group|add|remove|voice|analytics))?\s*(?:support|admin)?\s*(.*)$/i,
     },
     { type: CommandType.PENDING, pattern: /^pending(?:\s+(sent|received|claim))?(?:\s+(.+))?$/i },
     { type: CommandType.VOICE, pattern: /^voice(?:\s+(.+))?$/i },
     { type: CommandType.SETTINGS, pattern: /^settings?$/i },
+    { type: CommandType.UNDO, pattern: /^undo$/i },
+    { type: CommandType.TEMPLATE, pattern: /^template(?:\s+(add|remove|list))?(?:\s+(.+))?$/i },
+    { type: CommandType.SKIP, pattern: /^skip\s+onboarding$/i },
   ];
 
   /**
@@ -1046,6 +1052,61 @@ export class CommandParserService {
       return { type: CommandType.SETTINGS, args: {}, rawText: text };
     }
 
+    // Undo variations
+    if (
+      lowerText === 'undo' ||
+      lowerText === 'undo that' ||
+      lowerText === 'undo last' ||
+      lowerText === 'undo payment' ||
+      lowerText === 'undo transaction' ||
+      lowerText === 'cancel that' ||
+      lowerText === 'cancel last payment' ||
+      lowerText === 'reverse payment' ||
+      lowerText === 'reverse transaction' ||
+      lowerText === 'take it back' ||
+      lowerText === 'i made a mistake' ||
+      lowerText === 'wrong amount' ||
+      lowerText === 'wrong person' ||
+      lowerText === 'sent by mistake' ||
+      lowerText.includes('undo the payment') ||
+      lowerText.includes('undo my last') ||
+      lowerText.includes('cancel the payment') ||
+      lowerText.includes('reverse the payment') ||
+      lowerText.includes('get it back') ||
+      lowerText.includes('want it back')
+    ) {
+      return { type: CommandType.UNDO, args: {}, rawText: text };
+    }
+
+    // Template variations
+    if (
+      lowerText.includes('template') ||
+      lowerText.includes('saved payment') ||
+      lowerText.includes('payment shortcut') ||
+      lowerText.includes('recurring payment') ||
+      lowerText.includes('quick payment') ||
+      lowerText.includes('favorite payment') ||
+      lowerText.includes('payment preset') ||
+      lowerText === 'templates' ||
+      lowerText === 'shortcuts' ||
+      lowerText === 'presets'
+    ) {
+      return { type: CommandType.TEMPLATE, args: {}, rawText: text };
+    }
+
+    // Skip onboarding
+    if (
+      lowerText === 'skip onboarding' ||
+      lowerText === 'skip tutorial' ||
+      lowerText === 'skip intro' ||
+      lowerText === 'skip introduction' ||
+      lowerText.includes('skip the onboarding') ||
+      lowerText.includes('skip the tutorial') ||
+      lowerText.includes('already know')
+    ) {
+      return { type: CommandType.SKIP, args: {}, rawText: text };
+    }
+
     return { type: CommandType.UNKNOWN, args: {}, rawText: text };
   }
 
@@ -1212,6 +1273,8 @@ export class CommandParserService {
             args.mode = match[2].trim().toLowerCase();
           } else if (args.action === 'voice') {
             args.mode = match[2].trim().toLowerCase();
+          } else if (args.action === 'analytics') {
+            args.period = match[2]?.trim().toLowerCase() || 'daily';
           }
         }
         break;
@@ -1263,6 +1326,41 @@ export class CommandParserService {
             args.action = 'status'; // Default to status when no args
           }
         }
+        break;
+
+      case CommandType.TEMPLATE:
+        // Extract template action and parameters
+        if (match[1]) {
+          args.action = match[1].toLowerCase();
+          // Parse remaining text based on action
+          if (match[2]) {
+            const remainingText = match[2].trim();
+            if (args.action === 'add') {
+              // template add [name] [amount] to [recipient] "[memo]"
+              const addMatch = remainingText.match(/^(\w+)\s+(\d+(?:\.\d+)?)\s+to\s+(\w+)(?:\s+"([^"]+)")?/);
+              if (addMatch) {
+                args.name = addMatch[1];
+                args.amount = addMatch[2];
+                args.recipient = addMatch[3];
+                if (addMatch[4]) {
+                  args.memo = addMatch[4];
+                }
+              }
+            } else if (args.action === 'remove') {
+              args.name = remainingText;
+            }
+          }
+        } else {
+          args.action = 'list';
+        }
+        break;
+
+      case CommandType.UNDO:
+        // No additional args needed for undo
+        break;
+
+      case CommandType.SKIP:
+        // No additional args needed for skip
         break;
     }
 

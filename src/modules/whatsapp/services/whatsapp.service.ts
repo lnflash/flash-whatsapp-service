@@ -41,6 +41,11 @@ import { UserVoiceSettingsService, UserVoiceMode } from './user-voice-settings.s
 import { VoiceResponseService } from './voice-response.service';
 import { VoiceManagementService } from './voice-management.service';
 import { convertCurrencyToWords } from '../utils/number-to-words';
+import { OnboardingService } from './onboarding.service';
+import { ContextualHelpService } from './contextual-help.service';
+import { UndoTransactionService } from './undo-transaction.service';
+import { PaymentTemplatesService } from './payment-templates.service';
+import { AdminAnalyticsService } from './admin-analytics.service';
 // import { WhatsAppCloudService } from './whatsapp-cloud.service'; // Disabled for prototype branch
 
 @Injectable()
@@ -72,6 +77,11 @@ export class WhatsappService {
     private readonly userVoiceSettingsService: UserVoiceSettingsService,
     private readonly voiceResponseService: VoiceResponseService,
     private readonly voiceManagementService: VoiceManagementService,
+    private readonly onboardingService: OnboardingService,
+    private readonly contextualHelpService: ContextualHelpService,
+    private readonly undoTransactionService: UndoTransactionService,
+    private readonly paymentTemplatesService: PaymentTemplatesService,
+    private readonly adminAnalyticsService: AdminAnalyticsService,
     // private readonly whatsAppCloudService: WhatsAppCloudService, // Disabled for prototype branch
     @Inject(forwardRef(() => WhatsAppWebService))
     private readonly whatsappWebService?: WhatsAppWebService,
@@ -142,6 +152,21 @@ export class WhatsappService {
       // Get session if it exists
       let session = await this.sessionService.getSessionByWhatsappId(whatsappId);
 
+      // Track user activity for contextual help
+      await this.contextualHelpService.trackActivity(
+        whatsappId,
+        command.rawText,
+        command.type,
+        false,
+      );
+
+      // Check if user is in onboarding
+      const isOnboarding = await this.onboardingService.isUserOnboarding(whatsappId);
+      if (isOnboarding && command.type !== CommandType.SKIP) {
+        // Update onboarding progress if command matches expected action
+        await this.onboardingService.detectAndUpdateProgress(whatsappId, command.rawText);
+      }
+
       // Check if user is in support mode
       if (await this.supportModeService.isInSupportMode(whatsappId)) {
         const result = await this.supportModeService.routeMessage(whatsappId, messageData.text);
@@ -183,7 +208,25 @@ export class WhatsappService {
 
       // Add hints to text responses and optionally add voice
       if (typeof response === 'string') {
-        const finalText = this.addHint(response, session, command);
+        let finalText = this.addHint(response, session, command);
+
+        // Add contextual help if user seems confused
+        const contextualHelp = await this.contextualHelpService.analyzeForConfusion(whatsappId);
+        if (contextualHelp) {
+          finalText += contextualHelp;
+        }
+
+        // Add onboarding hint if user is in onboarding
+        if (isOnboarding && command.type === CommandType.HELP) {
+          const onboardingMessage = await this.onboardingService.getOnboardingMessage(whatsappId, session);
+          finalText = onboardingMessage;
+        }
+
+        // Add undo hint if applicable
+        const undoHint = await this.undoTransactionService.getUndoHint(whatsappId);
+        if (undoHint) {
+          finalText += undoHint;
+        }
 
         if (shouldUseVoice) {
           try {
@@ -452,6 +495,15 @@ export class WhatsappService {
 
         case CommandType.ADMIN:
           return this.handleAdminCommand(command, whatsappId, phoneNumber);
+
+        case CommandType.UNDO:
+          return this.handleUndoCommand(whatsappId, session);
+
+        case CommandType.TEMPLATE:
+          return this.handleTemplateCommand(command, whatsappId, session);
+
+        case CommandType.SKIP:
+          return this.handleSkipCommand(whatsappId);
 
         case CommandType.UNKNOWN:
         default: {
@@ -2040,6 +2092,27 @@ Ready? Try \`balance\` to start!`;
                 // Ignore balance fetch errors in success message
               }
 
+              // Store transaction for potential undo (only for intraledger)
+              await this.undoTransactionService.storeUndoableTransaction(whatsappId, {
+                transactionId: txId,
+                type: 'send',
+                amount: amount,
+                currency: 'USD',
+                recipient: targetUsername,
+                timestamp: new Date(),
+                memo: command.args.memo,
+                canUndo: true, // Intraledger transactions can potentially be undone
+              });
+
+              // Log transaction for analytics
+              await this.adminAnalyticsService.logTransaction(
+                session.sessionId,
+                amount,
+                'sent',
+                targetUsername,
+                txId,
+              );
+
               let successMsg = `✅ Payment sent to @${targetUsername}!\n\n`;
               successMsg += `💸 Amount: $${amount.toFixed(2)} USD\n`;
               if (command.args.memo) {
@@ -3296,7 +3369,7 @@ Ready? Try \`balance\` to start!`;
     command: ParsedCommand,
     whatsappId: string,
     session: UserSession | null,
-  ): Promise<string> {
+  ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
     try {
       // Check if user has a linked account
       if (!session || !session.isVerified || !session.flashAuthToken) {
@@ -3305,6 +3378,12 @@ Ready? Try \`balance\` to start!`;
 
       const action = command.args.action;
       const modifier = command.args.modifier;
+
+      // Check if this is a template payment (pay [template_name])
+      if (action && !['confirm', 'cancel', 'list'].includes(action) && isNaN(parseInt(action))) {
+        // This might be a template name
+        return this.handlePayWithTemplate(action, whatsappId, session);
+      }
 
       // First check for pending payment requests (when someone requested money from this user)
       // Note: We need to check both formats as the request might be stored with @c.us suffix
@@ -4717,6 +4796,16 @@ ${voiceList}`;
           }
         }
 
+        case 'analytics': {
+          const period = command.args.period || 'daily';
+          if (!['daily', 'weekly'].includes(period)) {
+            return '❌ Invalid period. Use: `admin analytics daily` or `admin analytics weekly`';
+          }
+          
+          const report = await this.adminAnalyticsService.formatAnalyticsReport(period as 'daily' | 'weekly');
+          return report;
+        }
+
         default: {
           return this.getAdminHelpMessage();
         }
@@ -4736,7 +4825,9 @@ ${voiceList}`;
       `📊 *Status & Info:*\n` +
       `• \`admin status\` - Check WhatsApp connection\n` +
       `• \`admin settings\` - View current settings\n` +
-      `• \`admin find <term>\` - Search contacts/sessions\n\n` +
+      `• \`admin find <term>\` - Search contacts/sessions\n` +
+      `• \`admin analytics daily\` - Today's analytics\n` +
+      `• \`admin analytics weekly\` - 7-day analytics\n\n` +
       `🔧 *Connection:*\n` +
       `• \`admin disconnect\` - Disconnect current number\n` +
       `• \`admin clear-session\` - Clear all session data\n` +
@@ -5094,5 +5185,136 @@ ${voiceList}`;
     }
 
     return ttsFriendly;
+  }
+
+  /**
+   * Handle undo command
+   */
+  private async handleUndoCommand(
+    whatsappId: string,
+    session: UserSession | null,
+  ): Promise<string> {
+    if (!session || !session.isVerified) {
+      return 'Please link your Flash account first to use this feature.';
+    }
+
+    const result = await this.undoTransactionService.undoTransaction(whatsappId);
+    return result.message;
+  }
+
+  /**
+   * Handle template command
+   */
+  private async handleTemplateCommand(
+    command: ParsedCommand,
+    whatsappId: string,
+    session: UserSession | null,
+  ): Promise<string> {
+    if (!session || !session.isVerified) {
+      return 'Please link your Flash account first to use templates.';
+    }
+
+    const action = command.args.action || 'list';
+
+    switch (action) {
+      case 'list':
+        return this.paymentTemplatesService.formatTemplatesList(whatsappId);
+
+      case 'add': {
+        const { name, amount, recipient, memo } = command.args;
+        if (!name || !amount || !recipient) {
+          return `❌ Invalid template format.
+
+Usage: \`template add [name] [amount] to [recipient] "[memo]"\`
+
+Example: \`template add coffee 5 to john "Morning coffee"\``;
+        }
+
+        const result = await this.paymentTemplatesService.createTemplate(
+          whatsappId,
+          name,
+          parseFloat(amount),
+          recipient,
+          memo,
+        );
+        return result.message;
+      }
+
+      case 'remove': {
+        const { name } = command.args;
+        if (!name) {
+          return '❌ Please specify the template name to remove.';
+        }
+
+        const result = await this.paymentTemplatesService.deleteTemplate(whatsappId, name);
+        return result.message;
+      }
+
+      default:
+        return 'Unknown template action. Use: add, remove, or list';
+    }
+  }
+
+  /**
+   * Handle skip onboarding command
+   */
+  private async handleSkipCommand(whatsappId: string): Promise<string> {
+    await this.onboardingService.skipOnboarding(whatsappId);
+    return `✅ Onboarding skipped!
+
+You can access all features with:
+• \`help\` - See commands
+• \`balance\` - Check wallet
+• \`send\` - Make payments
+
+Welcome back to Pulse! 🎉`;
+  }
+
+  /**
+   * Handle payment with template
+   */
+  private async handlePayWithTemplate(
+    templateName: string,
+    whatsappId: string,
+    session: UserSession,
+  ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
+    const template = await this.paymentTemplatesService.getTemplateByName(whatsappId, templateName);
+    if (!template) {
+      return `❌ Template "${templateName}" not found.
+
+Type \`templates\` to see your saved templates.`;
+    }
+
+    // Update template usage
+    await this.paymentTemplatesService.useTemplate(whatsappId, template.id);
+
+    // Create send command from template
+    const sendCommand: ParsedCommand = {
+      type: CommandType.SEND,
+      args: {
+        amount: template.amount.toString(),
+        username: template.recipient,
+        memo: template.memo || '',
+      },
+      rawText: `send ${template.amount} to ${template.recipient}`,
+    };
+
+    // Execute the payment
+    const result = await this.handleSendCommand(sendCommand, whatsappId, session);
+    
+    // If payment succeeded, add template info to response
+    if (typeof result === 'string' && result.includes('✅')) {
+      return result + `\n\n📝 Used template: *${templateName}*`;
+    }
+
+    // Handle voice response objects
+    if (typeof result === 'object' && 'text' in result && result.text.includes('✅')) {
+      return {
+        ...result,
+        text: result.text + `\n\n📝 Used template: *${templateName}*`,
+      };
+    }
+
+    return result;
   }
 }

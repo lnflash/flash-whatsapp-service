@@ -243,4 +243,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   hashKey(prefix: string, identifier: string): string {
     return `${prefix}:${this.cryptoService.hash(identifier)}`;
   }
+
+  /**
+   * Get Redis info
+   */
+  async info(): Promise<string> {
+    return this.redisClient.info();
+  }
 }

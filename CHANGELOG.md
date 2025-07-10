@@ -28,6 +28,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Voice-only payment notifications for recipients
 - Automatic 'voice on' mode activation for payment recipients
 - sendVoiceMessage method in WhatsAppWebService for audio delivery
+- Admin default voice settings with `admin voice default [name]`
+- Interactive onboarding flow with progress indicators
+- Contextual help system that detects user confusion patterns
+- `undo` command for transaction reversal within 30 seconds
+- Payment templates with `template add/remove/list` commands
+- Quick template payments with `pay [template_name]`
+- Admin analytics dashboard with `admin analytics daily/weekly`
+- Transaction logging for analytics and reporting
+- User activity tracking for insights
+- System health metrics in analytics reports
+- `skip onboarding` command for experienced users
 
 ### Removed
 - Hardcoded voice selection (voice 1/2/3) replaced by dynamic voice management

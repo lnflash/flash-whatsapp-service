@@ -26,6 +26,11 @@ import { PaymentConfirmationService } from './payment-confirmation.service';
 import { UserVoiceSettingsService } from './user-voice-settings.service';
 import { VoiceResponseService } from './voice-response.service';
 import { VoiceManagementService } from './voice-management.service';
+import { OnboardingService } from './onboarding.service';
+import { ContextualHelpService } from './contextual-help.service';
+import { UndoTransactionService } from './undo-transaction.service';
+import { PaymentTemplatesService } from './payment-templates.service';
+import { AdminAnalyticsService } from './admin-analytics.service';
 import { PaymentSendResult, WalletCurrency } from '../../flash-api/services/payment.service';
 
 describe('WhatsappService', () => {
@@ -266,6 +271,61 @@ describe('WhatsappService', () => {
             getVoiceId: jest.fn(),
             voiceExists: jest.fn(),
             formatVoiceList: jest.fn(),
+          },
+        },
+        {
+          provide: OnboardingService,
+          useValue: {
+            getUserProgress: jest.fn().mockResolvedValue({
+              currentStep: 'welcome',
+              completedSteps: [],
+              isComplete: false,
+            }),
+            completeStep: jest.fn(),
+            getNextStep: jest.fn(),
+            skipOnboarding: jest.fn(),
+            getProgressMessage: jest.fn(),
+          },
+        },
+        {
+          provide: ContextualHelpService,
+          useValue: {
+            checkForConfusion: jest.fn().mockResolvedValue(null),
+            logActivity: jest.fn(),
+            clearUserActivity: jest.fn(),
+          },
+        },
+        {
+          provide: UndoTransactionService,
+          useValue: {
+            storeUndoableTransaction: jest.fn(),
+            undoTransaction: jest.fn().mockResolvedValue({
+              success: false,
+              message: 'No recent transactions to undo.',
+            }),
+            getUndoableTransaction: jest.fn(),
+          },
+        },
+        {
+          provide: PaymentTemplatesService,
+          useValue: {
+            createTemplate: jest.fn(),
+            removeTemplate: jest.fn(),
+            listTemplates: jest.fn().mockResolvedValue([]),
+            getTemplateByName: jest.fn(),
+            formatTemplatesList: jest.fn(),
+          },
+        },
+        {
+          provide: AdminAnalyticsService,
+          useValue: {
+            logTransaction: jest.fn(),
+            logUserActivity: jest.fn(),
+            getDailyTransactionSummary: jest.fn(),
+            getWeeklyTransactionSummary: jest.fn(),
+            getUserActivityInsights: jest.fn(),
+            getSystemHealthMetrics: jest.fn(),
+            formatAnalyticsReport: jest.fn(),
           },
         },
       ],
