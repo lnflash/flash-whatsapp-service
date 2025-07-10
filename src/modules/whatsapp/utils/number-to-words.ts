@@ -33,48 +33,68 @@ function convertHundreds(num: number): string {
 
   // Handle tens and ones
   const remainder = num % 100;
-  if (remainder >= 20) {
-    const tensDigit = Math.floor(remainder / 10);
-    const onesDigit = remainder % 10;
-    result.push(tens[tensDigit]);
-    if (onesDigit > 0) {
-      result.push(ones[onesDigit]);
+  if (remainder > 0) {
+    // Add "and" after hundreds when there's a remainder
+    if (hundreds > 0) {
+      result.push('and');
     }
-  } else if (remainder >= 10) {
-    result.push(teens[remainder - 10]);
-  } else if (remainder > 0) {
-    result.push(ones[remainder]);
+    
+    if (remainder >= 20) {
+      const tensDigit = Math.floor(remainder / 10);
+      const onesDigit = remainder % 10;
+      if (onesDigit > 0) {
+        result.push(tens[tensDigit] + '-' + ones[onesDigit]);
+      } else {
+        result.push(tens[tensDigit]);
+      }
+    } else if (remainder >= 10) {
+      result.push(teens[remainder - 10]);
+    } else {
+      result.push(ones[remainder]);
+    }
   }
 
   return result.join(' ');
 }
 
 /**
- * Convert a whole number to words
+ * Convert a whole number to words with proper formatting
  */
 function convertWholeNumber(num: number): string {
   if (num === 0) {
     return 'zero';
   }
 
-  const groups: string[] = [];
+  const groups: { value: string; scale: string }[] = [];
   let groupIndex = 0;
 
   while (num > 0) {
     const group = num % 1000;
     if (group > 0) {
       const groupWords = convertHundreds(group);
-      if (thousands[groupIndex]) {
-        groups.unshift(`${groupWords} ${thousands[groupIndex]}`);
-      } else {
-        groups.unshift(groupWords);
-      }
+      groups.unshift({
+        value: groupWords,
+        scale: thousands[groupIndex],
+      });
     }
     num = Math.floor(num / 1000);
     groupIndex++;
   }
 
-  return groups.join(' ');
+  // Reconstruct with proper commas and "and"
+  let result = '';
+  for (let i = 0; i < groups.length; i++) {
+    if (i > 0) {
+      result += ', ';
+    }
+    
+    result += groups[i].value;
+    if (groups[i].scale) {
+      result += ' ' + groups[i].scale;
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -129,24 +149,49 @@ export function convertCurrencyToWords(
       result += ' and ';
     }
 
+    // Convert cents to words
     if (cents === 1) {
       result += 'one cent';
-    } else if (cents < 10) {
-      result += `${ones[cents]} cents`;
-    } else if (cents < 20) {
-      result += `${teens[cents - 10]} cents`;
     } else {
-      const tensDigit = Math.floor(cents / 10);
-      const onesDigit = cents % 10;
-      result += tens[tensDigit];
-      if (onesDigit > 0) {
-        result += ` ${ones[onesDigit]}`;
-      }
-      result += ' cents';
+      // Convert cents number to words
+      const centsWords = convertCentsToWords(cents);
+      result += centsWords + (cents === 1 ? ' cent' : ' cents');
     }
   }
 
   return result.trim();
+}
+
+/**
+ * Convert cents (0-99) to words
+ */
+function convertCentsToWords(cents: number): string {
+  if (cents < 10) {
+    return ones[cents];
+  } else if (cents < 20) {
+    return teens[cents - 10];
+  } else {
+    const tensDigit = Math.floor(cents / 10);
+    const onesDigit = cents % 10;
+    let result = tens[tensDigit];
+    if (onesDigit > 0) {
+      result += '-' + ones[onesDigit]; // Use hyphen for compound numbers
+    }
+    return result;
+  }
+}
+
+/**
+ * Format currency with commas for display
+ */
+export function formatCurrencyWithCommas(amount: number | string): string {
+  const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  if (isNaN(numAmount)) {
+    return amount.toString();
+  }
+  
+  // Format with commas and 2 decimal places
+  return '$' + numAmount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 /**
@@ -157,8 +202,16 @@ export function convertCurrencyToWords(
 export function convertNumbersInText(text: string): string {
   let converted = text;
 
-  // Convert currency amounts (e.g., "10.50 dollars", "$10.50", "10 USD")
-  converted = converted.replace(/\$(\d+(?:\.\d{1,2})?)\b/g, (match, amount) => {
+  // Convert currency amounts with proper formatting
+  // Match $X,XXX.XX or $X.XX patterns
+  converted = converted.replace(/\$(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/g, (match, amount) => {
+    // Remove commas before converting
+    const cleanAmount = amount.replace(/,/g, '');
+    return convertCurrencyToWords(cleanAmount, 'dollars');
+  });
+
+  // Also match simple $XX patterns without decimals
+  converted = converted.replace(/\$(\d+)\b/g, (match, amount) => {
     return convertCurrencyToWords(amount, 'dollars');
   });
 

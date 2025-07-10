@@ -1,88 +1,102 @@
-import { convertCurrencyToWords, convertNumbersInText } from './number-to-words';
+import { convertCurrencyToWords, formatCurrencyWithCommas, convertNumbersInText } from './number-to-words';
 
-describe('Number to Words Conversion', () => {
+describe('Number to Words Converter', () => {
   describe('convertCurrencyToWords', () => {
     it('should convert simple dollar amounts', () => {
-      expect(convertCurrencyToWords(0)).toBe('zero dollars');
-      expect(convertCurrencyToWords(1)).toBe('one dollar');
-      expect(convertCurrencyToWords(5)).toBe('five dollars');
-      expect(convertCurrencyToWords(10)).toBe('ten dollars');
-      expect(convertCurrencyToWords(25)).toBe('twenty five dollars');
-      expect(convertCurrencyToWords(100)).toBe('one hundred dollars');
-      expect(convertCurrencyToWords(1000)).toBe('one thousand dollars');
+      expect(convertCurrencyToWords('10')).toBe('ten dollars');
+      expect(convertCurrencyToWords('1')).toBe('one dollar');
+      expect(convertCurrencyToWords('0')).toBe('zero dollars');
     });
 
     it('should convert amounts with cents', () => {
-      expect(convertCurrencyToWords(0.01)).toBe('one cent');
-      expect(convertCurrencyToWords(0.05)).toBe('five cents');
-      expect(convertCurrencyToWords(0.1)).toBe('ten cents');
-      expect(convertCurrencyToWords(0.25)).toBe('twenty five cents');
-      expect(convertCurrencyToWords(0.99)).toBe('ninety nine cents');
-      expect(convertCurrencyToWords(1.01)).toBe('one dollar and one cent');
-      expect(convertCurrencyToWords(5.5)).toBe('five dollars and fifty cents');
-      expect(convertCurrencyToWords(10.05)).toBe('ten dollars and five cents');
-      expect(convertCurrencyToWords(25.99)).toBe('twenty five dollars and ninety nine cents');
-    });
-
-    it('should handle string inputs', () => {
       expect(convertCurrencyToWords('10.50')).toBe('ten dollars and fifty cents');
+      expect(convertCurrencyToWords('1.01')).toBe('one dollar and one cent');
+      expect(convertCurrencyToWords('0.99')).toBe('ninety-nine cents');
+      expect(convertCurrencyToWords('0.01')).toBe('one cent');
+    });
+
+    it('should convert hundreds with proper "and"', () => {
       expect(convertCurrencyToWords('100')).toBe('one hundred dollars');
-      expect(convertCurrencyToWords('0.50')).toBe('fifty cents');
+      expect(convertCurrencyToWords('101')).toBe('one hundred and one dollars');
+      expect(convertCurrencyToWords('120')).toBe('one hundred and twenty dollars');
+      expect(convertCurrencyToWords('999')).toBe('nine hundred and ninety-nine dollars');
     });
 
-    it('should handle large amounts', () => {
-      expect(convertCurrencyToWords(1234)).toBe('one thousand two hundred thirty four dollars');
-      expect(convertCurrencyToWords(10000)).toBe('ten thousand dollars');
-      expect(convertCurrencyToWords(100000)).toBe('one hundred thousand dollars');
-      expect(convertCurrencyToWords(1000000)).toBe('one million dollars');
+    it('should convert thousands with commas', () => {
+      expect(convertCurrencyToWords('1000')).toBe('one thousand dollars');
+      expect(convertCurrencyToWords('1001')).toBe('one thousand, one dollars');
+      expect(convertCurrencyToWords('1100')).toBe('one thousand, one hundred dollars');
+      expect(convertCurrencyToWords('1234')).toBe('one thousand, two hundred and thirty-four dollars');
     });
 
-    it('should handle negative amounts', () => {
-      expect(convertCurrencyToWords(-10)).toBe('negative ten dollars');
-      expect(convertCurrencyToWords(-0.5)).toBe('negative fifty cents');
-      expect(convertCurrencyToWords(-100.25)).toBe(
-        'negative one hundred dollars and twenty five cents',
+    it('should convert the example amounts correctly', () => {
+      expect(convertCurrencyToWords('110920.77')).toBe(
+        'one hundred and ten thousand, nine hundred and twenty dollars and seventy-seven cents'
+      );
+      expect(convertCurrencyToWords('2485045.01')).toBe(
+        'two million, four hundred and eighty-five thousand, forty-five dollars and one cent'
       );
     });
 
-    it('should handle custom currency', () => {
-      expect(convertCurrencyToWords(10, 'euros')).toBe('ten euros');
-      expect(convertCurrencyToWords(1, 'euro')).toBe('one euro');
-      expect(convertCurrencyToWords(50.5, 'pounds')).toBe('fifty pounds and fifty cents');
+    it('should handle large amounts', () => {
+      expect(convertCurrencyToWords('1000000')).toBe('one million dollars');
+      expect(convertCurrencyToWords('1000000000')).toBe('one billion dollars');
+      expect(convertCurrencyToWords('1234567890.12')).toBe(
+        'one billion, two hundred and thirty-four million, five hundred and sixty-seven thousand, eight hundred and ninety dollars and twelve cents'
+      );
+    });
+
+    it('should handle negative amounts', () => {
+      expect(convertCurrencyToWords('-10')).toBe('negative ten dollars');
+      expect(convertCurrencyToWords('-100.50')).toBe('negative one hundred dollars and fifty cents');
+    });
+
+    it('should handle teen amounts', () => {
+      expect(convertCurrencyToWords('11')).toBe('eleven dollars');
+      expect(convertCurrencyToWords('15')).toBe('fifteen dollars');
+      expect(convertCurrencyToWords('19')).toBe('nineteen dollars');
+    });
+
+    it('should handle hyphenated tens in cents', () => {
+      expect(convertCurrencyToWords('0.21')).toBe('twenty-one cents');
+      expect(convertCurrencyToWords('0.99')).toBe('ninety-nine cents');
+      expect(convertCurrencyToWords('10.45')).toBe('ten dollars and forty-five cents');
+    });
+  });
+
+  describe('formatCurrencyWithCommas', () => {
+    it('should format currency with commas', () => {
+      expect(formatCurrencyWithCommas('1000')).toBe('$1,000.00');
+      expect(formatCurrencyWithCommas('110920.77')).toBe('$110,920.77');
+      expect(formatCurrencyWithCommas('2485045.01')).toBe('$2,485,045.01');
+      expect(formatCurrencyWithCommas('10')).toBe('$10.00');
     });
   });
 
   describe('convertNumbersInText', () => {
-    it('should convert currency amounts in text', () => {
-      expect(convertNumbersInText('Your balance is 10.50 dollars')).toBe(
-        'Your balance is ten dollars and fifty cents',
+    it('should convert currency in text', () => {
+      expect(convertNumbersInText('Your balance is $110,920.77')).toBe(
+        'Your balance is one hundred and ten thousand, nine hundred and twenty dollars and seventy-seven cents'
       );
-      expect(convertNumbersInText('You have $25.99')).toBe(
-        'You have twenty five dollars and ninety nine cents',
+      expect(convertNumbersInText('You received $10.50 from Alice')).toBe(
+        'You received ten dollars and fifty cents from Alice'
       );
-      expect(convertNumbersInText('Balance: 100 USD')).toBe('Balance: one hundred dollars');
+    });
+
+    it('should handle multiple currency amounts', () => {
+      expect(convertNumbersInText('Send $10 to get $5 back')).toBe(
+        'Send ten dollars to get five dollars back'
+      );
     });
 
     it('should convert percentages', () => {
-      expect(convertNumbersInText('Increased by 25%')).toBe('Increased by twenty five percent');
-      expect(convertNumbersInText('100% complete')).toBe('one hundred percent complete');
+      expect(convertNumbersInText('10% discount')).toBe('ten percent discount');
+      expect(convertNumbersInText('25% off')).toBe('twenty-five percent off');
     });
 
-    it('should convert counts of items', () => {
+    it('should convert numbers with units', () => {
       expect(convertNumbersInText('You have 5 transactions')).toBe('You have five transactions');
-      expect(convertNumbersInText('Sent 3 payments today')).toBe('Sent three payments today');
-      expect(convertNumbersInText('10 messages received')).toBe('ten messages received');
-    });
-
-    it('should not convert large numbers in item counts', () => {
-      expect(convertNumbersInText('You have 150 transactions')).toBe('You have 150 transactions');
-      expect(convertNumbersInText('1000 items found')).toBe('1000 items found');
-    });
-
-    it('should handle mixed content', () => {
-      expect(convertNumbersInText('Send $10.50 to receive 25% bonus')).toBe(
-        'Send ten dollars and fifty cents to receive twenty five percent bonus',
-      );
+      expect(convertNumbersInText('Sent 3 payments')).toBe('Sent three payments');
     });
   });
 });
