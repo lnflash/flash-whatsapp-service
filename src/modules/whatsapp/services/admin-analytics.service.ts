@@ -57,7 +57,7 @@ export class AdminAnalyticsService {
     try {
       const date = new Date();
       const dayKey = `${this.TRANSACTION_LOG_PREFIX}${date.toISOString().split('T')[0]}`;
-      
+
       const transaction = {
         userId,
         amount,
@@ -85,7 +85,7 @@ export class AdminAnalyticsService {
     try {
       const date = new Date();
       const dayKey = `${this.USER_ACTIVITY_PREFIX}${date.toISOString().split('T')[0]}`;
-      
+
       const activityLog = {
         userId,
         activity,
@@ -114,12 +114,24 @@ export class AdminAnalyticsService {
     try {
       const targetDate = date || new Date();
       const dayKey = `${this.TRANSACTION_LOG_PREFIX}${targetDate.toISOString().split('T')[0]}`;
-      
+
       const data = await this.redisService.get(dayKey);
       if (!data) {
         return {
-          sent: { totalAmount: 0, totalCount: 0, averageAmount: 0, largestTransaction: 0, type: 'sent' },
-          received: { totalAmount: 0, totalCount: 0, averageAmount: 0, largestTransaction: 0, type: 'received' },
+          sent: {
+            totalAmount: 0,
+            totalCount: 0,
+            averageAmount: 0,
+            largestTransaction: 0,
+            type: 'sent',
+          },
+          received: {
+            totalAmount: 0,
+            totalCount: 0,
+            averageAmount: 0,
+            largestTransaction: 0,
+            type: 'received',
+          },
           netFlow: 0,
         };
       }
@@ -131,7 +143,10 @@ export class AdminAnalyticsService {
       const sentSummary: TransactionSummary = {
         totalAmount: sent.reduce((sum: number, t: any) => sum + t.amount, 0),
         totalCount: sent.length,
-        averageAmount: sent.length > 0 ? sent.reduce((sum: number, t: any) => sum + t.amount, 0) / sent.length : 0,
+        averageAmount:
+          sent.length > 0
+            ? sent.reduce((sum: number, t: any) => sum + t.amount, 0) / sent.length
+            : 0,
         largestTransaction: sent.length > 0 ? Math.max(...sent.map((t: any) => t.amount)) : 0,
         type: 'sent',
       };
@@ -139,8 +154,12 @@ export class AdminAnalyticsService {
       const receivedSummary: TransactionSummary = {
         totalAmount: received.reduce((sum: number, t: any) => sum + t.amount, 0),
         totalCount: received.length,
-        averageAmount: received.length > 0 ? received.reduce((sum: number, t: any) => sum + t.amount, 0) / received.length : 0,
-        largestTransaction: received.length > 0 ? Math.max(...received.map((t: any) => t.amount)) : 0,
+        averageAmount:
+          received.length > 0
+            ? received.reduce((sum: number, t: any) => sum + t.amount, 0) / received.length
+            : 0,
+        largestTransaction:
+          received.length > 0 ? Math.max(...received.map((t: any) => t.amount)) : 0,
         type: 'received',
       };
 
@@ -158,11 +177,13 @@ export class AdminAnalyticsService {
   /**
    * Get weekly transaction summary
    */
-  async getWeeklyTransactionSummary(): Promise<Array<{
-    date: string;
-    sent: TransactionSummary;
-    received: TransactionSummary;
-  }>> {
+  async getWeeklyTransactionSummary(): Promise<
+    Array<{
+      date: string;
+      sent: TransactionSummary;
+      received: TransactionSummary;
+    }>
+  > {
     try {
       const summaries = [];
       const today = new Date();
@@ -170,7 +191,7 @@ export class AdminAnalyticsService {
       for (let i = 0; i < 7; i++) {
         const date = new Date(today);
         date.setDate(date.getDate() - i);
-        
+
         const summary = await this.getDailyTransactionSummary(date);
         summaries.push({
           date: date.toISOString().split('T')[0],
@@ -212,7 +233,7 @@ export class AdminAnalyticsService {
 
       // Get top users by transaction count and volume
       const userStats = new Map<string, { count: number; volume: number }>();
-      
+
       for (const tx of transactions) {
         if (!userStats.has(tx.userId)) {
           userStats.set(tx.userId, { count: 0, volume: 0 });
@@ -233,7 +254,8 @@ export class AdminAnalyticsService {
             try {
               const session = await this.sessionService.getSession(userId);
               if (session?.flashAuthToken) {
-                username = await this.usernameService.getUsername(session.flashAuthToken) || 'Unknown';
+                username =
+                  (await this.usernameService.getUsername(session.flashAuthToken)) || 'Unknown';
               }
             } catch (error) {
               // Ignore username fetch errors
@@ -244,7 +266,7 @@ export class AdminAnalyticsService {
               transactionCount: stats.count,
               volume: stats.volume,
             };
-          })
+          }),
       );
 
       return {
@@ -267,7 +289,7 @@ export class AdminAnalyticsService {
       // Get total users
       const sessions = await this.sessionService.getAllSessions();
       const totalUsers = sessions.length;
-      const linkedUsers = sessions.filter(s => s.isVerified).length;
+      const linkedUsers = sessions.filter((s) => s.isVerified).length;
 
       // Count pending payments
       const pendingKeys = await this.redisService.keys('pending_payment:*');
@@ -278,7 +300,9 @@ export class AdminAnalyticsService {
       const dayKey = `${this.USER_ACTIVITY_PREFIX}${today.toISOString().split('T')[0]}`;
       const activityData = await this.redisService.get(dayKey);
       const activities = activityData ? JSON.parse(activityData) : [];
-      const failedTransactions = activities.filter((a: any) => a.activity === 'transaction_failed').length;
+      const failedTransactions = activities.filter(
+        (a: any) => a.activity === 'transaction_failed',
+      ).length;
 
       // Calculate uptime (simplified - time since last restart)
       const uptimeMs = process.uptime() * 1000;
@@ -343,13 +367,13 @@ export class AdminAnalyticsService {
       } else {
         // Weekly report
         const weekly = await this.getWeeklyTransactionSummary();
-        
+
         let totalSent = 0;
         let totalReceived = 0;
         let totalTxCount = 0;
 
         report += `📈 *7-Day Trend*\n`;
-        weekly.forEach(day => {
+        weekly.forEach((day) => {
           const netFlow = day.received.totalAmount - day.sent.totalAmount;
           report += `• ${day.date}: ${netFlow >= 0 ? '🟢' : '🔴'} $${Math.abs(netFlow).toFixed(2)}\n`;
           totalSent += day.sent.totalAmount;

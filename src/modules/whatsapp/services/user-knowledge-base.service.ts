@@ -88,10 +88,7 @@ export class UserKnowledgeBaseService {
   /**
    * Get knowledge entries by category
    */
-  async getUserKnowledgeByCategory(
-    whatsappId: string,
-    category: string,
-  ): Promise<UserKnowledge[]> {
+  async getUserKnowledgeByCategory(whatsappId: string, category: string): Promise<UserKnowledge[]> {
     try {
       const categoryKey = `${this.KNOWLEDGE_PREFIX}:${whatsappId}:category:${category}`;
       const knowledgeIds = await this.redisService.getSetMembers(categoryKey);

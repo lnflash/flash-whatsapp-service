@@ -48,6 +48,7 @@ import { PaymentTemplatesService } from './payment-templates.service';
 import { AdminAnalyticsService } from './admin-analytics.service';
 import { UserKnowledgeBaseService } from './user-knowledge-base.service';
 import { RandomQuestionService } from './random-question.service';
+import { PluginLoaderService, CommandContext } from '../../plugins';
 // import { WhatsAppCloudService } from './whatsapp-cloud.service'; // Disabled for prototype branch
 
 @Injectable()
@@ -86,6 +87,7 @@ export class WhatsappService {
     private readonly adminAnalyticsService: AdminAnalyticsService,
     private readonly userKnowledgeBaseService: UserKnowledgeBaseService,
     private readonly randomQuestionService: RandomQuestionService,
+    private readonly pluginLoaderService: PluginLoaderService,
     // private readonly whatsAppCloudService: WhatsAppCloudService, // Disabled for prototype branch
     @Inject(forwardRef(() => WhatsAppWebService))
     private readonly whatsappWebService?: WhatsAppWebService,
@@ -157,15 +159,15 @@ export class WhatsappService {
           messageData.text,
           pendingQuestion.category,
         );
-        
+
         await this.randomQuestionService.clearPendingQuestion(whatsappId);
-        
+
         let response = `✅ Thanks for teaching me! I've stored your answer.\n\n`;
         if (pendingQuestion.followUp) {
           response += `${pendingQuestion.followUp}\n\n`;
         }
         response += `💡 Type "learn" for another question or view your knowledge anytime.`;
-        
+
         return response;
       }
 
@@ -246,12 +248,15 @@ export class WhatsappService {
 
         // Add subtle onboarding hint if applicable (but not for help command)
         if (command.type !== CommandType.HELP) {
-          const onboardingHint = await this.onboardingService.getContextualHint(whatsappId, session);
+          const onboardingHint = await this.onboardingService.getContextualHint(
+            whatsappId,
+            session,
+          );
           if (onboardingHint) {
             finalText += onboardingHint;
           }
         }
-        
+
         // Check for onboarding completion celebration
         const completionMessage = await this.onboardingService.getCompletionMessage(whatsappId);
         if (completionMessage) {
@@ -546,6 +551,18 @@ export class WhatsappService {
 
         case CommandType.UNKNOWN:
         default: {
+          // Try plugin commands first for unknown commands
+          if (command.type === CommandType.UNKNOWN) {
+            const pluginResponse = await this.tryPluginCommand(
+              command,
+              whatsappId,
+              phoneNumber,
+              session,
+            );
+            if (pluginResponse) {
+              return pluginResponse;
+            }
+          }
           // Check if this might be a Flash username response to pending send
           const pendingSendKey = `pending_send:${whatsappId}`;
           const pendingSendData = await this.redisService.get(pendingSendKey);
@@ -4844,8 +4861,10 @@ ${voiceList}`;
           if (!['daily', 'weekly'].includes(period)) {
             return '❌ Invalid period. Use: `admin analytics daily` or `admin analytics weekly`';
           }
-          
-          const report = await this.adminAnalyticsService.formatAnalyticsReport(period as 'daily' | 'weekly');
+
+          const report = await this.adminAnalyticsService.formatAnalyticsReport(
+            period as 'daily' | 'weekly',
+          );
           return report;
         }
 
@@ -5341,7 +5360,7 @@ Type \`templates\` to see your saved templates.`;
 
     // Execute the payment
     const result = await this.handleSendCommand(sendCommand, whatsappId, session);
-    
+
     // If payment succeeded, add template info to response
     if (typeof result === 'string' && result.includes('✅')) {
       return result + `\n\n📝 Used template: *${templateName}*`;
@@ -5378,7 +5397,6 @@ Type \`templates\` to see your saved templates.`;
           }
           return this.randomQuestionService.formatQuestion(question);
         }
-
 
         case 'category': {
           const category = command.args.query;
@@ -5463,6 +5481,86 @@ Type \`templates\` to see your saved templates.`;
     } catch (error) {
       this.logger.error('Error handling learn command:', error);
       return '❌ Something went wrong with the learning feature. Please try again.';
+    }
+  }
+
+  /**
+   * Try to handle command through plugin system
+   */
+  private async tryPluginCommand(
+    command: ParsedCommand,
+    whatsappId: string,
+    phoneNumber: string,
+    session: UserSession | null,
+  ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean } | null> {
+    try {
+      // Build command context for plugins
+      const context: CommandContext = {
+        userId: whatsappId,
+        phoneNumber,
+        isAuthenticated: !!session,
+        username: session?.flashAuthToken ? (await this.usernameService.getUsername(session.flashAuthToken)) || undefined : undefined,
+        isGroup: false, // TODO: Add group support
+        voiceMode: (await this.userVoiceSettingsService.getUserVoiceMode(whatsappId)) || undefined,
+        selectedVoice: (await this.userVoiceSettingsService.getUserVoice(whatsappId)) || undefined,
+      };
+
+      // Try to execute command through plugin system
+      const pluginResponse = await this.pluginLoaderService.executeCommand(
+        command.rawText,
+        context,
+      );
+
+      if (!pluginResponse) {
+        return null;
+      }
+
+      // Handle plugin response
+      if (pluginResponse.error?.showToUser) {
+        return pluginResponse.error.message;
+      }
+
+      // Format response
+      let response: string | { text: string; voice?: Buffer; voiceOnly?: boolean } =
+        pluginResponse.text || '✅ Command executed successfully';
+
+      // Handle voice response if needed
+      if (pluginResponse.voiceText && context.voiceMode !== 'off') {
+        const shouldUseVoice = await this.ttsService.shouldUseVoice(
+          command.rawText,
+          command.args.isVoiceCommand === 'true',
+          whatsappId,
+        );
+
+        if (shouldUseVoice) {
+          const audioBuffer = await this.ttsService.textToSpeech(
+            pluginResponse.voiceText,
+            'en',
+            whatsappId,
+          );
+
+          const shouldSendVoiceOnly = await this.ttsService.shouldSendVoiceOnly(whatsappId);
+
+          response = {
+            text: shouldSendVoiceOnly ? '' : pluginResponse.text || '',
+            voice: audioBuffer,
+            voiceOnly: shouldSendVoiceOnly,
+          };
+        }
+      }
+
+      // Handle follow-up actions
+      if (pluginResponse.followUp) {
+        setTimeout(() => {
+          // TODO: Implement follow-up action handling
+          this.logger.debug('Follow-up action requested:', pluginResponse.followUp);
+        }, pluginResponse.followUp.delay);
+      }
+
+      return response;
+    } catch (error) {
+      this.logger.error('Error handling plugin command:', error);
+      return null;
     }
   }
 }

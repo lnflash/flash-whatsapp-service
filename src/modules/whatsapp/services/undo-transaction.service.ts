@@ -111,7 +111,7 @@ export class UndoTransactionService {
       if (transaction.type === 'send' && transaction.recipient) {
         // Create a reversal payment from recipient back to sender
         const reversalMemo = `Undo: ${transaction.memo || 'payment reversal'}`;
-        
+
         try {
           // Note: This would require recipient's consent in a real implementation
           // For now, we'll return a message about the limitation

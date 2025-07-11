@@ -85,7 +85,10 @@ export class CommandParserService {
     { type: CommandType.UNDO, pattern: /^undo$/i },
     { type: CommandType.TEMPLATE, pattern: /^template(?:\s+(add|remove|list))?(?:\s+(.+))?$/i },
     { type: CommandType.SKIP, pattern: /^skip(?:\s+(?:onboarding|tutorial|intro))?$/i },
-    { type: CommandType.LEARN, pattern: /^learn(?:\s+(category|delete|stats|reset))?(?:\s+(.+))?$/i },
+    {
+      type: CommandType.LEARN,
+      pattern: /^learn(?:\s+(category|delete|stats|reset))?(?:\s+(.+))?$/i,
+    },
   ];
 
   /**
@@ -1366,7 +1369,9 @@ export class CommandParserService {
             const remainingText = match[2].trim();
             if (args.action === 'add') {
               // template add [name] [amount] to [recipient] "[memo]"
-              const addMatch = remainingText.match(/^(\w+)\s+(\d+(?:\.\d+)?)\s+to\s+(\w+)(?:\s+"([^"]+)")?/);
+              const addMatch = remainingText.match(
+                /^(\w+)\s+(\d+(?:\.\d+)?)\s+to\s+(\w+)(?:\s+"([^"]+)")?/,
+              );
               if (addMatch) {
                 args.name = addMatch[1];
                 args.amount = addMatch[2];
