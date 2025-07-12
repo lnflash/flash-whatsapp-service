@@ -272,6 +272,12 @@ export class CommandParserService {
   private parseNaturalLanguage(text: string): ParsedCommand {
     const lowerText = text.toLowerCase();
 
+    // Check for instructional questions FIRST before any command patterns
+    const instructionalQuestion = this.parseInstructionalQuestion(text);
+    if (instructionalQuestion.type !== CommandType.UNKNOWN) {
+      return instructionalQuestion;
+    }
+
     // Balance variations
     if (
       lowerText.includes('check my balance') ||
@@ -1167,12 +1173,6 @@ export class CommandParserService {
       lowerText.includes('my answers')
     ) {
       return { type: CommandType.LEARN, args: {}, rawText: text };
-    }
-    
-    // Check for instructional questions last, after all specific commands
-    const instructionalQuestion = this.parseInstructionalQuestion(text);
-    if (instructionalQuestion.type !== CommandType.UNKNOWN) {
-      return instructionalQuestion;
     }
 
     return { type: CommandType.UNKNOWN, args: {}, rawText: text };
