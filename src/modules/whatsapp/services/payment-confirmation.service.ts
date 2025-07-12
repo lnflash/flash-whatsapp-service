@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { RedisService } from '../../redis/redis.service';
 import { ParsedCommand } from './command-parser.service';
+import { ResponseLengthUtil } from '../utils/response-length.util';
 
 export interface PendingPayment {
   command: ParsedCommand;
@@ -175,15 +176,15 @@ export class PaymentConfirmationService {
    */
   formatPaymentErrorForVoice(error: string): string {
     if (error.includes('balance') || error.includes('Insufficient')) {
-      return "Payment failed. You don't have enough balance. Try adding funds to your account.";
+      return ResponseLengthUtil.getConciseResponse('insufficient_balance');
     } else if (error.includes('not found') || error.includes('Username')) {
-      return 'Payment failed. The recipient was not found. Please check the username and try again.';
+      return ResponseLengthUtil.getConciseResponse('user_not_found');
     } else if (error.includes('limit')) {
-      return "Payment failed. You've reached your transaction limit. Please wait or contact support.";
+      return 'Payment failed. Transaction limit reached.';
     } else if (error.includes('inactive') || error.includes('restricted')) {
-      return "Payment failed. There's an account restriction. Please contact support for help.";
+      return 'Payment failed. Account restricted.';
     }
 
-    return 'Payment failed. Something went wrong. Please try again later.';
+    return ResponseLengthUtil.getConciseResponse('error');
   }
 }

@@ -38,7 +38,7 @@ export class GeminiAiService {
             temperature: 0.7,
             topP: 0.8,
             topK: 40,
-            maxOutputTokens: 1024, // Increased from 100 to prevent message truncation
+            maxOutputTokens: 200, // Reduced to encourage shorter responses
           },
           safetySettings: [
             {
@@ -157,6 +157,14 @@ PERSONALITY & TONE:
 ${CONVERSATION_CONTEXT.personality.tone}
 Style: ${CONVERSATION_CONTEXT.personality.style}
 
+RESPONSE LENGTH REQUIREMENTS:
+- Keep responses VERY CONCISE - aim for 2-3 sentences maximum
+- Text responses: Maximum 630 characters (including spaces)
+- Voice responses: Maximum 21 seconds when spoken (about 50 words)
+- Get to the point immediately without lengthy explanations
+- Use short, simple sentences
+- Avoid repetition and filler words
+
 IMPORTANT RULES:
 ${CONVERSATION_CONTEXT.important_rules.map((rule) => `- ${rule}`).join('\n')}
 ${voiceModeInstructions}
@@ -186,14 +194,14 @@ USER QUERY: ${query}
 Instructions:
 1. Answer the user's question directly and helpfully
 2. If they're trying to use a command that requires authentication and they're not linked, guide them to link first
-3. For the "receive" command, ALWAYS remind users it's USD only (not BTC)
-4. Prioritize CLARITY and UNDERSTANDING - provide complete explanations
-5. Be helpful and informative, explaining things clearly
+3. For the "receive" command, briefly mention USD only
+4. Be CONCISE - give only essential information
+5. Answer directly without lengthy explanations
 6. ${context.isVoiceMode ? 'Speak naturally - avoid technical jargon and command syntax' : 'For commands, show examples and explain what they do'}
 7. For typos like "sent" instead of "send", explain the correct usage
-8. Provide COMPLETE responses - do NOT truncate or cut off mid-sentence
-9. Responses can be as long as needed to fully answer the question
-10. For technical topics like Lightning Addresses, match the complexity level to the user's question
+8. Keep responses SHORT - maximum 2-3 sentences
+9. Text: max 630 chars, Voice: max 50 words
+10. Only include the most essential information
 
 Please provide a ${context.isVoiceMode ? 'natural, conversational' : 'clear, complete, and helpful'} response:`;
   }

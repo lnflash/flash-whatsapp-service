@@ -43,6 +43,7 @@ import { VoiceManagementService } from './voice-management.service';
 import { convertCurrencyToWords } from '../utils/number-to-words';
 import { OnboardingService } from './onboarding.service';
 import { ContextualHelpService } from './contextual-help.service';
+import { ResponseLengthUtil } from '../utils/response-length.util';
 import { UndoTransactionService } from './undo-transaction.service';
 import { PaymentTemplatesService } from './payment-templates.service';
 import { AdminAnalyticsService } from './admin-analytics.service';
@@ -421,7 +422,7 @@ export class WhatsappService {
         } else if (this.paymentConfirmationService.isCancellation(confirmText)) {
           // Cancel the pending payment
           await this.paymentConfirmationService.clearPendingPayment(whatsappId);
-          return '❌ Payment cancelled.';
+          return ResponseLengthUtil.getConciseResponse('error');
         } else {
           // Show the pending payment details again
           const details = this.paymentConfirmationService.formatPaymentDetails(
@@ -445,7 +446,7 @@ export class WhatsappService {
             return `🔄 Amount updated!\n\n${updatedDetails}\n\n✅ Type "yes" or "ok" to confirm\n❌ Type "no" or "cancel" to cancel`;
           }
 
-          return `⏳ *Pending Payment*\n\n${details}\n\n✅ Type *yes*, *ok*, or *pay* to confirm\n❌ Type *no* or *cancel* to cancel\n✏️ Or enter a new amount (e.g., "25")`;
+          return `⏳ *Pending Payment*\n\n${details}\n\n✅ yes/ok to confirm\n❌ no/cancel to cancel\n✏️ Or enter new amount`;
         }
       }
 
@@ -891,7 +892,7 @@ _This limitation is due to WhatsApp's privacy features._`;
       }
 
       if (!session.isVerified || !session.flashUserId || !session.flashAuthToken) {
-        return 'Your account is not fully verified. Please complete the linking process first. Type "link" to start.';
+        return ResponseLengthUtil.getConciseResponse('not_linked');
       }
 
       // Skip MFA for WhatsApp since the user already authenticated
@@ -998,7 +999,7 @@ _This limitation is due to WhatsApp's privacy features._`;
       }
 
       if (!session.isVerified || !session.flashUserId || !session.flashAuthToken) {
-        return 'Your account is not fully verified. Please complete the linking process first. Type "link" to start.';
+        return ResponseLengthUtil.getConciseResponse('not_linked');
       }
 
       // Clear the balance cache
@@ -1077,7 +1078,7 @@ _This limitation is due to WhatsApp's privacy features._`;
       }
 
       if (!session.isVerified || !session.flashUserId || !session.flashAuthToken) {
-        return 'Your account is not fully verified. Please complete the linking process first. Type "link" to start.';
+        return ResponseLengthUtil.getConciseResponse('not_linked');
       }
 
       const newUsername = command.args.username;
@@ -1494,7 +1495,7 @@ Ready? Try \`balance\` to start!`;
       // Check if user has a linked account
       if (!session || !session.isVerified) {
         return {
-          text: 'Please link your Flash account first to receive payments. Type "link" to get started.',
+          text: ResponseLengthUtil.getConciseResponse('not_linked'),
         };
       }
 
@@ -2030,7 +2031,7 @@ Ready? Try \`balance\` to start!`;
           }
         } catch (error) {
           this.logger.error(`Lightning payment error: ${error.message}`);
-          return `❌ Payment failed: ${error.message}`;
+          return ResponseLengthUtil.getConciseResponse('error') + ' ' + error.message.substring(0, 50);
         }
       }
 
@@ -2513,7 +2514,7 @@ Ready? Try \`balance\` to start!`;
             }
           }
 
-          return `✅ Payment sent successfully!\n\n💰 $${amount.toFixed(2)} USD is waiting for ${recipientName}\n📱 They've been notified via WhatsApp\n🔑 Claim code: ${pendingPayment.claimCode}\n⏱️ Expires in 30 days\n\n${recipientName} will receive the money automatically when they create their Flash account.`;
+          return `✅ Sent $${amount.toFixed(2)} to ${recipientName}\n🔑 Code: ${pendingPayment.claimCode}\n⏱️ Expires: 30 days`;
         } catch (error) {
           this.logger.error(`Error creating pending payment: ${error.message}`, error.stack);
           return `❌ Failed to create pending payment. Please try again.`;
@@ -2649,7 +2650,7 @@ Ready? Try \`balance\` to start!`;
       });
 
       if (!txEdge) {
-        return `❌ Transaction #${transactionId} not found.\n\n💡 Tips:\n• Check the transaction ID\n• Try "history" to see recent transactions\n• Transaction might be too old`;
+        return `❌ Transaction #${transactionId} not found\n💡 Try "history" for recent transactions`;
       }
 
       // Format detailed transaction information
@@ -2698,7 +2699,7 @@ Ready? Try \`balance\` to start!`;
       // Check if user has a linked account
       if (!session || !session.isVerified || !session.flashAuthToken) {
         return {
-          text: 'Please link your Flash account first to request payments. Type "link" to get started.',
+          text: ResponseLengthUtil.getConciseResponse('not_linked'),
         };
       }
 
@@ -2895,7 +2896,7 @@ Ready? Try \`balance\` to start!`;
     try {
       // Check if user has a linked account
       if (!session || !session.isVerified) {
-        return 'Please link your Flash account first to manage contacts. Type "link" to get started.';
+        return ResponseLengthUtil.getConciseResponse('not_linked');
       }
 
       const action = command.args.action || 'list';
@@ -3228,9 +3229,9 @@ Ready? Try \`balance\` to start!`;
   ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
     let message: string;
     if (!session || !session.isVerified) {
-      message = `I didn't understand that. Type 'help' for commands.`;
+      message = ResponseLengthUtil.getConciseResponse('help_hint');
     } else {
-      message = `I didn't understand. Try 'help' or 'balance'.`;
+      message = ResponseLengthUtil.getConciseResponse('help_hint');
     }
 
     if (whatsappId) {
@@ -3508,12 +3509,15 @@ Ready? Try \`balance\` to start!`;
               );
             }
 
-            return `✅ Payment sent successfully!\n\nAmount: $${pendingRequest.amount.toFixed(2)} USD\nTo: @${pendingRequest.requesterUsername}\n\nThe payment has been confirmed.`;
+            return ResponseLengthUtil.getConciseResponse('payment_success', {
+              amount: pendingRequest.amount.toFixed(2),
+              recipient: `@${pendingRequest.requesterUsername}`
+            });
           } else if (result?.status === PaymentSendResult.AlreadyPaid) {
             await this.redisService.del(pendingRequestKey);
             return '❌ This payment request has already been paid.';
           } else {
-            return `❌ Payment failed: ${result?.errors?.[0]?.message || 'Unknown error'}`;
+            return ResponseLengthUtil.getConciseResponse('error') + ' ' + (result?.errors?.[0]?.message || 'Unknown error').substring(0, 50);
           }
         } catch (error) {
           this.logger.error(`Payment request error: ${error.message}`);
@@ -3633,11 +3637,11 @@ Ready? Try \`balance\` to start!`;
           } else if (result?.status === PaymentSendResult.AlreadyPaid) {
             return '❌ This invoice has already been paid.';
           } else {
-            return `❌ Payment failed: ${result?.errors?.[0]?.message || 'Unknown error'}`;
+            return ResponseLengthUtil.getConciseResponse('error') + ' ' + (result?.errors?.[0]?.message || 'Unknown error').substring(0, 50);
           }
         } catch (error) {
           this.logger.error(`Payment error: ${error.message}`);
-          return `❌ Payment failed: ${error.message}`;
+          return ResponseLengthUtil.getConciseResponse('error') + ' ' + error.message.substring(0, 50);
         }
       }
 
@@ -5015,7 +5019,7 @@ ${voiceList}`;
    * Get standardized "not linked" error message
    */
   private getNotLinkedMessage(): string {
-    return `Connect your Flash account to use this feature.\n\nType \`link\` to start.`;
+    return ResponseLengthUtil.getConciseResponse('not_linked');
   }
 
   /**

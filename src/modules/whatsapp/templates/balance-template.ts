@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { convertCurrencyToWords } from '../utils/number-to-words';
+import { ResponseLengthUtil } from '../utils/response-length.util';
 
 export interface BalanceTemplateData {
   btcBalance: number;
@@ -22,27 +23,20 @@ export class BalanceTemplate {
    * Generate a rich message template for balance information
    */
   generateBalanceMessage(data: BalanceTemplateData): string {
-    const greeting = data.userName ? `Hi ${data.userName}! ` : '';
-    const _btcFormatted = this.formatBitcoinAmount(data.btcBalance);
     const fiatFormatted = this.formatFiatAmount(data.fiatBalance, data.fiatCurrency);
-    const lastUpdated = this.formatDateTime(data.lastUpdated);
-
-    // Determine contextual tips based on balance
+    
+    // Use concise format
     let tip = '';
     if (data.fiatBalance === 0) {
-      tip = '\n\n💡 Tip: Start with "receive 10" to request your first payment';
+      tip = '\n💡 Type "receive" to add funds';
     } else if (data.fiatBalance < 5) {
-      tip = '\n\n💡 Low balance! Type "receive" to request more funds';
-    } else if (data.fiatBalance > 100) {
-      tip = '\n\n💡 Nice balance! Try "send 5 to [username]" to share the wealth';
+      tip = '\n💡 Low balance';
     }
 
-    return (
-      `${greeting}💰 *Your Flash Balance*\n\n` +
-      `${fiatFormatted}\n\n` +
-      `_Updated: ${lastUpdated}_` +
+    return ResponseLengthUtil.getConciseResponse('balance', {
+      fiatFormatted,
       tip
-    );
+    });
   }
 
   /**
@@ -53,25 +47,14 @@ export class BalanceTemplate {
     changeAmount: number,
     txType: 'received' | 'sent',
   ): string {
-    const _btcFormatted = this.formatBitcoinAmount(Math.abs(changeAmount));
     const isReceived = txType === 'received';
-
-    const transactionVerb = isReceived ? 'received' : 'sent';
-    const emoji = isReceived ? '🔵' : '🟠';
+    const emoji = isReceived ? '💸' : '✅';
 
     // Convert BTC change to approximate fiat for display
     const fiatChangeApprox = changeAmount * (data.fiatBalance / data.btcBalance);
-    const fiatChangeFormatted = this.formatFiatAmount(
-      Math.abs(fiatChangeApprox),
-      data.fiatCurrency,
-    );
+    const amount = Math.abs(fiatChangeApprox).toFixed(2);
 
-    return (
-      `${emoji} *Flash ${txType.charAt(0).toUpperCase() + txType.slice(1)} Transaction*\n\n` +
-      `You have ${transactionVerb} ${fiatChangeFormatted}\n\n` +
-      `Your new balance is:\n` +
-      `${this.formatFiatAmount(data.fiatBalance, data.fiatCurrency)}`
-    );
+    return `${emoji} ${txType === 'received' ? 'Received' : 'Sent'} $${amount}\nBalance: ${this.formatFiatAmount(data.fiatBalance, data.fiatCurrency)}`;
   }
 
   /**
@@ -112,23 +95,23 @@ export class BalanceTemplate {
    * Generate a voice-friendly balance message
    */
   generateVoiceBalanceMessage(data: BalanceTemplateData): string {
-    const greeting = data.userName ? `Hi ${data.userName}! ` : '';
     const amount = data.fiatBalance.toFixed(2);
     const currency = data.fiatCurrency === 'USD' ? 'dollars' : data.fiatCurrency;
 
     // Convert amount to natural speech
     const amountInWords = convertCurrencyToWords(amount, currency);
 
-    let message = `${greeting}Your Flash balance is ${amountInWords}.`;
+    let message = `Your balance is ${amountInWords}.`;
 
-    // Add contextual tips
+    // Add brief contextual tip
     if (data.fiatBalance === 0) {
-      message += ' Your balance is empty. To add funds, say "receive" followed by the amount.';
+      message += ' Say "receive" to add funds.';
     } else if (data.fiatBalance < 5) {
-      message += ' Your balance is getting low. You might want to add more funds.';
+      message += ' Low balance.';
     }
 
-    return message;
+    // Ensure it's within voice duration limit
+    return ResponseLengthUtil.shortenResponse(message, true);
   }
 
   /**

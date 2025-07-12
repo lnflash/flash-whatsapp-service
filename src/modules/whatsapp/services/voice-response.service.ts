@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ParsedCommand, CommandType } from './command-parser.service';
 import { convertCurrencyToWords, convertNumbersInText } from '../utils/number-to-words';
+import { ResponseLengthUtil } from '../utils/response-length.util';
 
 @Injectable()
 export class VoiceResponseService {
@@ -118,11 +119,11 @@ export class VoiceResponseService {
       const amountInWords = convertCurrencyToWords(amount);
 
       if (data.usdAmount === 0) {
-        return `${greeting}Your Flash balance is currently empty. To add funds, you can ask someone to send you money, or say "receive" followed by an amount to create a payment request.`;
+        return ResponseLengthUtil.shortenResponse(`${greeting}Your balance is empty. Say "receive" to add funds.`, true);
       } else if (data.usdAmount < 5) {
-        return `${greeting}Your Flash balance is ${amountInWords}. Your balance is getting a bit low. You might want to add more funds soon.`;
+        return ResponseLengthUtil.shortenResponse(`${greeting}Your balance is ${amountInWords}. Low balance.`, true);
       } else {
-        return `${greeting}Your Flash balance is ${amountInWords}.`;
+        return ResponseLengthUtil.shortenResponse(`${greeting}Your balance is ${amountInWords}.`, true);
       }
     }
 
@@ -137,7 +138,7 @@ export class VoiceResponseService {
       const amount = args?.amount || 'the payment';
       const amountInWords = amount !== 'the payment' ? convertCurrencyToWords(amount) : amount;
       const recipient = args?.username || args?.recipient || 'them';
-      return `Great! I've successfully sent ${amountInWords} to ${recipient}. The payment was instant and they should have received it already.`;
+      return ResponseLengthUtil.shortenResponse(`Sent ${amountInWords} to ${recipient}.`, true);
     } else if (data.isError) {
       if (data.originalResponse?.includes('Insufficient balance')) {
         return `Sorry, you don't have enough funds to complete this payment. Please check your balance first.`;
@@ -160,9 +161,9 @@ export class VoiceResponseService {
     if (data.isSuccess) {
       if (amount) {
         const amountInWords = convertCurrencyToWords(amount);
-        return `Perfect! I've created a payment request for ${amountInWords}. You can share this invoice with anyone, and they'll be able to pay you instantly through the Lightning Network.`;
+        return ResponseLengthUtil.shortenResponse(`Created payment request for ${amountInWords}.`, true);
       }
-      return `I've created your payment request. Share this invoice to receive payment instantly.`;
+      return ResponseLengthUtil.shortenResponse(`Payment request created.`, true);
     }
 
     return `Creating your payment request now. Remember, all amounts are in US dollars, not Bitcoin.`;
@@ -235,7 +236,7 @@ export class VoiceResponseService {
       return `To receive money, say "receive" followed by the amount you want. For example, "receive 20 dollars". This creates a payment request that you can share. You can also say "request" to ask someone specific for money.`;
     }
 
-    return `I can help you with many things! The main commands are: "balance" to check your money, "send" to pay someone, "receive" to get paid, and "history" to see your transactions. What would you like to do?`;
+    return ResponseLengthUtil.shortenResponse(`Say: balance, send, receive, or history.`, true);
   }
 
   /**

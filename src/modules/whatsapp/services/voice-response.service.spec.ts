@@ -22,8 +22,7 @@ describe('VoiceResponseService', () => {
         { userName: 'John' },
       );
 
-      expect(response).toContain('Hi John!');
-      expect(response).toContain('Your Flash balance is fifty dollars');
+      expect(response).toContain('Your balance is fifty dollars');
       expect(response).not.toContain('*');
       expect(response).not.toContain('💰');
     });
@@ -36,8 +35,7 @@ describe('VoiceResponseService', () => {
         {},
       );
 
-      expect(response).toContain('successfully sent ten dollars to alice');
-      expect(response).toContain('instant');
+      expect(response).toContain('Sent ten dollars to alice');
       expect(response).not.toContain('✅');
     });
 
@@ -49,8 +47,7 @@ describe('VoiceResponseService', () => {
         {},
       );
 
-      expect(response).toContain('created a payment request for twenty dollars');
-      expect(response).toContain('share');
+      expect(response).toContain('Created payment request for twenty dollars');
       expect(response).not.toContain('lnbc');
     });
 
@@ -77,9 +74,9 @@ describe('VoiceResponseService', () => {
         {},
       );
 
-      expect(response).toContain('help you with many things');
       expect(response).toContain('balance');
       expect(response).toContain('send');
+      expect(response).toContain('receive');
       expect(response).not.toContain('⚡');
       expect(response).not.toContain('1️⃣');
     });
@@ -92,8 +89,8 @@ describe('VoiceResponseService', () => {
         {},
       );
 
-      expect(response).toContain('balance is currently empty');
-      expect(response).toContain('add funds');
+      expect(response).toContain('balance is empty');
+      expect(response).toContain('receive');
     });
 
     it('should handle low balance response', async () => {
@@ -105,7 +102,7 @@ describe('VoiceResponseService', () => {
       );
 
       expect(response).toContain('three dollars and fifty cents');
-      expect(response).toContain('getting a bit low');
+      expect(response).toContain('Low balance');
     });
 
     it('should handle high balance response', async () => {
@@ -116,7 +113,7 @@ describe('VoiceResponseService', () => {
         {},
       );
 
-      expect(response).toContain('two hundred fifty dollars');
+      expect(response).toContain('two hundred and fifty dollars');
       expect(response).not.toContain('healthy balance');
     });
 

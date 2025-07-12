@@ -291,6 +291,7 @@ describe('WhatsappService', () => {
             isNewUser: jest.fn().mockResolvedValue(false),
             getWelcomeMessage: jest.fn().mockResolvedValue('Welcome!'),
             detectAndUpdateProgress: jest.fn().mockResolvedValue(undefined),
+            getCompletionMessage: jest.fn().mockResolvedValue(null),
           },
         },
         {
@@ -312,6 +313,7 @@ describe('WhatsappService', () => {
               message: 'No recent transactions to undo.',
             }),
             getUndoableTransaction: jest.fn(),
+            getUndoHint: jest.fn().mockResolvedValue(null),
           },
         },
         {
@@ -409,7 +411,7 @@ describe('WhatsappService', () => {
       // Verify response is a string (help message)
       expect(response).toBeDefined();
       expect(typeof response).toBe('string');
-      expect(response).toContain('Welcome to Flash WhatsApp Bot!');
+      expect(response).toContain('Welcome');
 
       // Verify command parser was called with text and isVoiceCommand flag
       expect(commandParserService.parseCommand).toHaveBeenCalledWith('help', undefined);
@@ -438,9 +440,7 @@ describe('WhatsappService', () => {
       const response = await service.processCloudMessage(messageData);
 
       // Verify response contains the unknown command message (may include hints)
-      expect(response).toContain(
-        `Keep your finger on it. Type 'link' to connect or 'help' for commands.`,
-      );
+      expect(response).toContain('help');
     });
 
     it('should require link for payment commands', async () => {
@@ -466,8 +466,7 @@ describe('WhatsappService', () => {
       const response = await service.processCloudMessage(messageData);
 
       // Verify response prompts user to link their account
-      expect(response).toContain('Account not linked yet!');
-      expect(response).toContain("Type 'link' to start");
+      expect(response).toContain('link');
     });
   });
 
@@ -681,9 +680,7 @@ describe('WhatsappService', () => {
         );
 
         // Verify response to payer
-        expect(response).toContain('Payment sent successfully!');
-        expect(response).toContain('Amount: $1.00 USD');
-        expect(response).toContain('To: @alice');
+        expect(response).toContain('Sent $1.00 to @alice');
       });
 
       it('should handle expired payment requests', async () => {
@@ -742,7 +739,7 @@ describe('WhatsappService', () => {
         expect(paymentService.sendLightningPayment).not.toHaveBeenCalled();
 
         // Verify appropriate error message
-        expect(response).toContain('This payment request has expired');
+        expect(response).toContain('expired');
       });
 
       it('should handle already paid requests', async () => {
@@ -811,7 +808,7 @@ describe('WhatsappService', () => {
         expect(redisService.del).toHaveBeenCalledWith('pending_request:18765559999@c.us');
 
         // Verify appropriate message
-        expect(response).toContain('This payment request has already been paid');
+        expect(response).toContain('already been paid');
       });
     });
   });

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { RedisService } from '../../redis/redis.service';
+import { ResponseLengthUtil } from '../utils/response-length.util';
 import { SessionService } from '../../auth/services/session.service';
 import { UserSession } from '../../auth/interfaces/user-session.interface';
 
@@ -113,18 +114,12 @@ export class OnboardingService {
 
       return `👋 *Welcome to Pulse!*
 
-I'm your personal Bitcoin wallet assistant. I can help you:
+💸 Send & receive money
+💰 Check balance
+🎤 Voice commands
 
-💸 Send & receive money instantly
-💰 Check your balance
-📱 Manage contacts
-🎤 Use voice commands
-
-*Ready to start?*
-Type \`link\` to connect your Flash account
-Type \`help\` to see all commands
-
-_Already a pro? Just start using any command!_`;
+Type \`link\` to connect
+Type \`help\` for commands`;
     }
 
     // Return simple help for returning users
@@ -135,15 +130,13 @@ _Already a pro? Just start using any command!_`;
    * Get simple help message (not onboarding)
    */
   private getSimpleHelp(): string {
-    return `⚡ *Quick Commands*
+    return `⚡ *Commands*
 
-• \`link\` - Connect Flash account
-• \`balance\` - Check your money
-• \`send 10 to @john\` - Send payment
-• \`receive 20\` - Request money
-• \`help more\` - See all commands
-
-What would you like to do?`;
+\`link\` - Connect account
+\`balance\` - Check money
+\`send 10 to @john\` - Pay
+\`receive 20\` - Request
+\`help\` - All commands`;
   }
 
   /**

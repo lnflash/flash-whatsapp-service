@@ -212,15 +212,13 @@ export const TRAINING_EXAMPLES: TrainingExample[] = [
   // Balance related
   {
     question: 'How do I check my balance?',
-    answer:
-      'To check your balance, simply type "balance". You\'ll see your USD balance and its equivalent in your local currency (JMD).',
+    answer: 'Type "balance" to see your USD balance.',
     category: 'balance',
     keywords: ['balance', 'check', 'money', 'funds', 'account'],
   },
   {
     question: 'Why is my balance not updating?',
-    answer:
-      'If your balance isn\'t updating, type "refresh" to clear the cache and get the latest balance. This forces a fresh fetch from the server.',
+    answer: 'Type "refresh" to update your balance.',
     category: 'balance',
     keywords: ['balance', 'update', 'refresh', 'cache', 'not updating'],
   },
