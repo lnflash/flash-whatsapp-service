@@ -203,22 +203,22 @@ export class CommandParserService {
         }
       }
 
-      // If this is voice input, try natural language patterns first
-      if (isVoiceInput) {
-        const naturalCommand = this.parseNaturalLanguage(trimmedText);
-        if (naturalCommand.type !== CommandType.UNKNOWN) {
-          // Add voice confirmation flag for payment commands
-          if (
-            naturalCommand.type === CommandType.SEND ||
-            naturalCommand.type === CommandType.REQUEST
-          ) {
-            naturalCommand.args.requiresConfirmation = 'true';
-            naturalCommand.args.isVoiceCommand = 'true';
-          }
-          // Mark that this was a voice-requested command
-          naturalCommand.args.voiceRequested = 'true';
-          return naturalCommand;
+      // Try natural language patterns first for all inputs (not just voice)
+      const naturalCommand = this.parseNaturalLanguage(trimmedText);
+      if (naturalCommand.type !== CommandType.UNKNOWN) {
+        // Add voice confirmation flag for payment commands from voice
+        if (isVoiceInput && (
+          naturalCommand.type === CommandType.SEND ||
+          naturalCommand.type === CommandType.REQUEST
+        )) {
+          naturalCommand.args.requiresConfirmation = 'true';
+          naturalCommand.args.isVoiceCommand = 'true';
         }
+        // Mark if this was a voice-requested command
+        if (isVoiceInput) {
+          naturalCommand.args.voiceRequested = 'true';
+        }
+        return naturalCommand;
       }
 
       for (const { type, pattern } of this.commandPatterns) {
@@ -901,7 +901,31 @@ export class CommandParserService {
       lowerText === 'speech' ||
       lowerText === 'tts'
     ) {
-      return { type: CommandType.VOICE, args: {}, rawText: text };
+      // Extract specific voice action if present
+      const args: any = {};
+      
+      if (lowerText.includes('voice on') || lowerText.includes('turn on') || 
+          lowerText.includes('enable voice') || lowerText.includes('activate voice') ||
+          lowerText.includes('start talking')) {
+        args.action = 'on';
+      } else if (lowerText.includes('voice off') || lowerText.includes('turn off') || 
+                 lowerText.includes('disable voice') || lowerText.includes('deactivate voice') ||
+                 lowerText.includes('stop talking') || lowerText.includes('no voice') ||
+                 lowerText.includes('mute voice') || lowerText.includes('text only')) {
+        args.action = 'off';
+      } else if (lowerText.includes('voice only') || lowerText.includes('only voice') ||
+                 lowerText.includes('just voice')) {
+        args.action = 'only';
+      } else if (lowerText.includes('voice status') || lowerText.includes('check voice')) {
+        args.action = 'status';
+      } else if (lowerText.includes('voice list')) {
+        args.action = 'list';
+      } else if (lowerText === 'voice' || !lowerText.includes(' ')) {
+        // Default to status for just "voice"
+        args.action = 'status';
+      }
+      
+      return { type: CommandType.VOICE, args, rawText: text };
     }
 
     // Pending payments variations
