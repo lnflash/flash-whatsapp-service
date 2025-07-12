@@ -242,35 +242,39 @@ export class WhatsappService {
 
       // Add hints to text responses and optionally add voice
       if (typeof response === 'string') {
-        let finalText = this.addHint(response, session, command);
+        let finalText = response;
+        const hints: string[] = [];
 
-        // Add contextual help if user seems confused
+        // Collect all potential hints
+        const baseHint = this.getContextualHint(session, command);
+        if (baseHint && !response.includes('💡')) {
+          hints.push(`💡 ${baseHint}`);
+        }
+
+        // Add contextual help if user seems confused (highest priority)
         const contextualHelp = await this.contextualHelpService.analyzeForConfusion(whatsappId);
-        if (contextualHelp) {
-          finalText += contextualHelp;
+        if (contextualHelp && !finalText.includes(contextualHelp)) {
+          // Replace any existing hints with confusion help
+          hints.length = 0;
+          hints.push(contextualHelp);
         }
 
-        // Add subtle onboarding hint if applicable (but not for help command)
-        if (command.type !== CommandType.HELP) {
-          const onboardingHint = await this.onboardingService.getContextualHint(
-            whatsappId,
-            session,
-          );
-          if (onboardingHint) {
-            finalText += onboardingHint;
-          }
+        // Add undo hint if applicable (high priority)
+        const undoHint = await this.undoTransactionService.getUndoHint(whatsappId);
+        if (undoHint && !hints.some(h => h.includes('undo'))) {
+          hints.unshift(undoHint); // Add at beginning
         }
 
-        // Check for onboarding completion celebration
+        // Check for onboarding completion celebration (always show)
         const completionMessage = await this.onboardingService.getCompletionMessage(whatsappId);
         if (completionMessage) {
           finalText += completionMessage;
         }
 
-        // Add undo hint if applicable
-        const undoHint = await this.undoTransactionService.getUndoHint(whatsappId);
-        if (undoHint) {
-          finalText += undoHint;
+        // Add at most 2 hints to avoid clutter
+        const hintsToAdd = hints.slice(0, 2);
+        if (hintsToAdd.length > 0) {
+          finalText += '\n\n' + hintsToAdd.join('\n\n');
         }
 
         if (shouldUseVoice) {
