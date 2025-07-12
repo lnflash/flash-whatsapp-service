@@ -184,6 +184,7 @@ export class ResponseLengthUtil {
     
     // Replace common abbreviations
     voiceText = voiceText
+      .replace(/@/g, ' at ') // Replace @ with "at" for proper pronunciation
       .replace(/\$/g, 'dollars')
       .replace(/USD/g, 'U.S. dollars')
       .replace(/BTC/g, 'Bitcoin')

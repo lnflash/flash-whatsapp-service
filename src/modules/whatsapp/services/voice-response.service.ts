@@ -405,6 +405,7 @@ export class VoiceResponseService {
       .replace(/\*([^*]+)\*/g, '$1') // Remove markdown bold
       .replace(/_([^_]+)_/g, '$1') // Remove markdown italic
       .replace(/`([^`]+)`/g, "'$1'") // Replace backticks with quotes
+      .replace(/@/g, ' at ') // Replace @ with "at" for proper pronunciation
       .replace(/\n+/g, '. ') // Replace newlines with periods
       .replace(/\s+/g, ' ') // Normalize spaces
       .replace(/\.\s*\./g, '.') // Remove double periods
