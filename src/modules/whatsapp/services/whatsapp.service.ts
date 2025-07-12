@@ -5493,6 +5493,82 @@ Type \`templates\` to see your saved templates.`;
   }
 
   /**
+   * Format plugin voice response
+   */
+  private async formatPluginVoiceResponse(
+    pluginResponse: any,
+    command: ParsedCommand,
+    whatsappId: string,
+    context: CommandContext,
+  ): Promise<{ text: string; voice?: Buffer; voiceOnly?: boolean } | null> {
+    if (!pluginResponse.voiceText || context.voiceMode === 'off') {
+      return null;
+    }
+
+    const shouldUseVoice = await this.ttsService.shouldUseVoice(
+      command.rawText,
+      command.args.isVoiceCommand === 'true',
+      whatsappId,
+    );
+
+    if (!shouldUseVoice) {
+      return null;
+    }
+
+    const audioBuffer = await this.ttsService.textToSpeech(
+      pluginResponse.voiceText,
+      'en',
+      whatsappId,
+    );
+
+    const shouldSendVoiceOnly = await this.ttsService.shouldSendVoiceOnly(whatsappId);
+
+    return {
+      text: shouldSendVoiceOnly ? '' : pluginResponse.text || '',
+      voice: audioBuffer,
+      voiceOnly: shouldSendVoiceOnly,
+    };
+  }
+
+  /**
+   * Schedule plugin follow-up action
+   */
+  private schedulePluginFollowUp(
+    pluginResponse: any,
+    whatsappId: string,
+    phoneNumber: string,
+    session: UserSession | null,
+    isGroup?: boolean,
+    groupId?: string,
+  ): void {
+    if (!pluginResponse.followUp) {
+      return;
+    }
+
+    setTimeout(async () => {
+      try {
+        this.logger.debug('Executing follow-up action:', pluginResponse.followUp);
+        
+        const followUpCommand = this.commandParserService.parseCommand(
+          pluginResponse.followUp.action,
+        );
+        
+        await this.handleCommand(
+          followUpCommand,
+          whatsappId,
+          phoneNumber,
+          session,
+          false,
+          isGroup,
+          groupId,
+        );
+      } catch (error) {
+        this.logger.error('Error executing follow-up action:', error);
+      }
+    }, pluginResponse.followUp.delay);
+  }
+
+  /**
    * Try to handle command through plugin system
    */
   private async tryPluginCommand(
@@ -5504,16 +5580,22 @@ Type \`templates\` to see your saved templates.`;
     groupId?: string,
   ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean } | null> {
     try {
-      // Build command context for plugins
+      // Build command context for plugins - parallelize async calls
+      const [username, voiceMode, selectedVoice] = await Promise.all([
+        session?.flashAuthToken ? this.usernameService.getUsername(session.flashAuthToken) : Promise.resolve(undefined),
+        this.userVoiceSettingsService.getUserVoiceMode(whatsappId),
+        this.userVoiceSettingsService.getUserVoice(whatsappId),
+      ]);
+
       const context: CommandContext = {
         userId: whatsappId,
         phoneNumber,
         isAuthenticated: !!session,
-        username: session?.flashAuthToken ? (await this.usernameService.getUsername(session.flashAuthToken)) || undefined : undefined,
+        username: username || undefined,
         isGroup: isGroup || false,
         groupId: groupId,
-        voiceMode: (await this.userVoiceSettingsService.getUserVoiceMode(whatsappId)) || undefined,
-        selectedVoice: (await this.userVoiceSettingsService.getUserVoice(whatsappId)) || undefined,
+        voiceMode: voiceMode || undefined,
+        selectedVoice: selectedVoice || undefined,
       };
 
       // Try to execute command through plugin system
@@ -5526,66 +5608,36 @@ Type \`templates\` to see your saved templates.`;
         return null;
       }
 
-      // Handle plugin response
+      // Handle plugin error response
       if (pluginResponse.error?.showToUser) {
         return pluginResponse.error.message;
       }
 
-      // Format response
+      // Format base response
       let response: string | { text: string; voice?: Buffer; voiceOnly?: boolean } =
         pluginResponse.text || '✅ Command executed successfully';
 
       // Handle voice response if needed
-      if (pluginResponse.voiceText && context.voiceMode !== 'off') {
-        const shouldUseVoice = await this.ttsService.shouldUseVoice(
-          command.rawText,
-          command.args.isVoiceCommand === 'true',
-          whatsappId,
-        );
+      const voiceResponse = await this.formatPluginVoiceResponse(
+        pluginResponse,
+        command,
+        whatsappId,
+        context,
+      );
 
-        if (shouldUseVoice) {
-          const audioBuffer = await this.ttsService.textToSpeech(
-            pluginResponse.voiceText,
-            'en',
-            whatsappId,
-          );
-
-          const shouldSendVoiceOnly = await this.ttsService.shouldSendVoiceOnly(whatsappId);
-
-          response = {
-            text: shouldSendVoiceOnly ? '' : pluginResponse.text || '',
-            voice: audioBuffer,
-            voiceOnly: shouldSendVoiceOnly,
-          };
-        }
+      if (voiceResponse) {
+        response = voiceResponse;
       }
 
-      // Handle follow-up actions
-      if (pluginResponse.followUp) {
-        setTimeout(async () => {
-          try {
-            this.logger.debug('Executing follow-up action:', pluginResponse.followUp);
-            
-            // Execute the follow-up action as a new command
-            const followUpCommand = this.commandParserService.parseCommand(
-              pluginResponse.followUp!.action,
-            );
-            
-            // Process the follow-up command
-            await this.handleCommand(
-              followUpCommand,
-              whatsappId,
-              phoneNumber,
-              session,
-              false,
-              isGroup,
-              groupId,
-            );
-          } catch (error) {
-            this.logger.error('Error executing follow-up action:', error);
-          }
-        }, pluginResponse.followUp!.delay);
-      }
+      // Schedule follow-up actions
+      this.schedulePluginFollowUp(
+        pluginResponse,
+        whatsappId,
+        phoneNumber,
+        session,
+        isGroup,
+        groupId,
+      );
 
       return response;
     } catch (error) {

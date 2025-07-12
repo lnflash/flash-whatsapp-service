@@ -14,7 +14,7 @@ import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
-    EventEmitterModule,
+    EventEmitterModule.forRoot(),
     RedisModule,
     FlashApiModule,
     AuthModule,
