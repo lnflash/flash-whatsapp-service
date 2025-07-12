@@ -31,6 +31,9 @@ import { ContextualHelpService } from './contextual-help.service';
 import { UndoTransactionService } from './undo-transaction.service';
 import { PaymentTemplatesService } from './payment-templates.service';
 import { AdminAnalyticsService } from './admin-analytics.service';
+import { UserKnowledgeBaseService } from './user-knowledge-base.service';
+import { RandomQuestionService } from './random-question.service';
+import { PluginLoaderService } from '../../plugins/services/plugin-loader.service';
 import { PaymentSendResult, WalletCurrency } from '../../flash-api/services/payment.service';
 
 describe('WhatsappService', () => {
@@ -285,6 +288,9 @@ describe('WhatsappService', () => {
             getNextStep: jest.fn(),
             skipOnboarding: jest.fn(),
             getProgressMessage: jest.fn(),
+            isNewUser: jest.fn().mockResolvedValue(false),
+            getWelcomeMessage: jest.fn().mockResolvedValue('Welcome!'),
+            detectAndUpdateProgress: jest.fn().mockResolvedValue(undefined),
           },
         },
         {
@@ -293,6 +299,8 @@ describe('WhatsappService', () => {
             checkForConfusion: jest.fn().mockResolvedValue(null),
             logActivity: jest.fn(),
             clearUserActivity: jest.fn(),
+            trackActivity: jest.fn().mockResolvedValue(undefined),
+            analyzeForConfusion: jest.fn().mockResolvedValue(null),
           },
         },
         {
@@ -326,6 +334,37 @@ describe('WhatsappService', () => {
             getUserActivityInsights: jest.fn(),
             getSystemHealthMetrics: jest.fn(),
             formatAnalyticsReport: jest.fn(),
+          },
+        },
+        {
+          provide: UserKnowledgeBaseService,
+          useValue: {
+            addUserKnowledge: jest.fn(),
+            getUserKnowledge: jest.fn().mockResolvedValue([]),
+            searchUserKnowledge: jest.fn().mockResolvedValue([]),
+            deleteUserKnowledge: jest.fn(),
+            formatKnowledgeEntry: jest.fn(),
+            formatKnowledgeList: jest.fn(),
+          },
+        },
+        {
+          provide: RandomQuestionService,
+          useValue: {
+            getRandomQuestion: jest.fn(),
+            markQuestionAsAsked: jest.fn(),
+            resetAskedQuestions: jest.fn(),
+            getAskedQuestionsCount: jest.fn().mockResolvedValue(0),
+            getPendingQuestion: jest.fn().mockResolvedValue(null),
+          },
+        },
+        {
+          provide: PluginLoaderService,
+          useValue: {
+            loadPlugin: jest.fn(),
+            unloadPlugin: jest.fn(),
+            executeCommand: jest.fn().mockResolvedValue(null),
+            getLoadedPlugins: jest.fn().mockReturnValue([]),
+            getAllCommands: jest.fn().mockReturnValue([]),
           },
         },
       ],

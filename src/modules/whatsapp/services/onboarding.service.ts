@@ -105,12 +105,12 @@ export class OnboardingService {
    */
   async getWelcomeMessage(whatsappId: string): Promise<string> {
     const state = await this.getOnboardingState(whatsappId);
-    
+
     if (!state.hasSeenWelcome) {
       state.hasSeenWelcome = true;
       const key = `${this.ONBOARDING_KEY_PREFIX}${whatsappId}`;
       await this.redisService.set(key, JSON.stringify(state), this.ONBOARDING_TTL);
-      
+
       return `👋 *Welcome to Pulse!*
 
 I'm your personal Bitcoin wallet assistant. I can help you:
@@ -151,15 +151,15 @@ What would you like to do?`;
    */
   async updateProgress(whatsappId: string, completedStepId: string): Promise<void> {
     const state = await this.getOnboardingState(whatsappId);
-    
+
     if (!state.completedSteps.includes(completedStepId)) {
       state.completedSteps.push(completedStepId);
-      const stepIndex = this.onboardingSteps.findIndex(s => s.id === completedStepId);
+      const stepIndex = this.onboardingSteps.findIndex((s) => s.id === completedStepId);
       if (stepIndex >= 0 && stepIndex >= state.currentStep) {
         state.currentStep = Math.min(stepIndex + 1, this.onboardingSteps.length - 1);
       }
     }
-    
+
     state.lastActivity = new Date();
 
     const key = `${this.ONBOARDING_KEY_PREFIX}${whatsappId}`;
@@ -171,7 +171,7 @@ What would you like to do?`;
    */
   async getContextualHint(whatsappId: string, session: UserSession | null): Promise<string | null> {
     const state = await this.getOnboardingState(whatsappId);
-    
+
     // Don't show hints if user dismissed onboarding or completed it
     if (state.dismissed || state.completedSteps.length >= this.onboardingSteps.length) {
       return null;
@@ -210,7 +210,7 @@ What would you like to do?`;
     const state = await this.getOnboardingState(whatsappId);
     const completed = state.completedSteps.length;
     const total = this.onboardingSteps.length;
-    
+
     if (completed >= total) {
       return '✅ Setup Complete!';
     }
@@ -253,7 +253,7 @@ What would you like to do?`;
    */
   async detectAndUpdateProgress(whatsappId: string, command: string): Promise<boolean> {
     const state = await this.getOnboardingState(whatsappId);
-    
+
     // Don't track if dismissed
     if (state.dismissed) {
       return false;
@@ -261,9 +261,11 @@ What would you like to do?`;
 
     // Check each incomplete step to see if user completed it
     for (const step of this.onboardingSteps) {
-      if (!state.completedSteps.includes(step.id) && 
-          step.action && 
-          command.toLowerCase().includes(step.action)) {
+      if (
+        !state.completedSteps.includes(step.id) &&
+        step.action &&
+        command.toLowerCase().includes(step.action)
+      ) {
         await this.updateProgress(whatsappId, step.id);
         return true;
       }
@@ -277,16 +279,17 @@ What would you like to do?`;
    */
   async getCompletionMessage(whatsappId: string): Promise<string | null> {
     const state = await this.getOnboardingState(whatsappId);
-    
+
     // Check if just completed
-    if (state.completedSteps.length === this.onboardingSteps.length && 
-        !state.completedSteps.includes('celebrated')) {
-      
+    if (
+      state.completedSteps.length === this.onboardingSteps.length &&
+      !state.completedSteps.includes('celebrated')
+    ) {
       // Mark as celebrated
       state.completedSteps.push('celebrated');
       const key = `${this.ONBOARDING_KEY_PREFIX}${whatsappId}`;
       await this.redisService.set(key, JSON.stringify(state), this.ONBOARDING_TTL);
-      
+
       return `\n\n🎉 *Awesome! You've mastered the basics!*\n\nExplore more features:\n• \`voice on\` - Enable voice mode\n• \`learn\` - Teach me about you\n• \`settings\` - Customize your experience`;
     }
 

@@ -39,6 +39,7 @@ import { GeminiAiModule } from '../gemini-ai/gemini-ai.module';
 import { EventsModule } from '../events/events.module';
 import { TtsModule } from '../tts/tts.module';
 import { SpeechModule } from '../speech/speech.module';
+import { PluginsModule } from '../plugins/plugins.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { SpeechModule } from '../speech/speech.module';
     EventsModule,
     TtsModule,
     SpeechModule,
+    PluginsModule,
   ],
   controllers: [
     // WhatsappController,    // Cloud API Controller (disabled for prototype)

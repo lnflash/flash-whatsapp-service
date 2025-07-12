@@ -38,7 +38,7 @@ function convertHundreds(num: number): string {
     if (hundreds > 0) {
       result.push('and');
     }
-    
+
     if (remainder >= 20) {
       const tensDigit = Math.floor(remainder / 10);
       const onesDigit = remainder % 10;
@@ -87,7 +87,7 @@ function convertWholeNumber(num: number): string {
     if (i > 0) {
       result += ', ';
     }
-    
+
     result += groups[i].value;
     if (groups[i].scale) {
       result += ' ' + groups[i].scale;
@@ -189,7 +189,7 @@ export function formatCurrencyWithCommas(amount: number | string): string {
   if (isNaN(numAmount)) {
     return amount.toString();
   }
-  
+
   // Format with commas and 2 decimal places
   return '$' + numAmount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }

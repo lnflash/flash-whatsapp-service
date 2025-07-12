@@ -48,6 +48,7 @@ import { PaymentTemplatesService } from './payment-templates.service';
 import { AdminAnalyticsService } from './admin-analytics.service';
 import { UserKnowledgeBaseService } from './user-knowledge-base.service';
 import { RandomQuestionService } from './random-question.service';
+import { PluginLoaderService, CommandContext } from '../../plugins';
 // import { WhatsAppCloudService } from './whatsapp-cloud.service'; // Disabled for prototype branch
 
 @Injectable()
@@ -86,6 +87,7 @@ export class WhatsappService {
     private readonly adminAnalyticsService: AdminAnalyticsService,
     private readonly userKnowledgeBaseService: UserKnowledgeBaseService,
     private readonly randomQuestionService: RandomQuestionService,
+    private readonly pluginLoaderService: PluginLoaderService,
     // private readonly whatsAppCloudService: WhatsAppCloudService, // Disabled for prototype branch
     @Inject(forwardRef(() => WhatsAppWebService))
     private readonly whatsappWebService?: WhatsAppWebService,
@@ -139,6 +141,8 @@ export class WhatsappService {
     name?: string;
     isVoiceCommand?: boolean;
     whatsappId?: string;
+    isGroup?: boolean;
+    groupId?: string;
   }): Promise<string | { text: string; media?: Buffer; voice?: Buffer; voiceOnly?: boolean }> {
     try {
       const whatsappId = messageData.whatsappId || this.extractWhatsappId(messageData.from);
@@ -157,15 +161,15 @@ export class WhatsappService {
           messageData.text,
           pendingQuestion.category,
         );
-        
+
         await this.randomQuestionService.clearPendingQuestion(whatsappId);
-        
+
         let response = `✅ Thanks for teaching me! I've stored your answer.\n\n`;
         if (pendingQuestion.followUp) {
           response += `${pendingQuestion.followUp}\n\n`;
         }
         response += `💡 Type "learn" for another question or view your knowledge anytime.`;
-        
+
         return response;
       }
 
@@ -222,6 +226,8 @@ export class WhatsappService {
         phoneNumber,
         session,
         messageData.isVoiceCommand,
+        messageData.isGroup,
+        messageData.groupId,
       );
 
       // Check if voice response is requested
@@ -246,12 +252,15 @@ export class WhatsappService {
 
         // Add subtle onboarding hint if applicable (but not for help command)
         if (command.type !== CommandType.HELP) {
-          const onboardingHint = await this.onboardingService.getContextualHint(whatsappId, session);
+          const onboardingHint = await this.onboardingService.getContextualHint(
+            whatsappId,
+            session,
+          );
           if (onboardingHint) {
             finalText += onboardingHint;
           }
         }
-        
+
         // Check for onboarding completion celebration
         const completionMessage = await this.onboardingService.getCompletionMessage(whatsappId);
         if (completionMessage) {
@@ -381,6 +390,8 @@ export class WhatsappService {
     phoneNumber: string,
     session: UserSession | null,
     isVoiceInput?: boolean,
+    isGroup?: boolean,
+    groupId?: string,
   ): Promise<string | { text: string; media?: Buffer; voice?: Buffer; voiceOnly?: boolean }> {
     try {
       // Check if user has a pending payment confirmation
@@ -546,6 +557,20 @@ export class WhatsappService {
 
         case CommandType.UNKNOWN:
         default: {
+          // Try plugin commands first for unknown commands
+          if (command.type === CommandType.UNKNOWN) {
+            const pluginResponse = await this.tryPluginCommand(
+              command,
+              whatsappId,
+              phoneNumber,
+              session,
+              isGroup,
+              groupId,
+            );
+            if (pluginResponse) {
+              return pluginResponse;
+            }
+          }
           // Check if this might be a Flash username response to pending send
           const pendingSendKey = `pending_send:${whatsappId}`;
           const pendingSendData = await this.redisService.get(pendingSendKey);
@@ -4844,8 +4869,10 @@ ${voiceList}`;
           if (!['daily', 'weekly'].includes(period)) {
             return '❌ Invalid period. Use: `admin analytics daily` or `admin analytics weekly`';
           }
-          
-          const report = await this.adminAnalyticsService.formatAnalyticsReport(period as 'daily' | 'weekly');
+
+          const report = await this.adminAnalyticsService.formatAnalyticsReport(
+            period as 'daily' | 'weekly',
+          );
           return report;
         }
 
@@ -5341,7 +5368,7 @@ Type \`templates\` to see your saved templates.`;
 
     // Execute the payment
     const result = await this.handleSendCommand(sendCommand, whatsappId, session);
-    
+
     // If payment succeeded, add template info to response
     if (typeof result === 'string' && result.includes('✅')) {
       return result + `\n\n📝 Used template: *${templateName}*`;
@@ -5378,7 +5405,6 @@ Type \`templates\` to see your saved templates.`;
           }
           return this.randomQuestionService.formatQuestion(question);
         }
-
 
         case 'category': {
           const category = command.args.query;
@@ -5463,6 +5489,160 @@ Type \`templates\` to see your saved templates.`;
     } catch (error) {
       this.logger.error('Error handling learn command:', error);
       return '❌ Something went wrong with the learning feature. Please try again.';
+    }
+  }
+
+  /**
+   * Format plugin voice response
+   */
+  private async formatPluginVoiceResponse(
+    pluginResponse: any,
+    command: ParsedCommand,
+    whatsappId: string,
+    context: CommandContext,
+  ): Promise<{ text: string; voice?: Buffer; voiceOnly?: boolean } | null> {
+    if (!pluginResponse.voiceText || context.voiceMode === 'off') {
+      return null;
+    }
+
+    const shouldUseVoice = await this.ttsService.shouldUseVoice(
+      command.rawText,
+      command.args.isVoiceCommand === 'true',
+      whatsappId,
+    );
+
+    if (!shouldUseVoice) {
+      return null;
+    }
+
+    const audioBuffer = await this.ttsService.textToSpeech(
+      pluginResponse.voiceText,
+      'en',
+      whatsappId,
+    );
+
+    const shouldSendVoiceOnly = await this.ttsService.shouldSendVoiceOnly(whatsappId);
+
+    return {
+      text: shouldSendVoiceOnly ? '' : pluginResponse.text || '',
+      voice: audioBuffer,
+      voiceOnly: shouldSendVoiceOnly,
+    };
+  }
+
+  /**
+   * Schedule plugin follow-up action
+   */
+  private schedulePluginFollowUp(
+    pluginResponse: any,
+    whatsappId: string,
+    phoneNumber: string,
+    session: UserSession | null,
+    isGroup?: boolean,
+    groupId?: string,
+  ): void {
+    if (!pluginResponse.followUp) {
+      return;
+    }
+
+    setTimeout(async () => {
+      try {
+        this.logger.debug('Executing follow-up action:', pluginResponse.followUp);
+        
+        const followUpCommand = this.commandParserService.parseCommand(
+          pluginResponse.followUp.action,
+        );
+        
+        await this.handleCommand(
+          followUpCommand,
+          whatsappId,
+          phoneNumber,
+          session,
+          false,
+          isGroup,
+          groupId,
+        );
+      } catch (error) {
+        this.logger.error('Error executing follow-up action:', error);
+      }
+    }, pluginResponse.followUp.delay);
+  }
+
+  /**
+   * Try to handle command through plugin system
+   */
+  private async tryPluginCommand(
+    command: ParsedCommand,
+    whatsappId: string,
+    phoneNumber: string,
+    session: UserSession | null,
+    isGroup?: boolean,
+    groupId?: string,
+  ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean } | null> {
+    try {
+      // Build command context for plugins - parallelize async calls
+      const [username, voiceMode, selectedVoice] = await Promise.all([
+        session?.flashAuthToken ? this.usernameService.getUsername(session.flashAuthToken) : Promise.resolve(undefined),
+        this.userVoiceSettingsService.getUserVoiceMode(whatsappId),
+        this.userVoiceSettingsService.getUserVoice(whatsappId),
+      ]);
+
+      const context: CommandContext = {
+        userId: whatsappId,
+        phoneNumber,
+        isAuthenticated: !!session,
+        username: username || undefined,
+        isGroup: isGroup || false,
+        groupId: groupId,
+        voiceMode: voiceMode || undefined,
+        selectedVoice: selectedVoice || undefined,
+      };
+
+      // Try to execute command through plugin system
+      const pluginResponse = await this.pluginLoaderService.executeCommand(
+        command.rawText,
+        context,
+      );
+
+      if (!pluginResponse) {
+        return null;
+      }
+
+      // Handle plugin error response
+      if (pluginResponse.error?.showToUser) {
+        return pluginResponse.error.message;
+      }
+
+      // Format base response
+      let response: string | { text: string; voice?: Buffer; voiceOnly?: boolean } =
+        pluginResponse.text || '✅ Command executed successfully';
+
+      // Handle voice response if needed
+      const voiceResponse = await this.formatPluginVoiceResponse(
+        pluginResponse,
+        command,
+        whatsappId,
+        context,
+      );
+
+      if (voiceResponse) {
+        response = voiceResponse;
+      }
+
+      // Schedule follow-up actions
+      this.schedulePluginFollowUp(
+        pluginResponse,
+        whatsappId,
+        phoneNumber,
+        session,
+        isGroup,
+        groupId,
+      );
+
+      return response;
+    } catch (error) {
+      this.logger.error('Error handling plugin command:', error);
+      return null;
     }
   }
 }

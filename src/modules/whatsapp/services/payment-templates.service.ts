@@ -42,7 +42,7 @@ export class PaymentTemplatesService {
       }
 
       // Check for duplicate names
-      if (templates.some(t => t.name.toLowerCase() === name.toLowerCase())) {
+      if (templates.some((t) => t.name.toLowerCase() === name.toLowerCase())) {
         return {
           success: false,
           message: `A template named "${name}" already exists.`,
@@ -87,7 +87,7 @@ export class PaymentTemplatesService {
     if (!data) return [];
 
     const templates: PaymentTemplate[] = JSON.parse(data);
-    return templates.map(t => ({
+    return templates.map((t) => ({
       ...t,
       createdAt: new Date(t.createdAt),
       lastUsed: t.lastUsed ? new Date(t.lastUsed) : undefined,
@@ -99,7 +99,7 @@ export class PaymentTemplatesService {
    */
   async getTemplateByName(whatsappId: string, name: string): Promise<PaymentTemplate | null> {
     const templates = await this.getUserTemplates(whatsappId);
-    return templates.find(t => t.name.toLowerCase() === name.toLowerCase()) || null;
+    return templates.find((t) => t.name.toLowerCase() === name.toLowerCase()) || null;
   }
 
   /**
@@ -107,7 +107,7 @@ export class PaymentTemplatesService {
    */
   async useTemplate(whatsappId: string, templateId: string): Promise<void> {
     const templates = await this.getUserTemplates(whatsappId);
-    const template = templates.find(t => t.id === templateId);
+    const template = templates.find((t) => t.id === templateId);
 
     if (template) {
       template.lastUsed = new Date();
@@ -125,7 +125,7 @@ export class PaymentTemplatesService {
   ): Promise<{ success: boolean; message: string }> {
     try {
       const templates = await this.getUserTemplates(whatsappId);
-      const index = templates.findIndex(t => t.name.toLowerCase() === name.toLowerCase());
+      const index = templates.findIndex((t) => t.name.toLowerCase() === name.toLowerCase());
 
       if (index === -1) {
         return {
@@ -200,10 +200,10 @@ Use template:
    */
   async getTemplateSuggestions(whatsappId: string): Promise<string[]> {
     const templates = await this.getUserTemplates(whatsappId);
-    
+
     // Sort by usage and recency
     const sorted = templates
-      .filter(t => t.useCount > 0)
+      .filter((t) => t.useCount > 0)
       .sort((a, b) => {
         const aScore = a.useCount + (a.lastUsed ? 1000 / (Date.now() - a.lastUsed.getTime()) : 0);
         const bScore = b.useCount + (b.lastUsed ? 1000 / (Date.now() - b.lastUsed.getTime()) : 0);
@@ -211,7 +211,7 @@ Use template:
       })
       .slice(0, 3);
 
-    return sorted.map(t => `pay ${t.name}`);
+    return sorted.map((t) => `pay ${t.name}`);
   }
 
   /**
@@ -240,7 +240,7 @@ Use template:
     memo?: string;
   } | null {
     const parts = command.trim().split(/\s+/);
-    
+
     // Check for "pay [template_name]"
     if (parts[0].toLowerCase() === 'pay' && parts.length === 2) {
       return { action: 'use', name: parts[1] };
@@ -259,11 +259,11 @@ Use template:
       // template add [name] [amount] to [recipient] "[memo]"
       const name = parts[2];
       const amount = parseFloat(parts[3]);
-      const toIndex = parts.findIndex(p => p.toLowerCase() === 'to');
-      
+      const toIndex = parts.findIndex((p) => p.toLowerCase() === 'to');
+
       if (toIndex > 3) {
         const recipient = parts[toIndex + 1];
-        
+
         // Extract memo if present (in quotes)
         const memoMatch = command.match(/"([^"]+)"/);
         const memo = memoMatch ? memoMatch[1] : undefined;

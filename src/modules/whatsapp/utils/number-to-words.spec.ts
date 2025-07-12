@@ -1,4 +1,8 @@
-import { convertCurrencyToWords, formatCurrencyWithCommas, convertNumbersInText } from './number-to-words';
+import {
+  convertCurrencyToWords,
+  formatCurrencyWithCommas,
+  convertNumbersInText,
+} from './number-to-words';
 
 describe('Number to Words Converter', () => {
   describe('convertCurrencyToWords', () => {
@@ -26,15 +30,17 @@ describe('Number to Words Converter', () => {
       expect(convertCurrencyToWords('1000')).toBe('one thousand dollars');
       expect(convertCurrencyToWords('1001')).toBe('one thousand, one dollars');
       expect(convertCurrencyToWords('1100')).toBe('one thousand, one hundred dollars');
-      expect(convertCurrencyToWords('1234')).toBe('one thousand, two hundred and thirty-four dollars');
+      expect(convertCurrencyToWords('1234')).toBe(
+        'one thousand, two hundred and thirty-four dollars',
+      );
     });
 
     it('should convert the example amounts correctly', () => {
       expect(convertCurrencyToWords('110920.77')).toBe(
-        'one hundred and ten thousand, nine hundred and twenty dollars and seventy-seven cents'
+        'one hundred and ten thousand, nine hundred and twenty dollars and seventy-seven cents',
       );
       expect(convertCurrencyToWords('2485045.01')).toBe(
-        'two million, four hundred and eighty-five thousand, forty-five dollars and one cent'
+        'two million, four hundred and eighty-five thousand, forty-five dollars and one cent',
       );
     });
 
@@ -42,13 +48,15 @@ describe('Number to Words Converter', () => {
       expect(convertCurrencyToWords('1000000')).toBe('one million dollars');
       expect(convertCurrencyToWords('1000000000')).toBe('one billion dollars');
       expect(convertCurrencyToWords('1234567890.12')).toBe(
-        'one billion, two hundred and thirty-four million, five hundred and sixty-seven thousand, eight hundred and ninety dollars and twelve cents'
+        'one billion, two hundred and thirty-four million, five hundred and sixty-seven thousand, eight hundred and ninety dollars and twelve cents',
       );
     });
 
     it('should handle negative amounts', () => {
       expect(convertCurrencyToWords('-10')).toBe('negative ten dollars');
-      expect(convertCurrencyToWords('-100.50')).toBe('negative one hundred dollars and fifty cents');
+      expect(convertCurrencyToWords('-100.50')).toBe(
+        'negative one hundred dollars and fifty cents',
+      );
     });
 
     it('should handle teen amounts', () => {
@@ -76,16 +84,16 @@ describe('Number to Words Converter', () => {
   describe('convertNumbersInText', () => {
     it('should convert currency in text', () => {
       expect(convertNumbersInText('Your balance is $110,920.77')).toBe(
-        'Your balance is one hundred and ten thousand, nine hundred and twenty dollars and seventy-seven cents'
+        'Your balance is one hundred and ten thousand, nine hundred and twenty dollars and seventy-seven cents',
       );
       expect(convertNumbersInText('You received $10.50 from Alice')).toBe(
-        'You received ten dollars and fifty cents from Alice'
+        'You received ten dollars and fifty cents from Alice',
       );
     });
 
     it('should handle multiple currency amounts', () => {
       expect(convertNumbersInText('Send $10 to get $5 back')).toBe(
-        'Send ten dollars to get five dollars back'
+        'Send ten dollars to get five dollars back',
       );
     });
 
