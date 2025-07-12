@@ -141,6 +141,8 @@ export class WhatsappService {
     name?: string;
     isVoiceCommand?: boolean;
     whatsappId?: string;
+    isGroup?: boolean;
+    groupId?: string;
   }): Promise<string | { text: string; media?: Buffer; voice?: Buffer; voiceOnly?: boolean }> {
     try {
       const whatsappId = messageData.whatsappId || this.extractWhatsappId(messageData.from);
@@ -224,6 +226,8 @@ export class WhatsappService {
         phoneNumber,
         session,
         messageData.isVoiceCommand,
+        messageData.isGroup,
+        messageData.groupId,
       );
 
       // Check if voice response is requested
@@ -386,6 +390,8 @@ export class WhatsappService {
     phoneNumber: string,
     session: UserSession | null,
     isVoiceInput?: boolean,
+    isGroup?: boolean,
+    groupId?: string,
   ): Promise<string | { text: string; media?: Buffer; voice?: Buffer; voiceOnly?: boolean }> {
     try {
       // Check if user has a pending payment confirmation
@@ -558,6 +564,8 @@ export class WhatsappService {
               whatsappId,
               phoneNumber,
               session,
+              isGroup,
+              groupId,
             );
             if (pluginResponse) {
               return pluginResponse;
@@ -5492,6 +5500,8 @@ Type \`templates\` to see your saved templates.`;
     whatsappId: string,
     phoneNumber: string,
     session: UserSession | null,
+    isGroup?: boolean,
+    groupId?: string,
   ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean } | null> {
     try {
       // Build command context for plugins
@@ -5500,7 +5510,8 @@ Type \`templates\` to see your saved templates.`;
         phoneNumber,
         isAuthenticated: !!session,
         username: session?.flashAuthToken ? (await this.usernameService.getUsername(session.flashAuthToken)) || undefined : undefined,
-        isGroup: false, // TODO: Add group support
+        isGroup: isGroup || false,
+        groupId: groupId,
         voiceMode: (await this.userVoiceSettingsService.getUserVoiceMode(whatsappId)) || undefined,
         selectedVoice: (await this.userVoiceSettingsService.getUserVoice(whatsappId)) || undefined,
       };
@@ -5551,10 +5562,29 @@ Type \`templates\` to see your saved templates.`;
 
       // Handle follow-up actions
       if (pluginResponse.followUp) {
-        setTimeout(() => {
-          // TODO: Implement follow-up action handling
-          this.logger.debug('Follow-up action requested:', pluginResponse.followUp);
-        }, pluginResponse.followUp.delay);
+        setTimeout(async () => {
+          try {
+            this.logger.debug('Executing follow-up action:', pluginResponse.followUp);
+            
+            // Execute the follow-up action as a new command
+            const followUpCommand = this.commandParserService.parseCommand(
+              pluginResponse.followUp!.action,
+            );
+            
+            // Process the follow-up command
+            await this.handleCommand(
+              followUpCommand,
+              whatsappId,
+              phoneNumber,
+              session,
+              false,
+              isGroup,
+              groupId,
+            );
+          } catch (error) {
+            this.logger.error('Error executing follow-up action:', error);
+          }
+        }, pluginResponse.followUp!.delay);
       }
 
       return response;

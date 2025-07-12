@@ -424,6 +424,8 @@ export class WhatsAppWebService
                   timestamp: msg.timestamp.toString(),
                   name: (await msg.getContact()).pushname,
                   whatsappId: isGroupMessage && msg.author ? msg.author : msg.from,
+                  isGroup: isGroupMessage,
+                  groupId: isGroupMessage ? msg.from : undefined,
                 });
 
                 if (response) {
@@ -504,6 +506,8 @@ export class WhatsAppWebService
               name: (await msg.getContact()).pushname,
               isVoiceCommand: true, // Flag to indicate this came from voice
               whatsappId: isGroupMessage && msg.author ? msg.author : msg.from,
+              isGroup: isGroupMessage,
+              groupId: isGroupMessage ? msg.from : undefined,
             });
 
             // Send response
@@ -588,6 +592,8 @@ export class WhatsAppWebService
           timestamp: msg.timestamp.toString(),
           name: contact.pushname,
           whatsappId: isGroupMessage && msg.author ? msg.author : msg.from,
+          isGroup: isGroupMessage,
+          groupId: isGroupMessage ? msg.from : undefined,
         });
 
         // Send response if we have one

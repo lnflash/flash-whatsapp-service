@@ -288,6 +288,9 @@ describe('WhatsappService', () => {
             getNextStep: jest.fn(),
             skipOnboarding: jest.fn(),
             getProgressMessage: jest.fn(),
+            isNewUser: jest.fn().mockResolvedValue(false),
+            getWelcomeMessage: jest.fn().mockResolvedValue('Welcome!'),
+            detectAndUpdateProgress: jest.fn().mockResolvedValue(undefined),
           },
         },
         {
@@ -296,6 +299,8 @@ describe('WhatsappService', () => {
             checkForConfusion: jest.fn().mockResolvedValue(null),
             logActivity: jest.fn(),
             clearUserActivity: jest.fn(),
+            trackActivity: jest.fn().mockResolvedValue(undefined),
+            analyzeForConfusion: jest.fn().mockResolvedValue(null),
           },
         },
         {
