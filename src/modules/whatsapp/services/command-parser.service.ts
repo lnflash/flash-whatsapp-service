@@ -242,6 +242,12 @@ export class CommandParserService {
         }
       }
 
+      // Check for instructional questions before returning unknown
+      const instructionalQuestion = this.parseInstructionalQuestion(trimmedText);
+      if (instructionalQuestion.type !== CommandType.UNKNOWN) {
+        return instructionalQuestion;
+      }
+
       // If no pattern matched, return as unknown command
       return {
         type: CommandType.UNKNOWN,
