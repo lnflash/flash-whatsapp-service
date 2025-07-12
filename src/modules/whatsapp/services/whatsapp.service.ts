@@ -1324,6 +1324,14 @@ _This limitation is due to WhatsApp's privacy features._`;
    * Get help message based on session status
    */
   private getHelpMessage(session: UserSession | null, command?: ParsedCommand): string {
+    // Check for instructional questions first
+    const isQuestion = command?.args?.isQuestion === 'true';
+    const originalQuestion = command?.args?.originalQuestion;
+    
+    if (isQuestion && originalQuestion) {
+      return this.getInstructionalResponse(command?.args?.category || 'general', originalQuestion, session);
+    }
+    
     // Check if a category or navigation was requested
     if (command?.args?.category) {
       const category = command.args.category;
@@ -1451,6 +1459,67 @@ Share the QR code to get paid!`,
     };
 
     return categories[category.toLowerCase()] || `Type: \`help\`, \`help send\`, \`help receive\``;
+  }
+  
+  /**
+   * Get instructional response for "how do I" questions
+   */
+  private getInstructionalResponse(category: string, question: string, session: UserSession | null): string {
+    const lowerQuestion = question.toLowerCase();
+    
+    // Send money instructions
+    if (category === 'send' || lowerQuestion.includes('send') || lowerQuestion.includes('pay')) {
+      if (!session?.isVerified) {
+        return `To send money, you first need to link your Flash account. Type \`link\` to get started.\n\nOnce linked, you can send money by typing:\n\`send [amount] to [recipient]\`\n\nFor example:\n• \`send 10 to @john\`\n• \`send 2.50 to mary\``;
+      }
+      
+      // Extract amount if mentioned in the question
+      const amountMatch = lowerQuestion.match(/\$(\d+(?:\.\d+)?)|\b(\d+(?:\.\d+)?)\s*(?:dollar|usd)?/i);
+      const amount = amountMatch ? (amountMatch[1] || amountMatch[2]) : '10';
+      
+      // Extract recipient if mentioned
+      const recipientMatch = lowerQuestion.match(/to\s+(?:my\s+)?(?:friend\s+)?(\w+)/i);
+      const recipient = recipientMatch ? recipientMatch[1] : 'username';
+      
+      return `To send money, use this format:\n\`send ${amount} to ${recipient}\`\n\n${recipient === 'username' ? 'Replace "username" with:\n• @username (Flash user)\n• Contact name\n• Phone number' : `If ${recipient} is:\n• A Flash user: \`send ${amount} to @${recipient}\`\n• A saved contact: \`send ${amount} to ${recipient}\`\n• Not on Flash: save as contact first`}\n\nAll amounts are in USD.`;
+    }
+    
+    // Receive money instructions
+    if (category === 'receive' || lowerQuestion.includes('receive') || lowerQuestion.includes('get paid')) {
+      if (!session?.isVerified) {
+        return `To receive money, you first need to link your Flash account. Type \`link\` to get started.\n\nOnce linked, you can receive money by typing:\n\`receive [amount]\``;
+      }
+      return `To receive money, type:\n\`receive [amount]\`\n\nFor example:\n• \`receive 20\` - creates a $20 invoice\n• \`receive 5.50 lunch money\` - with memo\n\nShare the invoice to get paid instantly.`;
+    }
+    
+    // Balance instructions
+    if (category === 'wallet' || lowerQuestion.includes('balance') || lowerQuestion.includes('check') || lowerQuestion.includes('money')) {
+      if (!session?.isVerified) {
+        return `To check your balance, you first need to link your Flash account. Type \`link\` to get started.\n\nOnce linked, just type \`balance\` anytime.`;
+      }
+      return `To check your balance, simply type:\n\`balance\`\n\nNeed to refresh? Type \`refresh\``;
+    }
+    
+    // Link account instructions
+    if (category === 'link' || lowerQuestion.includes('link') || lowerQuestion.includes('connect')) {
+      if (session?.isVerified) {
+        return `Your account is already linked! You can now:\n• Send money: \`send 10 to @username\`\n• Check balance: \`balance\`\n• Receive money: \`receive 20\``;
+      }
+      return `To link your Flash account:\n1. Type \`link\`\n2. Check your Flash app for a code\n3. Type \`verify [code]\`\n\nNeed help? Make sure you have the Flash app installed.`;
+    }
+    
+    // Contacts instructions
+    if (category === 'contacts' || lowerQuestion.includes('contact')) {
+      return `To manage contacts:\n• View all: \`contacts\`\n• Add: \`contacts add john +1234567890\`\n• Remove: \`contacts remove john\`\n\nSaved contacts make sending easier!`;
+    }
+    
+    // Voice instructions
+    if (category === 'voice' || lowerQuestion.includes('voice') || lowerQuestion.includes('audio')) {
+      return `To use voice features:\n• Turn on: \`voice on\`\n• Turn off: \`voice off\`\n• Voice only: \`voice only\`\n\nOr say any command like "voice balance"`;
+    }
+    
+    // Default help for general questions
+    return `I can help you with:\n\n• Send money: \`send [amount] to [recipient]\`\n• Receive money: \`receive [amount]\`\n• Check balance: \`balance\`\n• View history: \`history\`\n\nWhat would you like to do?`;
   }
 
   /**

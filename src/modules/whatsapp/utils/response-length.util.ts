@@ -16,6 +16,7 @@ export class ResponseLengthUtil {
     'error_detailed',
     'transaction_history',
     'analytics_report',
+    'instructional', // How-to questions need complete answers
   ];
 
   /**

@@ -1162,7 +1162,127 @@ export class CommandParserService {
     ) {
       return { type: CommandType.LEARN, args: {}, rawText: text };
     }
+    
+    // Check for instructional questions last, after all specific commands
+    const instructionalQuestion = this.parseInstructionalQuestion(text);
+    if (instructionalQuestion.type !== CommandType.UNKNOWN) {
+      return instructionalQuestion;
+    }
 
+    return { type: CommandType.UNKNOWN, args: {}, rawText: text };
+  }
+  
+  /**
+   * Parse instructional questions (how do I, what is, where can I find, etc.)
+   */
+  private parseInstructionalQuestion(text: string): ParsedCommand {
+    const lowerText = text.toLowerCase();
+    
+    // Question patterns - be specific to avoid catching simple commands
+    const questionPatterns = [
+      /how (?:do i|can i|to|should i)\s+(.+)/i,
+      /what (?:is|are) (?:the )?(?:way|process|method|procedure) (?:to|for)\s+(.+)/i,
+      /where (?:can i|do i|should i)\s+(?:find|get|see)\s+(.+)/i,
+      /when (?:can i|should i|do i)\s+(.+)/i,
+      /why (?:should i|would i|do i)\s+(.+)/i,
+      /can (?:i|you|someone)\s+(.+)/i,
+      /could (?:i|you)\s+(.+)/i,
+      /would (?:you|someone)\s+(.+)/i,
+      /is it possible to\s+(.+)/i,
+      /do you know how to\s+(.+)/i,
+      /show me how to\s+(.+)/i,
+      /teach me how to\s+(.+)/i,
+      /explain how to\s+(.+)/i,
+      /tell me how to\s+(.+)/i,
+      /help me\s+(.+)/i,
+      /i want to know how to\s+(.+)/i,
+      /i need to know how to\s+(.+)/i,
+      /how does (.+) work/i,
+      /what does (.+) mean/i,
+      /what\'s the (?:way|process|method) to\s+(.+)/i,
+    ];
+    
+    for (const pattern of questionPatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        const questionContent = match[1].toLowerCase();
+        
+        // Check what they're asking about
+        if (questionContent.includes('send') || questionContent.includes('pay') || questionContent.includes('transfer')) {
+          // They're asking how to send money
+          return {
+            type: CommandType.HELP,
+            args: { 
+              category: 'send',
+              isQuestion: 'true',
+              originalQuestion: text
+            },
+            rawText: text
+          };
+        } else if (questionContent.includes('receive') || questionContent.includes('get paid') || questionContent.includes('accept money')) {
+          return {
+            type: CommandType.HELP,
+            args: { 
+              category: 'receive',
+              isQuestion: 'true',
+              originalQuestion: text
+            },
+            rawText: text
+          };
+        } else if (questionContent.includes('balance') || questionContent.includes('check') || questionContent.includes('money')) {
+          return {
+            type: CommandType.HELP,
+            args: { 
+              category: 'wallet',
+              isQuestion: 'true',
+              originalQuestion: text
+            },
+            rawText: text
+          };
+        } else if (questionContent.includes('link') || questionContent.includes('connect') || questionContent.includes('account')) {
+          return {
+            type: CommandType.HELP,
+            args: { 
+              category: 'link',
+              isQuestion: 'true',
+              originalQuestion: text
+            },
+            rawText: text
+          };
+        } else if (questionContent.includes('contact')) {
+          return {
+            type: CommandType.HELP,
+            args: { 
+              category: 'contacts',
+              isQuestion: 'true',
+              originalQuestion: text
+            },
+            rawText: text
+          };
+        } else if (questionContent.includes('voice') || questionContent.includes('audio')) {
+          return {
+            type: CommandType.HELP,
+            args: { 
+              category: 'voice',
+              isQuestion: 'true',
+              originalQuestion: text
+            },
+            rawText: text
+          };
+        } else {
+          // General help question
+          return {
+            type: CommandType.HELP,
+            args: { 
+              isQuestion: 'true',
+              originalQuestion: text
+            },
+            rawText: text
+          };
+        }
+      }
+    }
+    
     return { type: CommandType.UNKNOWN, args: {}, rawText: text };
   }
 
