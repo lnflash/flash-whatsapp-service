@@ -1054,14 +1054,14 @@ export class CommandParserService {
     }
 
     // Admin variations (be careful with these)
+    // Skip this special case handling and let the normal command parsing handle it
+    // This was causing admin status and other commands to not work properly
     if (
-      lowerText.includes('admin help') ||
-      lowerText.includes('admin status') ||
-      lowerText.includes('admin settings') ||
-      lowerText.includes('admin mode') ||
-      lowerText.includes('admin panel') ||
-      lowerText.includes('admin commands') ||
-      lowerText === 'admin'
+      lowerText === 'admin' ||
+      lowerText === 'admin help' ||
+      lowerText === 'admin mode' ||
+      lowerText === 'admin panel' ||
+      lowerText === 'admin commands'
     ) {
       return { type: CommandType.ADMIN, args: {}, rawText: text };
     }
@@ -1430,7 +1430,7 @@ export class CommandParserService {
       case CommandType.ADMIN:
         // Extract admin action
         if (match[1]) {
-          args.action = match[1].toLowerCase();
+          args.action = match[1].toLowerCase().trim();
         }
         // Extract additional parameters for admin commands
         if (match[2]) {

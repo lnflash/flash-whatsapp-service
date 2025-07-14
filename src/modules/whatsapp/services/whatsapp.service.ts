@@ -546,6 +546,7 @@ export class WhatsappService {
           return this.handleSettingsCommand(command, whatsappId, session);
 
         case CommandType.ADMIN:
+          this.logger.debug(`Processing admin command:`, { command, whatsappId });
           return this.handleAdminCommand(command, whatsappId, phoneNumber);
 
         case CommandType.UNDO:
@@ -4684,9 +4685,17 @@ ${voiceList}`;
       }
 
       const action = command.args.action;
+      
+      // Debug logging to trace the issue
+      this.logger.debug(`Admin command received - action: ${action}, args:`, command.args);
 
       if (!this.whatsappWebService) {
         return '❌ WhatsApp Web service not available.';
+      }
+
+      // Handle case where action might be undefined or empty
+      if (!action || action === 'help') {
+        return this.getAdminHelpMessage();
       }
 
       switch (action) {
