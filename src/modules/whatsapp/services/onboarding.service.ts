@@ -78,37 +78,11 @@ export class OnboardingService {
     const key = `${this.ONBOARDING_KEY_PREFIX}${whatsappId}`;
     let data = await this.redisService.get(key);
 
-    // If no data found and this is an @lid format, try alternative formats
+    // If no data found and this is an @lid format, we can't look it up
+    // @lid IDs are anonymized and don't correspond to phone numbers
     if (!data && whatsappId.includes('@lid')) {
-      this.logger.debug(`No onboarding state for @lid format: ${whatsappId}, trying alternatives...`);
-      
-      // Try @c.us format
-      const phoneNumber = whatsappId.replace('@lid', '');
-      const alternativeId1 = `${phoneNumber}@c.us`;
-      const altKey1 = `${this.ONBOARDING_KEY_PREFIX}${alternativeId1}`;
-      data = await this.redisService.get(altKey1);
-      
-      if (!data) {
-        // Try @s.whatsapp.net format
-        const alternativeId2 = `${phoneNumber}@s.whatsapp.net`;
-        const altKey2 = `${this.ONBOARDING_KEY_PREFIX}${alternativeId2}`;
-        data = await this.redisService.get(altKey2);
-        
-        if (!data) {
-          // Try with country code prefix (common for US numbers)
-          const phoneWithCountryCode = `1${phoneNumber}`;
-          const alternativeId3 = `${phoneWithCountryCode}@c.us`;
-          const altKey3 = `${this.ONBOARDING_KEY_PREFIX}${alternativeId3}`;
-          data = await this.redisService.get(altKey3);
-          
-          if (!data) {
-            // Try @s.whatsapp.net with country code
-            const alternativeId4 = `${phoneWithCountryCode}@s.whatsapp.net`;
-            const altKey4 = `${this.ONBOARDING_KEY_PREFIX}${alternativeId4}`;
-            data = await this.redisService.get(altKey4);
-          }
-        }
-      }
+      this.logger.debug(`No onboarding state for @lid format: ${whatsappId} - this is an anonymized ID`);
+      // Return null - treat as new user who needs to link from DM
     }
 
     if (data) {

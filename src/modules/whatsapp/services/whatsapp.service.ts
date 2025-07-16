@@ -185,11 +185,9 @@ export class WhatsappService {
       
       // Debug logging for @lid users
       if (whatsappId.includes('@lid')) {
-        this.logger.log(`Debug: Processing message from @lid user: ${whatsappId}`);
-        this.logger.log(`Debug: Session found: ${session ? 'Yes' : 'No'}`);
-        if (session) {
-          this.logger.log(`Debug: Session verified: ${session.isVerified}`);
-        }
+        this.logger.log(`Debug: @lid user detected (anonymized ID): ${whatsappId}`);
+        this.logger.log(`Debug: This is a privacy-protected user in a group`);
+        this.logger.log(`Debug: They need to link from a DM first`);
       }
 
       // Track user activity for contextual help
@@ -202,11 +200,22 @@ export class WhatsappService {
 
       // Check if this is a new user and show welcome message
       const isNew = await this.onboardingService.isNewUser(whatsappId);
-      if (whatsappId.includes('@lid')) {
-        this.logger.log(`Debug: Is new user check: ${isNew}`);
-      }
       
       if (isNew) {
+        // For @lid users, show special instructions
+        if (whatsappId.includes('@lid')) {
+          return `👋 *Welcome to Pulse!*
+
+I see you're using WhatsApp's privacy mode in this group.
+
+To use Pulse:
+1. Message me directly: @${this.configService.get('WHATSAPP_BOT_NUMBER', '18673225224')}
+2. Type \`link\` to connect your Flash account
+3. Then use me anywhere!
+
+_Your phone number is hidden for privacy in this group._`;
+        }
+        
         // For completely new users, show welcome regardless of command
         return this.onboardingService.getWelcomeMessage(whatsappId);
       }
@@ -725,15 +734,16 @@ export class WhatsappService {
 
       // Check if this is an @lid format user
       if (whatsappId.includes('@lid')) {
-        return `⚠️ *Unable to Link Account*
+        return `⚠️ *Privacy Mode Detected*
 
-Your WhatsApp account uses a special ID format that cannot be linked to Flash.
+You're using WhatsApp's privacy mode in this group, which hides your phone number.
 
-To use this bot, please:
-1. Use WhatsApp from a phone number registered with Flash
-2. Or contact support for assistance
+To use Pulse in this group:
+1. Message me directly first: @${this.configService.get('WHATSAPP_BOT_NUMBER', '18673225224')}
+2. Type \`link\` to connect your account
+3. Then you can use me in any group!
 
-_This limitation is due to WhatsApp's privacy features._`;
+_This is a WhatsApp privacy feature to protect your number in groups._`;
       }
 
       const linkRequest: AccountLinkRequestDto = {

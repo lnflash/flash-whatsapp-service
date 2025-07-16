@@ -86,49 +86,14 @@ export class SessionService {
       const whatsappKey = this.redisService.hashKey('whatsapp', whatsappId);
       let sessionId = await this.redisService.get(whatsappKey);
 
-      // If no session found and this is an @lid format, try alternative formats
+      // If no session found and this is an @lid format, we can't look it up
+      // @lid IDs are anonymized and don't correspond to phone numbers
       if (!sessionId && whatsappId.includes('@lid')) {
         this.logger.debug(
-          `No session found for @lid format: ${whatsappId}, trying alternatives...`,
+          `No session found for @lid format: ${whatsappId} - this is an anonymized ID`,
         );
-
-        // Try @c.us format
-        const phoneNumber = whatsappId.replace('@lid', '');
-        const alternativeId1 = `${phoneNumber}@c.us`;
-        const altKey1 = this.redisService.hashKey('whatsapp', alternativeId1);
-        sessionId = await this.redisService.get(altKey1);
-
-        if (sessionId) {
-          this.logger.debug(`Found session with @c.us format: ${alternativeId1}`);
-        } else {
-          // Try @s.whatsapp.net format
-          const alternativeId2 = `${phoneNumber}@s.whatsapp.net`;
-          const altKey2 = this.redisService.hashKey('whatsapp', alternativeId2);
-          sessionId = await this.redisService.get(altKey2);
-
-          if (sessionId) {
-            this.logger.debug(`Found session with @s.whatsapp.net format: ${alternativeId2}`);
-          } else {
-            // Try with country code prefix (common for US numbers)
-            const phoneWithCountryCode = `1${phoneNumber}`;
-            const alternativeId3 = `${phoneWithCountryCode}@c.us`;
-            const altKey3 = this.redisService.hashKey('whatsapp', alternativeId3);
-            sessionId = await this.redisService.get(altKey3);
-            
-            if (sessionId) {
-              this.logger.debug(`Found session with country code prefix: ${alternativeId3}`);
-            } else {
-              // Try @s.whatsapp.net with country code
-              const alternativeId4 = `${phoneWithCountryCode}@s.whatsapp.net`;
-              const altKey4 = this.redisService.hashKey('whatsapp', alternativeId4);
-              sessionId = await this.redisService.get(altKey4);
-              
-              if (sessionId) {
-                this.logger.debug(`Found session with country code and @s.whatsapp.net: ${alternativeId4}`);
-              }
-            }
-          }
-        }
+        // Return null - the user needs to link from a DM first
+        return null;
       }
 
       if (!sessionId) {
