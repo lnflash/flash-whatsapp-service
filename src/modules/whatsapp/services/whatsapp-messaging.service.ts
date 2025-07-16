@@ -103,18 +103,24 @@ export class WhatsAppMessagingService implements MessagingPlatform {
   }
 
   parseIncomingMessage(whatsappMessage: any): IncomingMessage {
+    // Handle different message ID formats
+    const messageId = whatsappMessage.id?._serialized || 
+                     whatsappMessage.id?.id || 
+                     whatsappMessage.id || 
+                     'unknown';
+    
     return {
-      id: whatsappMessage.id._serialized,
-      from: whatsappMessage.from,
-      to: whatsappMessage.to,
+      id: messageId,
+      from: whatsappMessage.from || '',
+      to: whatsappMessage.to || '',
       timestamp: new Date(whatsappMessage.timestamp * 1000),
       type: this.mapMessageType(whatsappMessage.type),
       content: {
-        text: whatsappMessage.body,
-        mentions: whatsappMessage.mentionedIds,
+        text: whatsappMessage.body || '',
+        mentions: whatsappMessage.mentionedIds || [],
       },
-      isGroup: whatsappMessage.from.includes('@g.us'),
-      groupId: whatsappMessage.from.includes('@g.us') ? whatsappMessage.from : undefined,
+      isGroup: whatsappMessage.from?.includes('@g.us') || false,
+      groupId: whatsappMessage.from?.includes('@g.us') ? whatsappMessage.from : undefined,
       platform: 'whatsapp',
       raw: whatsappMessage,
     };
