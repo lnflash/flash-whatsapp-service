@@ -217,5 +217,41 @@ describe('SessionService', () => {
       expect(redisService.hashKey).toHaveBeenCalledWith('whatsapp', cusWhatsappId);
       expect(redisService.get).toHaveBeenCalledTimes(2);
     });
+
+    it('should find session with country code prefix when @lid format without country code is provided', async () => {
+      const lidWhatsappId = '2345678901@lid'; // Without country code
+      const cusWhatsappId = '12345678901@c.us'; // With country code
+      const mockSessionId = 'test_session_id_456';
+      const mockSession: UserSession = {
+        sessionId: mockSessionId,
+        whatsappId: cusWhatsappId,
+        phoneNumber: '+12345678901',
+        isVerified: true,
+        flashUserId: 'flash_456',
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 86400000),
+        lastActivity: new Date(),
+        mfaVerified: false,
+        consentGiven: false,
+      };
+
+      // Mock Redis calls - simulating not found until we try with country code
+      jest
+        .spyOn(redisService, 'get')
+        .mockResolvedValueOnce(null) // @lid format not found
+        .mockResolvedValueOnce(null) // @c.us format without country code not found
+        .mockResolvedValueOnce(null) // @s.whatsapp.net format without country code not found
+        .mockResolvedValueOnce(mockSessionId); // @c.us format with country code found
+      jest.spyOn(redisService, 'getEncrypted').mockResolvedValue(mockSession);
+
+      const session = await service.getSessionByWhatsappId(lidWhatsappId);
+
+      expect(session).toBeDefined();
+      expect(session?.sessionId).toBe(mockSessionId);
+      expect(session?.whatsappId).toBe(cusWhatsappId);
+
+      // Verify Redis was called with all format attempts
+      expect(redisService.get).toHaveBeenCalledTimes(4);
+    });
   });
 });

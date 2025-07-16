@@ -108,6 +108,25 @@ export class SessionService {
 
           if (sessionId) {
             this.logger.debug(`Found session with @s.whatsapp.net format: ${alternativeId2}`);
+          } else {
+            // Try with country code prefix (common for US numbers)
+            const phoneWithCountryCode = `1${phoneNumber}`;
+            const alternativeId3 = `${phoneWithCountryCode}@c.us`;
+            const altKey3 = this.redisService.hashKey('whatsapp', alternativeId3);
+            sessionId = await this.redisService.get(altKey3);
+            
+            if (sessionId) {
+              this.logger.debug(`Found session with country code prefix: ${alternativeId3}`);
+            } else {
+              // Try @s.whatsapp.net with country code
+              const alternativeId4 = `${phoneWithCountryCode}@s.whatsapp.net`;
+              const altKey4 = this.redisService.hashKey('whatsapp', alternativeId4);
+              sessionId = await this.redisService.get(altKey4);
+              
+              if (sessionId) {
+                this.logger.debug(`Found session with country code and @s.whatsapp.net: ${alternativeId4}`);
+              }
+            }
           }
         }
       }

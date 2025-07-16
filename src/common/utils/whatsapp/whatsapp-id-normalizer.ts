@@ -31,14 +31,35 @@ export class WhatsAppIdNormalizer {
     }
 
     const phoneNumber = this.extractPhoneNumber(whatsappId);
-    
-    // Return all possible formats
-    return [
+    const formats: string[] = [
       whatsappId, // Original format
       `${phoneNumber}@c.us`,
       `${phoneNumber}@lid`,
       `${phoneNumber}@s.whatsapp.net`,
-    ].filter((id, index, self) => self.indexOf(id) === index); // Remove duplicates
+    ];
+    
+    // If phone number doesn't start with country code, try adding common ones
+    // This handles cases where WhatsApp strips the country code in @lid format
+    if (!phoneNumber.startsWith('1') && phoneNumber.length === 10) {
+      // US/Canada numbers
+      const withUS = `1${phoneNumber}`;
+      formats.push(
+        `${withUS}@c.us`,
+        `${withUS}@lid`,
+        `${withUS}@s.whatsapp.net`,
+      );
+    } else if (!phoneNumber.startsWith('1') && phoneNumber.length === 11) {
+      // Might be missing country code for Caribbean/other regions
+      const withCaribbean = `1${phoneNumber}`;
+      formats.push(
+        `${withCaribbean}@c.us`,
+        `${withCaribbean}@lid`,
+        `${withCaribbean}@s.whatsapp.net`,
+      );
+    }
+    
+    // Remove duplicates
+    return formats.filter((id, index, self) => self.indexOf(id) === index);
   }
 
   /**

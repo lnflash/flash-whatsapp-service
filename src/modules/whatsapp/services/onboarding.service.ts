@@ -93,6 +93,21 @@ export class OnboardingService {
         const alternativeId2 = `${phoneNumber}@s.whatsapp.net`;
         const altKey2 = `${this.ONBOARDING_KEY_PREFIX}${alternativeId2}`;
         data = await this.redisService.get(altKey2);
+        
+        if (!data) {
+          // Try with country code prefix (common for US numbers)
+          const phoneWithCountryCode = `1${phoneNumber}`;
+          const alternativeId3 = `${phoneWithCountryCode}@c.us`;
+          const altKey3 = `${this.ONBOARDING_KEY_PREFIX}${alternativeId3}`;
+          data = await this.redisService.get(altKey3);
+          
+          if (!data) {
+            // Try @s.whatsapp.net with country code
+            const alternativeId4 = `${phoneWithCountryCode}@s.whatsapp.net`;
+            const altKey4 = `${this.ONBOARDING_KEY_PREFIX}${alternativeId4}`;
+            data = await this.redisService.get(altKey4);
+          }
+        }
       }
     }
 
