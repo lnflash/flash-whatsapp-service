@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../../redis/redis.service';
 import { UserSession } from '../interfaces/user-session.interface';
+import { GroupAuthService } from './group-auth.service';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -13,6 +14,8 @@ export class SessionService {
   constructor(
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
+    @Inject(forwardRef(() => GroupAuthService))
+    private readonly groupAuthService?: GroupAuthService,
   ) {
     this.sessionExpiry = this.configService.get<number>('security.sessionExpiry') || 86400; // Default 24 hours
     this.mfaExpiry = this.configService.get<number>('security.mfaExpiry') || 300; // Default 5 minutes
@@ -86,14 +89,22 @@ export class SessionService {
       const whatsappKey = this.redisService.hashKey('whatsapp', whatsappId);
       let sessionId = await this.redisService.get(whatsappKey);
 
-      // If no session found and this is an @lid format, we can't look it up
-      // @lid IDs are anonymized and don't correspond to phone numbers
-      if (!sessionId && whatsappId.includes('@lid')) {
-        this.logger.debug(
-          `No session found for @lid format: ${whatsappId} - this is an anonymized ID`,
-        );
-        // Return null - the user needs to link from a DM first
-        return null;
+      // If no session found and this is an @lid format, check for group auth mapping
+      if (!sessionId && whatsappId.includes('@lid') && this.groupAuthService) {
+        this.logger.debug(`Checking group auth mapping for @lid: ${whatsappId}`);
+        
+        const realId = await this.groupAuthService.getRealIdForLid(whatsappId);
+        if (realId) {
+          this.logger.debug(`Found mapping for @lid: ${whatsappId} -> ${realId}`);
+          // Try again with the real ID
+          const realWhatsappKey = this.redisService.hashKey('whatsapp', realId);
+          sessionId = await this.redisService.get(realWhatsappKey);
+        } else {
+          this.logger.debug(
+            `No mapping found for @lid format: ${whatsappId} - user needs to link from DM first`,
+          );
+          return null;
+        }
       }
 
       if (!sessionId) {

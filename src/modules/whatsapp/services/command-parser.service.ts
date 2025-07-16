@@ -45,7 +45,7 @@ export class CommandParserService {
       pattern: /^help(?:\s+(wallet|send|receive|contacts|pending|voice|games|more|1|2|3))?$/i,
     },
     { type: CommandType.BALANCE, pattern: /^balance|^bal$/i },
-    { type: CommandType.LINK, pattern: /^link|^connect$/i },
+    { type: CommandType.LINK, pattern: /^link(?:\s+(group|[A-Z0-9]{6}))?$|^connect(?:\s+(?:to\s+)?(?:flash|me|my\s+account))?$/i },
     { type: CommandType.UNLINK, pattern: /^unlink(?:\s+(confirm))?$/i },
     { type: CommandType.VERIFY, pattern: /^(?:verify|v)\s+(\d{6})$/i },
     { type: CommandType.CONSENT, pattern: /^consent\s+(yes|no)$/i },
@@ -1365,6 +1365,17 @@ export class CommandParserService {
         // Extract consent choice
         if (match[1]) {
           args.choice = match[1].toLowerCase();
+        }
+        break;
+
+      case CommandType.LINK:
+        // Extract link type (group) or code
+        if (match[1]) {
+          if (match[1].toLowerCase() === 'group') {
+            args.type = 'group';
+          } else {
+            args.code = match[1].toUpperCase();
+          }
         }
         break;
 

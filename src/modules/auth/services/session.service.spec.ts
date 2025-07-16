@@ -39,6 +39,13 @@ describe('SessionService', () => {
             setEncrypted: jest.fn(),
             getEncrypted: jest.fn(),
             hashKey: jest.fn((prefix, id) => `${prefix}:hashed_${id}`),
+            expire: jest.fn(),
+          },
+        },
+        {
+          provide: 'GroupAuthService',
+          useValue: {
+            getRealIdForLid: jest.fn(),
           },
         },
       ],

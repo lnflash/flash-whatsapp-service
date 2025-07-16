@@ -5,6 +5,7 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthService } from './services/auth.service';
 import { SessionService } from './services/session.service';
 import { OtpService } from './services/otp.service';
+import { GroupAuthService } from './services/group-auth.service';
 import { RedisModule } from '../redis/redis.module';
 import { FlashApiModule } from '../flash-api/flash-api.module';
 import { SessionGuard } from './guards/session.guard';
@@ -27,7 +28,7 @@ import { MfaGuard } from './guards/mfa.guard';
       inject: [ConfigService],
     }),
   ],
-  providers: [AuthService, SessionService, OtpService, SessionGuard, MfaGuard],
-  exports: [AuthService, SessionService, OtpService, SessionGuard, MfaGuard, JwtModule],
+  providers: [AuthService, SessionService, OtpService, GroupAuthService, SessionGuard, MfaGuard],
+  exports: [AuthService, SessionService, OtpService, GroupAuthService, SessionGuard, MfaGuard, JwtModule],
 })
 export class AuthModule {}

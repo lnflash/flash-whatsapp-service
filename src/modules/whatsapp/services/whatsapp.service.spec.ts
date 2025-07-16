@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../../redis/redis.service';
 import { AuthService } from '../../auth/services/auth.service';
 import { SessionService } from '../../auth/services/session.service';
+import { GroupAuthService } from '../../auth/services/group-auth.service';
 import { FlashApiService } from '../../flash-api/flash-api.service';
 import { BalanceService } from '../../flash-api/services/balance.service';
 import { UsernameService } from '../../flash-api/services/username.service';
@@ -86,6 +87,15 @@ describe('WhatsappService', () => {
             createSession: jest.fn(),
             getSession: jest.fn(),
             updateSession: jest.fn(),
+          },
+        },
+        {
+          provide: GroupAuthService,
+          useValue: {
+            generateGroupLinkCode: jest.fn(),
+            verifyGroupLinkCode: jest.fn(),
+            getRealIdForLid: jest.fn(),
+            isLidLinked: jest.fn(),
           },
         },
         {

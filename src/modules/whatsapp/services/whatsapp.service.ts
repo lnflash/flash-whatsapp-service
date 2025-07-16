@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../../redis/redis.service';
 import { AuthService } from '../../auth/services/auth.service';
 import { SessionService } from '../../auth/services/session.service';
+import { GroupAuthService } from '../../auth/services/group-auth.service';
 import { FlashApiService } from '../../flash-api/flash-api.service';
 import { BalanceService } from '../../flash-api/services/balance.service';
 import { UsernameService } from '../../flash-api/services/username.service';
@@ -61,6 +62,7 @@ export class WhatsappService {
     private readonly redisService: RedisService,
     private readonly authService: AuthService,
     private readonly sessionService: SessionService,
+    private readonly groupAuthService: GroupAuthService,
     private readonly flashApiService: FlashApiService,
     private readonly balanceService: BalanceService,
     private readonly usernameService: UsernameService,
@@ -495,7 +497,7 @@ _Your phone number is hidden for privacy in this group._`;
           return this.getHelpMessage(session, command, isGroup);
 
         case CommandType.LINK:
-          return this.handleLinkCommand(whatsappId, phoneNumber);
+          return this.handleLinkCommand(command, whatsappId, phoneNumber, isGroup);
 
         case CommandType.UNLINK:
           return this.handleUnlinkCommand(command, whatsappId, session);
@@ -727,16 +729,60 @@ _Your phone number is hidden for privacy in this group._`;
   /**
    * Handle account linking command
    */
-  private async handleLinkCommand(whatsappId: string, phoneNumber: string): Promise<string> {
+  private async handleLinkCommand(
+    command: ParsedCommand,
+    whatsappId: string,
+    phoneNumber: string,
+    isGroup?: boolean,
+  ): Promise<string> {
     try {
+      // Handle "link CODE" in groups
+      if (command.args.code && isGroup) {
+        if (!whatsappId.includes('@lid')) {
+          return '❌ This command is only for users with privacy mode (@lid format).';
+        }
+
+        const result = await this.groupAuthService.verifyGroupLinkCode(
+          command.args.code,
+          whatsappId,
+        );
+
+        if (result.success) {
+          return `✅ ${result.message}`;
+        } else {
+          return `❌ ${result.message}`;
+        }
+      }
+
+      // Handle "link group" in DM
+      if (command.args.type === 'group' && !isGroup) {
+        const existingSession = await this.sessionService.getSessionByWhatsappId(whatsappId);
+        if (!existingSession || !existingSession.isVerified) {
+          return '❌ Please link your Flash account first using `link` before generating a group code.';
+        }
+
+        const code = await this.groupAuthService.generateGroupLinkCode(phoneNumber, whatsappId);
+        
+        return `🔐 *Group Link Code Generated*
+
+Your code: \`${code}\`
+
+To link in a group:
+1. Go to the group chat
+2. Type: \`link ${code}\`
+
+⏱️ Code expires in 5 minutes
+🛡️ Your phone number stays private!`;
+      }
+
       // First check if user already has a linked session
       const existingSession = await this.sessionService.getSessionByWhatsappId(whatsappId);
       if (existingSession) {
         return 'Your Flash account is already linked.';
       }
 
-      // Check if this is an @lid format user
-      if (whatsappId.includes('@lid')) {
+      // Check if this is an @lid format user in a group
+      if (whatsappId.includes('@lid') && isGroup) {
         return `⚠️ *Privacy Mode Detected*
 
 You're using WhatsApp's privacy mode in this group, which hides your phone number.
@@ -744,7 +790,8 @@ You're using WhatsApp's privacy mode in this group, which hides your phone numbe
 To use Pulse in this group:
 1. Message me directly first: @${this.configService.get('WHATSAPP_BOT_NUMBER', '18673225224')}
 2. Type \`link\` to connect your account
-3. Then you can use me in any group!
+3. Type \`link group\` to get a privacy code
+4. Use the code in any group!
 
 _This is a WhatsApp privacy feature to protect your number in groups._`;
       }
@@ -1646,6 +1693,15 @@ Share the QR code to get paid!`,
       lowerQuestion.includes('fun')
     ) {
       return `To play games and have fun:\n\n*Trivia (earn sats!):*\n• Start: \`trivia\`\n• Answer: \`answer 1\` or \`a\`\n• Get help: \`hint\`\n\n*Group Games:*\n• Create poll: \`poll Question | Option1 | Option2\`\n• Quick game: \`game quickdraw\`\n\n*Fun:*\n• \`joke\` - get a laugh\n• \`meme\` - see a meme\n\nReady to play? Type \`trivia\` to start!`;
+    }
+
+    // Privacy mode instructions
+    if (
+      lowerQuestion.includes('privacy') ||
+      lowerQuestion.includes('@lid') ||
+      lowerQuestion.includes('anonymous')
+    ) {
+      return `To use Pulse with privacy mode:\n\n1️⃣ Message me directly: @${this.configService.get('WHATSAPP_BOT_NUMBER', '18673225224')}\n2️⃣ Type \`link\` to connect your Flash account\n3️⃣ Type \`link group\` to get a privacy code\n4️⃣ In any group, type \`link [code]\`\n\nYour phone number stays private! 🛡️`;
     }
 
     // Default help for general questions
