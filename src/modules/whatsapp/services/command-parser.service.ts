@@ -588,6 +588,7 @@ export class CommandParserService {
       lowerText.includes('connect my account') ||
       lowerText.includes('link my flash') ||
       lowerText.includes('connect to flash') ||
+      lowerText.includes('link to flash') ||
       lowerText.includes('setup my account') ||
       lowerText.includes('set up my account') ||
       lowerText.includes('authenticate me') ||

@@ -3,6 +3,7 @@ import { SessionService } from './session.service';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../../redis/redis.service';
 import { UserSession } from '../interfaces/user-session.interface';
+import { GroupAuthService } from './group-auth.service';
 
 describe('SessionService', () => {
   let service: SessionService;
@@ -43,7 +44,7 @@ describe('SessionService', () => {
           },
         },
         {
-          provide: 'GroupAuthService',
+          provide: GroupAuthService,
           useValue: {
             getRealIdForLid: jest.fn(),
           },
