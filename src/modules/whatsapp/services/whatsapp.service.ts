@@ -275,38 +275,41 @@ _Your phone number is hidden for privacy in this group._`;
           response.includes('Welcome') &&
           response.includes('connected');
 
-        if (!isVerificationSuccess) {
-          // Collect all potential hints
+        if (!isVerificationSuccess && !messageData.isGroup) {
+          // Collect all potential hints (skip for group messages)
           const baseHint = this.getContextualHint(session, command);
           if (baseHint && !response.includes('💡')) {
             hints.push(`💡 ${baseHint}`);
           }
         }
 
-        // Add contextual help if user seems confused (highest priority)
-        const contextualHelp = await this.contextualHelpService.analyzeForConfusion(whatsappId);
-        if (contextualHelp && !finalText.includes(contextualHelp)) {
-          // Replace any existing hints with confusion help
-          hints.length = 0;
-          hints.push(contextualHelp);
-        }
+        // Skip all hints for group messages
+        if (!messageData.isGroup) {
+          // Add contextual help if user seems confused (highest priority)
+          const contextualHelp = await this.contextualHelpService.analyzeForConfusion(whatsappId);
+          if (contextualHelp && !finalText.includes(contextualHelp)) {
+            // Replace any existing hints with confusion help
+            hints.length = 0;
+            hints.push(contextualHelp);
+          }
 
-        // Add undo hint if applicable (high priority)
-        const undoHint = await this.undoTransactionService.getUndoHint(whatsappId);
-        if (undoHint && !hints.some((h) => h.includes('undo'))) {
-          hints.unshift(undoHint); // Add at beginning
-        }
+          // Add undo hint if applicable (high priority)
+          const undoHint = await this.undoTransactionService.getUndoHint(whatsappId);
+          if (undoHint && !hints.some((h) => h.includes('undo'))) {
+            hints.unshift(undoHint); // Add at beginning
+          }
 
-        // Check for onboarding completion celebration (always show)
-        const completionMessage = await this.onboardingService.getCompletionMessage(whatsappId);
-        if (completionMessage) {
-          finalText += completionMessage;
-        }
+          // Check for onboarding completion celebration (always show)
+          const completionMessage = await this.onboardingService.getCompletionMessage(whatsappId);
+          if (completionMessage) {
+            finalText += completionMessage;
+          }
 
-        // Add at most 2 hints to avoid clutter
-        const hintsToAdd = hints.slice(0, 2);
-        if (hintsToAdd.length > 0) {
-          finalText += '\n\n' + hintsToAdd.join('\n\n');
+          // Add at most 2 hints to avoid clutter
+          const hintsToAdd = hints.slice(0, 2);
+          if (hintsToAdd.length > 0) {
+            finalText += '\n\n' + hintsToAdd.join('\n\n');
+          }
         }
 
         if (shouldUseVoice) {
@@ -345,13 +348,13 @@ _Your phone number is hidden for privacy in this group._`;
           if (response.voiceOnly) {
             return response;
           }
-          // Just add hint to text if not in voice-only mode
-          const finalText = this.addHint(response.text, session, command);
+          // Just add hint to text if not in voice-only mode (skip for groups)
+          const finalText = messageData.isGroup ? response.text : this.addHint(response.text, session, command);
           return { ...response, text: finalText };
         }
 
         // Response doesn't have voice yet, process normally
-        const finalText = this.addHint(response.text, session, command);
+        const finalText = messageData.isGroup ? response.text : this.addHint(response.text, session, command);
 
         // Check for forceVoice flag or normal voice conditions
         const useVoice = (response as any).forceVoice || shouldUseVoice;
@@ -489,7 +492,7 @@ _Your phone number is hidden for privacy in this group._`;
 
       switch (command.type) {
         case CommandType.HELP:
-          return this.getHelpMessage(session, command);
+          return this.getHelpMessage(session, command, isGroup);
 
         case CommandType.LINK:
           return this.handleLinkCommand(whatsappId, phoneNumber);
@@ -1369,7 +1372,7 @@ _This is a WhatsApp privacy feature to protect your number in groups._`;
   /**
    * Get help message based on session status
    */
-  private getHelpMessage(session: UserSession | null, command?: ParsedCommand): string {
+  private getHelpMessage(session: UserSession | null, command?: ParsedCommand, isGroup?: boolean): string {
     // Check for instructional questions first
     const isQuestion = command?.args?.isQuestion === 'true';
     const originalQuestion = command?.args?.originalQuestion;
@@ -1390,7 +1393,7 @@ _This is a WhatsApp privacy feature to protect your number in groups._`;
       if (category === '1') return this.getCategoryHelp('wallet');
       if (category === '2') return this.getCategoryHelp('send');
       if (category === '3') return this.getCategoryHelp('receive');
-      if (category === 'more') return this.getFullHelpMenu(session);
+      if (category === 'more') return this.getFullHelpMenu(session, isGroup);
 
       // Handle regular categories
       return this.getCategoryHelp(category);
@@ -1416,6 +1419,23 @@ Enter the 6-digit code sent to your phone.
 Need a new code? Type \`link\` again.`;
     }
 
+    // Show group-specific help if in a group
+    if (isGroup) {
+      return `⚡ *Group Commands*
+
+*Games & Fun:*
+• \`trivia\` - play trivia, earn sats
+• \`poll Question | Yes | No\` - create polls
+• \`game quickdraw\` - typing race
+• \`joke\` - random joke
+
+*Money:*
+• \`send 10 to @user\` - send payment
+• \`balance\` - check balance
+
+Type \`help games\` for more games!`;
+    }
+
     return `⚡ *Commands*
 
 • \`balance\` - check money
@@ -1431,9 +1451,9 @@ Try: \`balance\``;
   /**
    * Get full help menu with all commands
    */
-  private getFullHelpMenu(session: UserSession | null): string {
+  private getFullHelpMenu(session: UserSession | null, isGroup?: boolean): string {
     if (!session?.isVerified) {
-      return this.getHelpMessage(session);
+      return this.getHelpMessage(session, undefined, isGroup);
     }
 
     return `⚡ *All Commands*
