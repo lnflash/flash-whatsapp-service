@@ -40,7 +40,7 @@ export class MessagingController {
   async getStatus() {
     const status = this.messagingService.getConnectionStatus();
     const features = this.messagingService.getFeatures();
-    
+
     return {
       status,
       features,

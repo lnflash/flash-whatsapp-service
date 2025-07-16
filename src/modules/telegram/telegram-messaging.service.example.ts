@@ -32,11 +32,11 @@ export class TelegramMessagingService implements MessagingPlatform {
       // Initialize Telegram bot here
       // const bot = new Telegraf(this.configService.get('TELEGRAM_BOT_TOKEN'));
       // await bot.launch();
-      
+
       this.connected = true;
       this.lastConnected = new Date();
       this.emit(MessagingEvent.CONNECTED, {});
-      
+
       this.logger.log('Telegram bot connected');
     } catch (error) {
       this.logger.error('Failed to connect Telegram bot:', error);
@@ -48,10 +48,10 @@ export class TelegramMessagingService implements MessagingPlatform {
     try {
       // Disconnect Telegram bot
       // await this.bot.stop();
-      
+
       this.connected = false;
       this.emit(MessagingEvent.DISCONNECTED, { reason: 'Manual disconnect' });
-      
+
       this.logger.log('Telegram bot disconnected');
     } catch (error) {
       this.logger.error('Failed to disconnect Telegram bot:', error);
@@ -71,7 +71,7 @@ export class TelegramMessagingService implements MessagingPlatform {
     try {
       // Send message via Telegram
       // const result = await this.bot.telegram.sendMessage(to, content.text);
-      
+
       return {
         success: true,
         messageId: 'telegram-message-id',
@@ -98,7 +98,7 @@ export class TelegramMessagingService implements MessagingPlatform {
       //     break;
       //   // etc.
       // }
-      
+
       return {
         success: true,
         messageId: 'telegram-media-id',
@@ -117,12 +117,12 @@ export class TelegramMessagingService implements MessagingPlatform {
     try {
       // Telegram supports inline keyboards
       // const keyboard = Markup.inlineKeyboard([
-      //   interactive.action.buttons.map(btn => 
+      //   interactive.action.buttons.map(btn =>
       //     Markup.button.callback(btn.title, btn.id)
       //   )
       // ]);
       // await this.bot.telegram.sendMessage(to, interactive.body, keyboard);
-      
+
       return {
         success: true,
         messageId: 'telegram-interactive-id',
@@ -148,7 +148,8 @@ export class TelegramMessagingService implements MessagingPlatform {
         text: telegramMessage.text || telegramMessage.caption || '',
       },
       isGroup: telegramMessage.chat.type === 'group' || telegramMessage.chat.type === 'supergroup',
-      groupId: telegramMessage.chat.type !== 'private' ? telegramMessage.chat.id.toString() : undefined,
+      groupId:
+        telegramMessage.chat.type !== 'private' ? telegramMessage.chat.id.toString() : undefined,
       platform: 'telegram',
       raw: telegramMessage,
     };

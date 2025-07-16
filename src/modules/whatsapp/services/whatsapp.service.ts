@@ -247,9 +247,11 @@ export class WhatsappService {
         const hints: string[] = [];
 
         // For verification success responses, skip hints since the user just verified
-        const isVerificationSuccess = command.type === CommandType.VERIFY && 
-          response.includes('Welcome') && response.includes('connected');
-        
+        const isVerificationSuccess =
+          command.type === CommandType.VERIFY &&
+          response.includes('Welcome') &&
+          response.includes('connected');
+
         if (!isVerificationSuccess) {
           // Collect all potential hints
           const baseHint = this.getContextualHint(session, command);
@@ -701,6 +703,12 @@ export class WhatsappService {
    */
   private async handleLinkCommand(whatsappId: string, phoneNumber: string): Promise<string> {
     try {
+      // First check if user already has a linked session
+      const existingSession = await this.sessionService.getSessionByWhatsappId(whatsappId);
+      if (existingSession) {
+        return 'Your Flash account is already linked.';
+      }
+
       // Check if this is an @lid format user
       if (whatsappId.includes('@lid')) {
         return `⚠️ *Unable to Link Account*
@@ -851,7 +859,7 @@ _This limitation is due to WhatsApp's privacy features._`;
 
               // Create welcome message with pending payment info
               const welcomeMessage = this.getWelcomeMessage(updatedSession, pendingClaimMessage);
-              
+
               // Mark onboarding step as complete BEFORE returning
               await this.onboardingService.updateProgress(whatsappId, 'verify_account');
 
@@ -870,7 +878,7 @@ _This limitation is due to WhatsApp's privacy features._`;
 
       // Create warm welcome message
       const welcomeMessage = this.getWelcomeMessage(updatedSession);
-      
+
       // Mark onboarding step as complete BEFORE returning
       // This ensures the next response won't show verification hints
       await this.onboardingService.updateProgress(whatsappId, 'verify_account');

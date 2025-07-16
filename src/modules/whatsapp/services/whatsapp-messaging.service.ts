@@ -75,7 +75,7 @@ export class WhatsAppMessagingService implements MessagingPlatform {
       if (!media.url && !media.data) {
         throw new Error('Media must have either url or data');
       }
-      
+
       const result = await this.whatsappWebService.sendMedia(
         whatsappNumber,
         media.url || media.data!,
@@ -104,11 +104,9 @@ export class WhatsAppMessagingService implements MessagingPlatform {
 
   parseIncomingMessage(whatsappMessage: any): IncomingMessage {
     // Handle different message ID formats
-    const messageId = whatsappMessage.id?._serialized || 
-                     whatsappMessage.id?.id || 
-                     whatsappMessage.id || 
-                     'unknown';
-    
+    const messageId =
+      whatsappMessage.id?._serialized || whatsappMessage.id?.id || whatsappMessage.id || 'unknown';
+
     return {
       id: messageId,
       from: whatsappMessage.from || '',

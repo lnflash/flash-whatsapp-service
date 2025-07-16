@@ -150,7 +150,7 @@ describe('MessagingService', () => {
     it('should send a text message', async () => {
       const sendMessageSpy = jest.spyOn(mockPlatform, 'sendMessage');
       await service.sendMessage('+1234567890', 'Hello, world!');
-      
+
       expect(sendMessageSpy).toHaveBeenCalledWith('+1234567890', {
         text: 'Hello, world!',
       });
@@ -162,7 +162,7 @@ describe('MessagingService', () => {
         text: 'Hello with mentions',
         mentions: ['user1', 'user2'],
       };
-      
+
       await service.sendMessage('+1234567890', content);
       expect(sendMessageSpy).toHaveBeenCalledWith('+1234567890', content);
     });
@@ -253,7 +253,7 @@ describe('MessagingService', () => {
       };
 
       await service.sendNotification('+1234567890', notification);
-      
+
       expect(sendInteractiveSpy).toHaveBeenCalledWith('+1234567890', {
         type: 'buttons',
         body: notification.message,
@@ -275,7 +275,7 @@ describe('MessagingService', () => {
       };
 
       await service.sendNotification('+1234567890', notification);
-      
+
       expect(sendMessageSpy).toHaveBeenCalledWith('+1234567890', {
         text: notification.message,
       });
@@ -322,7 +322,7 @@ describe('MessagingService', () => {
     it('should register event handlers', () => {
       const handler = jest.fn();
       const onSpy = jest.spyOn(mockPlatform, 'on');
-      
+
       service.on(MessagingEvent.MESSAGE_RECEIVED, handler);
       expect(onSpy).toHaveBeenCalledWith(MessagingEvent.MESSAGE_RECEIVED, handler);
     });
@@ -330,7 +330,7 @@ describe('MessagingService', () => {
     it('should unregister event handlers', () => {
       const handler = jest.fn();
       const offSpy = jest.spyOn(mockPlatform, 'off');
-      
+
       service.off(MessagingEvent.MESSAGE_RECEIVED, handler);
       expect(offSpy).toHaveBeenCalledWith(MessagingEvent.MESSAGE_RECEIVED, handler);
     });

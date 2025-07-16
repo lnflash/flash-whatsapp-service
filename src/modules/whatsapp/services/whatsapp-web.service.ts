@@ -1358,7 +1358,6 @@ export class WhatsAppWebService
     });
   }
 
-
   /**
    * Get client info
    */
@@ -1402,7 +1401,6 @@ export class WhatsAppWebService
   isClientReady(): boolean {
     return this.isReady;
   }
-
 
   /**
    * Send media (generic method for messaging abstraction)
