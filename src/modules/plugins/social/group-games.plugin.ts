@@ -81,7 +81,7 @@ export class GroupGamesPlugin extends BasePlugin {
       description: 'Start a group game',
       examples: ['game quickdraw', 'game wordchain', 'game guess'],
       groupSupported: true,
-      requiresAuth: true,
+      requiresAuth: false,
     },
     {
       trigger: 'join',
@@ -89,7 +89,7 @@ export class GroupGamesPlugin extends BasePlugin {
       description: 'Join an active game',
       examples: ['join'],
       groupSupported: true,
-      requiresAuth: true,
+      requiresAuth: false,
     },
     {
       trigger: 'guess',
