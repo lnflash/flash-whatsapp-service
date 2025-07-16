@@ -1398,6 +1398,23 @@ _This is a WhatsApp privacy feature to protect your number in groups._`;
       // Handle regular categories
       return this.getCategoryHelp(category);
     }
+    // Show group-specific help if in a group (even for unlinked users)
+    if (isGroup) {
+      return `⚡ *Group Commands*
+
+*Games & Fun:*
+• \`trivia\` - play trivia, earn sats
+• \`poll Question | Yes | No\` - create polls
+• \`game quickdraw\` - typing race
+• \`joke\` - random joke
+
+*Money (requires linked account):*
+• \`send 10 to @user\` - send payment
+• \`balance\` - check balance
+
+Type \`help games\` for more games!`;
+    }
+
     if (!session) {
       return `*Welcome to Pulse!*
 
@@ -1417,23 +1434,6 @@ Ready? Type \`link\` to start!`;
 Enter the 6-digit code sent to your phone.
 
 Need a new code? Type \`link\` again.`;
-    }
-
-    // Show group-specific help if in a group
-    if (isGroup) {
-      return `⚡ *Group Commands*
-
-*Games & Fun:*
-• \`trivia\` - play trivia, earn sats
-• \`poll Question | Yes | No\` - create polls
-• \`game quickdraw\` - typing race
-• \`joke\` - random joke
-
-*Money:*
-• \`send 10 to @user\` - send payment
-• \`balance\` - check balance
-
-Type \`help games\` for more games!`;
     }
 
     return `⚡ *Commands*

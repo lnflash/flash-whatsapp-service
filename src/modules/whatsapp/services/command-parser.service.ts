@@ -42,7 +42,7 @@ export class CommandParserService {
   private readonly commandPatterns = [
     {
       type: CommandType.HELP,
-      pattern: /^help(?:\s+(wallet|send|receive|contacts|pending|voice|more|1|2|3))?$/i,
+      pattern: /^help(?:\s+(wallet|send|receive|contacts|pending|voice|games|more|1|2|3))?$/i,
     },
     { type: CommandType.BALANCE, pattern: /^balance|^bal$/i },
     { type: CommandType.LINK, pattern: /^link|^connect$/i },
@@ -1299,6 +1299,21 @@ export class CommandParserService {
             type: CommandType.HELP,
             args: {
               category: 'voice',
+              isQuestion: 'true',
+              originalQuestion: text,
+            },
+            rawText: text,
+          };
+        } else if (
+          questionContent.includes('game') || 
+          questionContent.includes('play') || 
+          questionContent.includes('trivia') ||
+          questionContent.includes('fun')
+        ) {
+          return {
+            type: CommandType.HELP,
+            args: {
+              category: 'games',
               isQuestion: 'true',
               originalQuestion: text,
             },
