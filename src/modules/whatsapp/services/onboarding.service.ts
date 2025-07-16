@@ -76,7 +76,25 @@ export class OnboardingService {
    */
   async getOnboardingState(whatsappId: string): Promise<OnboardingState> {
     const key = `${this.ONBOARDING_KEY_PREFIX}${whatsappId}`;
-    const data = await this.redisService.get(key);
+    let data = await this.redisService.get(key);
+
+    // If no data found and this is an @lid format, try alternative formats
+    if (!data && whatsappId.includes('@lid')) {
+      this.logger.debug(`No onboarding state for @lid format: ${whatsappId}, trying alternatives...`);
+      
+      // Try @c.us format
+      const phoneNumber = whatsappId.replace('@lid', '');
+      const alternativeId1 = `${phoneNumber}@c.us`;
+      const altKey1 = `${this.ONBOARDING_KEY_PREFIX}${alternativeId1}`;
+      data = await this.redisService.get(altKey1);
+      
+      if (!data) {
+        // Try @s.whatsapp.net format
+        const alternativeId2 = `${phoneNumber}@s.whatsapp.net`;
+        const altKey2 = `${this.ONBOARDING_KEY_PREFIX}${alternativeId2}`;
+        data = await this.redisService.get(altKey2);
+      }
+    }
 
     if (data) {
       const state = JSON.parse(data);

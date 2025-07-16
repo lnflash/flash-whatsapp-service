@@ -182,6 +182,15 @@ export class WhatsappService {
 
       // Get session if it exists
       let session = await this.sessionService.getSessionByWhatsappId(whatsappId);
+      
+      // Debug logging for @lid users
+      if (whatsappId.includes('@lid')) {
+        this.logger.log(`Debug: Processing message from @lid user: ${whatsappId}`);
+        this.logger.log(`Debug: Session found: ${session ? 'Yes' : 'No'}`);
+        if (session) {
+          this.logger.log(`Debug: Session verified: ${session.isVerified}`);
+        }
+      }
 
       // Track user activity for contextual help
       await this.contextualHelpService.trackActivity(
@@ -192,7 +201,12 @@ export class WhatsappService {
       );
 
       // Check if this is a new user and show welcome message
-      if (await this.onboardingService.isNewUser(whatsappId)) {
+      const isNew = await this.onboardingService.isNewUser(whatsappId);
+      if (whatsappId.includes('@lid')) {
+        this.logger.log(`Debug: Is new user check: ${isNew}`);
+      }
+      
+      if (isNew) {
         // For completely new users, show welcome regardless of command
         return this.onboardingService.getWelcomeMessage(whatsappId);
       }

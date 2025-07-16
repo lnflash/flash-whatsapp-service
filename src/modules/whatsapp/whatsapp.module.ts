@@ -32,6 +32,9 @@ import { RandomQuestionService } from './services/random-question.service';
 import { RateLimiterGuard } from '../../common/guards/rate-limiter.guard';
 import { BalanceTemplate } from './templates/balance-template';
 
+// Utils
+import { WhatsAppIdNormalizer } from '../../common/utils/whatsapp/whatsapp-id-normalizer';
+
 // Module imports
 import { RedisModule } from '../redis/redis.module';
 import { AuthModule } from '../auth/auth.module';
@@ -87,6 +90,7 @@ import { MESSAGING_PLATFORM } from '../messaging/messaging.constants';
     AdminAnalyticsService,
     UserKnowledgeBaseService,
     RandomQuestionService,
+    WhatsAppIdNormalizer,
   ],
   exports: [
     WhatsappService,
@@ -104,6 +108,7 @@ import { MESSAGING_PLATFORM } from '../messaging/messaging.constants';
     AdminAnalyticsService,
     UserKnowledgeBaseService,
     RandomQuestionService,
+    WhatsAppIdNormalizer,
   ],
 })
 export class WhatsappModule {}
