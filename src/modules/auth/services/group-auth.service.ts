@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { RedisService } from '../../redis/redis.service';
 import { SessionService } from './session.service';
 import { randomBytes } from 'crypto';
@@ -21,6 +21,7 @@ export class GroupAuthService {
 
   constructor(
     private readonly redisService: RedisService,
+    @Inject(forwardRef(() => SessionService))
     private readonly sessionService: SessionService,
   ) {}
 
