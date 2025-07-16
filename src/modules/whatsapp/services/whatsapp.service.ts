@@ -1422,6 +1422,7 @@ Need a new code? Type \`link\` again.`;
 • \`send 10 to john\` - send payment
 • \`receive 25\` - request money
 • \`history\` - view transactions
+• \`trivia\` - play games & earn sats
 • \`help more\` - all commands
 
 Try: \`balance\``;
@@ -1452,6 +1453,12 @@ Try: \`balance\``;
 • \`settings\`
 • \`username\`
 • \`pending\`
+
+*Games & Fun:*
+• \`trivia\` - play trivia, earn sats
+• \`poll Question | Option1 | Option2\` - create polls (groups)
+• \`game quickdraw\` - fast typing game (groups)
+• \`joke\` - get a random joke
 
 *Learn & Teach:*
 • \`learn\` - answer questions
@@ -1506,9 +1513,28 @@ Share the QR code to get paid!`,
 • \`voice on\` - voice + text
 • \`voice off\` - text only  
 • \`voice only\` - voice only`,
+
+      games: `🎮 *Games & Fun*
+
+*Trivia (earn sats!):*
+• \`trivia\` - start random trivia
+• \`trivia crypto\` - Bitcoin questions
+• \`answer 1\` or \`a b\` - answer
+• \`hint\` - get help (-50% reward)
+• \`leaderboard\` - see top players
+
+*Group Games:*
+• \`poll Question | Option1 | Option2\`
+• \`game quickdraw\` - typing race
+• \`game wordchain\` - word connections
+• \`game guess\` - number guessing
+
+*Fun:*
+• \`joke\` - random joke
+• \`meme\` - random meme`,
     };
 
-    return categories[category.toLowerCase()] || `Type: \`help\`, \`help send\`, \`help receive\``;
+    return categories[category.toLowerCase()] || `Type: \`help\`, \`help send\`, \`help receive\`, \`help games\``;
   }
 
   /**
@@ -1591,8 +1617,19 @@ Share the QR code to get paid!`,
       return `To use voice features:\n• Turn on: \`voice on\`\n• Turn off: \`voice off\`\n• Voice only: \`voice only\`\n\nOr say any command like "voice balance"`;
     }
 
+    // Games instructions
+    if (
+      category === 'games' ||
+      lowerQuestion.includes('game') ||
+      lowerQuestion.includes('play') ||
+      lowerQuestion.includes('trivia') ||
+      lowerQuestion.includes('fun')
+    ) {
+      return `To play games and have fun:\n\n*Trivia (earn sats!):*\n• Start: \`trivia\`\n• Answer: \`answer 1\` or \`a\`\n• Get help: \`hint\`\n\n*Group Games:*\n• Create poll: \`poll Question | Option1 | Option2\`\n• Quick game: \`game quickdraw\`\n\n*Fun:*\n• \`joke\` - get a laugh\n• \`meme\` - see a meme\n\nReady to play? Type \`trivia\` to start!`;
+    }
+
     // Default help for general questions
-    return `I can help you with:\n\n• Send money: \`send [amount] to [recipient]\`\n• Receive money: \`receive [amount]\`\n• Check balance: \`balance\`\n• View history: \`history\`\n\nWhat would you like to do?`;
+    return `I can help you with:\n\n• Send money: \`send [amount] to [recipient]\`\n• Receive money: \`receive [amount]\`\n• Check balance: \`balance\`\n• View history: \`history\`\n• Play games: \`trivia\`\n\nWhat would you like to do?`;
   }
 
   /**
