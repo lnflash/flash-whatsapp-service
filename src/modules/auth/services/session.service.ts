@@ -84,7 +84,33 @@ export class SessionService {
   async getSessionByWhatsappId(whatsappId: string): Promise<UserSession | null> {
     try {
       const whatsappKey = this.redisService.hashKey('whatsapp', whatsappId);
-      const sessionId = await this.redisService.get(whatsappKey);
+      let sessionId = await this.redisService.get(whatsappKey);
+
+      // If no session found and this is an @lid format, try alternative formats
+      if (!sessionId && whatsappId.includes('@lid')) {
+        this.logger.debug(
+          `No session found for @lid format: ${whatsappId}, trying alternatives...`,
+        );
+
+        // Try @c.us format
+        const phoneNumber = whatsappId.replace('@lid', '');
+        const alternativeId1 = `${phoneNumber}@c.us`;
+        const altKey1 = this.redisService.hashKey('whatsapp', alternativeId1);
+        sessionId = await this.redisService.get(altKey1);
+
+        if (sessionId) {
+          this.logger.debug(`Found session with @c.us format: ${alternativeId1}`);
+        } else {
+          // Try @s.whatsapp.net format
+          const alternativeId2 = `${phoneNumber}@s.whatsapp.net`;
+          const altKey2 = this.redisService.hashKey('whatsapp', alternativeId2);
+          sessionId = await this.redisService.get(altKey2);
+
+          if (sessionId) {
+            this.logger.debug(`Found session with @s.whatsapp.net format: ${alternativeId2}`);
+          }
+        }
+      }
 
       if (!sessionId) {
         return null;
