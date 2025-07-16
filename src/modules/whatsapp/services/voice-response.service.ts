@@ -119,11 +119,20 @@ export class VoiceResponseService {
       const amountInWords = convertCurrencyToWords(amount);
 
       if (data.usdAmount === 0) {
-        return ResponseLengthUtil.shortenResponse(`${greeting}Your balance is empty. Say "receive" to add funds.`, true);
+        return ResponseLengthUtil.shortenResponse(
+          `${greeting}Your balance is empty. Say "receive" to add funds.`,
+          true,
+        );
       } else if (data.usdAmount < 5) {
-        return ResponseLengthUtil.shortenResponse(`${greeting}Your balance is ${amountInWords}. Low balance.`, true);
+        return ResponseLengthUtil.shortenResponse(
+          `${greeting}Your balance is ${amountInWords}. Low balance.`,
+          true,
+        );
       } else {
-        return ResponseLengthUtil.shortenResponse(`${greeting}Your balance is ${amountInWords}.`, true);
+        return ResponseLengthUtil.shortenResponse(
+          `${greeting}Your balance is ${amountInWords}.`,
+          true,
+        );
       }
     }
 
@@ -161,7 +170,10 @@ export class VoiceResponseService {
     if (data.isSuccess) {
       if (amount) {
         const amountInWords = convertCurrencyToWords(amount);
-        return ResponseLengthUtil.shortenResponse(`Created payment request for ${amountInWords}.`, true);
+        return ResponseLengthUtil.shortenResponse(
+          `Created payment request for ${amountInWords}.`,
+          true,
+        );
       }
       return ResponseLengthUtil.shortenResponse(`Payment request created.`, true);
     }

@@ -24,7 +24,7 @@ export class BalanceTemplate {
    */
   generateBalanceMessage(data: BalanceTemplateData): string {
     const fiatFormatted = this.formatFiatAmount(data.fiatBalance, data.fiatCurrency);
-    
+
     // Use concise format
     let tip = '';
     if (data.fiatBalance === 0) {
@@ -35,7 +35,7 @@ export class BalanceTemplate {
 
     return ResponseLengthUtil.getConciseResponse('balance', {
       fiatFormatted,
-      tip
+      tip,
     });
   }
 

@@ -65,11 +65,7 @@ export class DecisionMakingPlugin extends BasePlugin {
     {
       trigger: 'decide',
       aliases: ['decision'],
-      patterns: [
-        /decide\s+(.+)/i,
-        /make decision\s+(.+)/i,
-        /group decision\s+(.+)/i,
-      ],
+      patterns: [/decide\s+(.+)/i, /make decision\s+(.+)/i, /group decision\s+(.+)/i],
       description: 'Start a group decision process',
       examples: ['decide Should we meet on Friday?', 'decision Project name: Alpha | Beta | Gamma'],
       groupSupported: true,
@@ -95,7 +91,10 @@ export class DecisionMakingPlugin extends BasePlugin {
       trigger: 'discuss',
       patterns: [/discuss\s+(.+)/i, /comment\s+(.+)/i],
       description: 'Add to decision discussion',
-      examples: ['discuss I think option 2 is better because...', 'comment concerned about timeline'],
+      examples: [
+        'discuss I think option 2 is better because...',
+        'comment concerned about timeline',
+      ],
       groupSupported: true,
       requiresAuth: false,
     },
@@ -168,7 +167,8 @@ export class DecisionMakingPlugin extends BasePlugin {
     command: ParsedCommand,
     context: CommandContext,
   ): Promise<PluginResponse> {
-    const decisionText = command.args.join(' ') || command.rawText.replace(/^(decide|decision)\s+/i, '');
+    const decisionText =
+      command.args.join(' ') || command.rawText.replace(/^(decide|decision)\s+/i, '');
 
     if (!decisionText) {
       return {
@@ -187,8 +187,11 @@ export class DecisionMakingPlugin extends BasePlugin {
     }
 
     // Parse decision format
-    const parts = decisionText.split('|').map(p => p.trim()).filter(p => p);
-    
+    const parts = decisionText
+      .split('|')
+      .map((p) => p.trim())
+      .filter((p) => p);
+
     let title: string;
     let options: DecisionOption[];
 
@@ -283,9 +286,9 @@ export class DecisionMakingPlugin extends BasePlugin {
 
     // Match vote to option
     if (voteText === 'yes' || voteText === '1') {
-      selectedOption = decision.options.find(o => o.id === 'yes') || decision.options[0];
+      selectedOption = decision.options.find((o) => o.id === 'yes') || decision.options[0];
     } else if (voteText === 'no' || voteText === '2') {
-      selectedOption = decision.options.find(o => o.id === 'no') || decision.options[1];
+      selectedOption = decision.options.find((o) => o.id === 'no') || decision.options[1];
     } else {
       // Try to match by number or text
       const voteNum = parseInt(voteText);
@@ -293,9 +296,8 @@ export class DecisionMakingPlugin extends BasePlugin {
         selectedOption = decision.options[voteNum - 1];
       } else {
         // Try to match by option text
-        selectedOption = decision.options.find(o => 
-          o.text.toLowerCase().includes(voteText) ||
-          o.id.toLowerCase() === voteText
+        selectedOption = decision.options.find(
+          (o) => o.text.toLowerCase().includes(voteText) || o.id.toLowerCase() === voteText,
         );
       }
     }
@@ -317,8 +319,8 @@ export class DecisionMakingPlugin extends BasePlugin {
 
     let statusText = `✅ Vote recorded: ${selectedOption.text}\n\n`;
     statusText += `📊 *Current Results*\n`;
-    
-    decision.options.forEach(option => {
+
+    decision.options.forEach((option) => {
       const count = voteCount[option.id] || 0;
       const percentage = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
       statusText += `${option.text}: ${count} votes (${percentage}%)\n`;
@@ -328,14 +330,13 @@ export class DecisionMakingPlugin extends BasePlugin {
 
     // Check if quorum reached and there's a clear winner
     if (decision.quorum && totalVotes >= decision.quorum) {
-      const winnerPercentage = totalVotes > 0 ? 
-        (voteCount[leadingOption] / totalVotes) * 100 : 0;
-      
+      const winnerPercentage = totalVotes > 0 ? (voteCount[leadingOption] / totalVotes) * 100 : 0;
+
       if (winnerPercentage > (decision.threshold || 50)) {
         decision.status = 'decided';
         decision.result = leadingOption;
-        
-        const winningOption = decision.options.find(o => o.id === leadingOption);
+
+        const winningOption = decision.options.find((o) => o.id === leadingOption);
         statusText += `\n\n🎉 *Decision Made!*\n`;
         statusText += `✅ ${winningOption?.text} has won with ${Math.round(winnerPercentage)}% of votes!`;
       }
@@ -378,9 +379,7 @@ export class DecisionMakingPlugin extends BasePlugin {
       createdByUsername: context.username,
       title,
       description: 'This decision requires consensus from all participants.',
-      options: [
-        { id: 'consensus', text: 'Reach Consensus', pros: [], cons: [] },
-      ],
+      options: [{ id: 'consensus', text: 'Reach Consensus', pros: [], cons: [] }],
       votingMethod: 'consensus',
       status: 'open',
       voters: new Set(),
@@ -407,22 +406,19 @@ export class DecisionMakingPlugin extends BasePlugin {
       86400,
     );
 
-    await this.redisService.set(
-      `consensus:${decision.id}`,
-      JSON.stringify(discussion),
-      86400,
-    );
+    await this.redisService.set(`consensus:${decision.id}`, JSON.stringify(discussion), 86400);
 
-    const text = `🤝 *Consensus Decision Process*\n\n` +
-                `❓ ${title}\n\n` +
-                `This decision requires consensus from all participants.\n\n` +
-                `*How it works:*\n` +
-                `• Everyone discusses until agreement is reached\n` +
-                `• Use "discuss" to share thoughts\n` +
-                `• Use "support" to show agreement\n` +
-                `• Use "block" to prevent consensus (with reason)\n` +
-                `• Consensus is reached when no one blocks\n\n` +
-                `💬 Start the discussion!`;
+    const text =
+      `🤝 *Consensus Decision Process*\n\n` +
+      `❓ ${title}\n\n` +
+      `This decision requires consensus from all participants.\n\n` +
+      `*How it works:*\n` +
+      `• Everyone discusses until agreement is reached\n` +
+      `• Use "discuss" to share thoughts\n` +
+      `• Use "support" to show agreement\n` +
+      `• Use "block" to prevent consensus (with reason)\n` +
+      `• Consensus is reached when no one blocks\n\n` +
+      `💬 Start the discussion!`;
 
     return {
       text,
@@ -457,9 +453,15 @@ export class DecisionMakingPlugin extends BasePlugin {
     let messageType: 'comment' | 'concern' | 'support' | 'block' = 'comment';
     if (message.toLowerCase().includes('concern')) {
       messageType = 'concern';
-    } else if (message.toLowerCase().includes('support') || message.toLowerCase().includes('agree')) {
+    } else if (
+      message.toLowerCase().includes('support') ||
+      message.toLowerCase().includes('agree')
+    ) {
       messageType = 'support';
-    } else if (message.toLowerCase().includes('block') || message.toLowerCase().includes('oppose')) {
+    } else if (
+      message.toLowerCase().includes('block') ||
+      message.toLowerCase().includes('oppose')
+    ) {
       messageType = 'block';
     }
 
@@ -467,10 +469,10 @@ export class DecisionMakingPlugin extends BasePlugin {
     if (decision.votingMethod === 'consensus') {
       const discussionKey = `consensus:${decision.id}`;
       const discussionData = await this.redisService.get(discussionKey);
-      
+
       if (discussionData) {
         const discussion: ConsensusDiscussion = JSON.parse(discussionData);
-        
+
         discussion.messages.push({
           userId: context.userId,
           username: context.username,
@@ -485,20 +487,20 @@ export class DecisionMakingPlugin extends BasePlugin {
             discussion.blockers.push(context.userId);
           }
         } else if (messageType === 'support') {
-          discussion.blockers = discussion.blockers.filter(id => id !== context.userId);
+          discussion.blockers = discussion.blockers.filter((id) => id !== context.userId);
         }
 
         await this.redisService.set(discussionKey, JSON.stringify(discussion), 86400);
 
         let response = `💬 @${context.username || 'User'}: ${message}\n\n`;
-        
+
         if (messageType === 'block') {
           response += `🚫 Blocking consensus. Please explain your concerns.`;
         } else if (messageType === 'support' && discussion.blockers.length === 0) {
           response += `✅ Consensus reached! All participants agree.`;
           decision.status = 'decided';
           decision.result = 'consensus';
-          
+
           await this.redisService.set(
             activeKey,
             JSON.stringify({
@@ -553,17 +555,16 @@ export class DecisionMakingPlugin extends BasePlugin {
     const reason = match[2];
 
     const decision: Decision = JSON.parse(decisionData);
-    
+
     // Find the option
     let option: DecisionOption | undefined;
     const optionNum = parseInt(optionRef);
-    
+
     if (!isNaN(optionNum) && optionNum > 0 && optionNum <= decision.options.length) {
       option = decision.options[optionNum - 1];
     } else {
-      option = decision.options.find(o => 
-        o.id.toLowerCase() === optionRef ||
-        o.text.toLowerCase().includes(optionRef)
+      option = decision.options.find(
+        (o) => o.id.toLowerCase() === optionRef || o.text.toLowerCase().includes(optionRef),
       );
     }
 
@@ -611,13 +612,14 @@ export class DecisionMakingPlugin extends BasePlugin {
 
     let text = `🗳️ *Decision Status*\n\n`;
     text += `❓ ${decision.title}\n`;
-    
+
     if (decision.createdByUsername) {
       text += `👤 Started by @${decision.createdByUsername}\n`;
     }
 
-    const timeLeft = decision.deadline ? 
-      this.formatTimeRemaining(decision.deadline - Date.now()) : 'No deadline';
+    const timeLeft = decision.deadline
+      ? this.formatTimeRemaining(decision.deadline - Date.now())
+      : 'No deadline';
     text += `⏰ Time left: ${timeLeft}\n\n`;
 
     // Show options with pros/cons
@@ -628,24 +630,24 @@ export class DecisionMakingPlugin extends BasePlugin {
     decision.options.forEach((option, index) => {
       const count = voteCount[option.id] || 0;
       const percentage = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
-      
+
       text += `\n${index + 1}. *${option.text}* - ${count} votes (${percentage}%)\n`;
-      
+
       if (option.pros.length > 0) {
         text += `   ✅ Pros:\n`;
-        option.pros.forEach(pro => text += `      • ${pro}\n`);
+        option.pros.forEach((pro) => (text += `      • ${pro}\n`));
       }
-      
+
       if (option.cons.length > 0) {
         text += `   ❌ Cons:\n`;
-        option.cons.forEach(con => text += `      • ${con}\n`);
+        option.cons.forEach((con) => (text += `      • ${con}\n`));
       }
     });
 
     text += `\n👥 Participation: ${totalVotes}${decision.quorum ? `/${decision.quorum}` : ''} votes`;
 
     if (decision.status === 'decided') {
-      const winningOption = decision.options.find(o => o.id === decision.result);
+      const winningOption = decision.options.find((o) => o.id === decision.result);
       text += `\n\n🎉 *Decision Made:* ${winningOption?.text}`;
     }
 
@@ -658,7 +660,7 @@ export class DecisionMakingPlugin extends BasePlugin {
 
   private countVotes(decision: Decision): Record<string, number> {
     const count: Record<string, number> = {};
-    Object.values(decision.votes).forEach(optionId => {
+    Object.values(decision.votes).forEach((optionId) => {
       count[optionId] = (count[optionId] || 0) + 1;
     });
     return count;
@@ -667,23 +669,23 @@ export class DecisionMakingPlugin extends BasePlugin {
   private getLeadingOption(voteCount: Record<string, number>): string {
     let maxVotes = 0;
     let leadingOption = '';
-    
+
     Object.entries(voteCount).forEach(([optionId, count]) => {
       if (count > maxVotes) {
         maxVotes = count;
         leadingOption = optionId;
       }
     });
-    
+
     return leadingOption;
   }
 
   private formatTimeRemaining(ms: number): string {
     if (ms <= 0) return 'Expired';
-    
+
     const hours = Math.floor(ms / (1000 * 60 * 60));
     const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-    
+
     if (hours > 0) {
       return `${hours}h ${minutes}m`;
     }

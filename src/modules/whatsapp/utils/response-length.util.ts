@@ -8,7 +8,7 @@ export class ResponseLengthUtil {
   // 21 seconds = 0.35 minutes = ~52 words
   private static readonly MAX_VOICE_WORDS = 52;
   private static readonly MAX_TEXT_CHARS = 630;
-  
+
   // Important response types that can exceed limits
   private static readonly EXCEPTIONS = [
     'help_menu',
@@ -25,7 +25,7 @@ export class ResponseLengthUtil {
    * @returns Estimated duration in seconds
    */
   static estimateVoiceDuration(text: string): number {
-    const words = text.split(/\s+/).filter(word => word.length > 0).length;
+    const words = text.split(/\s+/).filter((word) => word.length > 0).length;
     // 150 words per minute = 2.5 words per second
     return words / 2.5;
   }
@@ -69,7 +69,7 @@ export class ResponseLengthUtil {
    * Shorten text for voice output (~52 words max)
    */
   private static shortenForVoice(text: string): string {
-    const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+    const sentences = text.split(/[.!?]+/).filter((s) => s.trim().length > 0);
     const result: string[] = [];
     let wordCount = 0;
 
@@ -126,37 +126,33 @@ export class ResponseLengthUtil {
         const { fiatFormatted, tip } = d;
         return `💰 Balance: ${fiatFormatted}${tip ? '\n' + tip : ''}`;
       },
-      
+
       // Payment success - from ~200 chars to ~100 chars
       payment_success: (d) => {
         const { amount, recipient } = d;
         return `✅ Sent $${amount} to ${recipient}`;
       },
-      
+
       // Payment received - from ~180 chars to ~90 chars
       payment_received: (d) => {
         const { amount, sender } = d;
         return `💸 Received $${amount} from ${sender}`;
       },
-      
+
       // Error messages - keep essential info only
-      insufficient_balance: () => 
-        '❌ Insufficient balance. Type "receive" to add funds.',
-      
-      user_not_found: (d) => 
-        `❌ User ${d?.username || ''} not found.`,
-      
+      insufficient_balance: () => '❌ Insufficient balance. Type "receive" to add funds.',
+
+      user_not_found: (d) => `❌ User ${d?.username || ''} not found.`,
+
       // Link account
-      not_linked: () => 
-        'Link your account first. Type "link" to start.',
-      
+      not_linked: () => 'Link your account first. Type "link" to start.',
+
       // Generic success/error
       success: () => '✅ Done!',
       error: () => '❌ Failed. Try again.',
-      
+
       // Help hint
-      help_hint: () => 
-        'Type "help" for commands.',
+      help_hint: () => 'Type "help" for commands.',
     };
 
     const handler = responses[type];
@@ -169,7 +165,7 @@ export class ResponseLengthUtil {
   static formatConciseList(items: string[], maxItems = 3): string {
     if (items.length === 0) return 'None';
     if (items.length <= maxItems) return items.join(', ');
-    
+
     const shown = items.slice(0, maxItems).join(', ');
     const remaining = items.length - maxItems;
     return `${shown} (+${remaining} more)`;
@@ -181,7 +177,7 @@ export class ResponseLengthUtil {
   static optimizeForVoice(text: string): string {
     // Remove emoji and special characters
     let voiceText = text.replace(/[🔵🟠💰💸✅❌🎯📱🔑⏱️💡*_]/g, '');
-    
+
     // Replace common abbreviations
     voiceText = voiceText
       .replace(/@/g, ' at ') // Replace @ with "at" for proper pronunciation
@@ -190,10 +186,10 @@ export class ResponseLengthUtil {
       .replace(/BTC/g, 'Bitcoin')
       .replace(/\b(\d+)k\b/gi, '$1 thousand')
       .replace(/\b(\d+)m\b/gi, '$1 million');
-    
+
     // Clean up extra whitespace
     voiceText = voiceText.replace(/\s+/g, ' ').trim();
-    
+
     return voiceText;
   }
 }

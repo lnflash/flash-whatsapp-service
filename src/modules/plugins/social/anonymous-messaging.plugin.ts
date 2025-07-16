@@ -41,25 +41,51 @@ export class AnonymousMessagingPlugin extends BasePlugin {
   version = '1.0.0';
 
   private animalAliases = [
-    'Panda', 'Tiger', 'Eagle', 'Dolphin', 'Wolf', 'Fox', 'Owl', 'Bear',
-    'Lion', 'Hawk', 'Raven', 'Phoenix', 'Dragon', 'Unicorn', 'Koala',
-    'Penguin', 'Octopus', 'Mantis', 'Butterfly', 'Cheetah',
+    'Panda',
+    'Tiger',
+    'Eagle',
+    'Dolphin',
+    'Wolf',
+    'Fox',
+    'Owl',
+    'Bear',
+    'Lion',
+    'Hawk',
+    'Raven',
+    'Phoenix',
+    'Dragon',
+    'Unicorn',
+    'Koala',
+    'Penguin',
+    'Octopus',
+    'Mantis',
+    'Butterfly',
+    'Cheetah',
   ];
 
   private colorAliases = [
-    'Red', 'Blue', 'Green', 'Purple', 'Orange', 'Yellow', 'Pink', 'Cyan',
-    'Magenta', 'Teal', 'Indigo', 'Violet', 'Crimson', 'Azure', 'Emerald',
+    'Red',
+    'Blue',
+    'Green',
+    'Purple',
+    'Orange',
+    'Yellow',
+    'Pink',
+    'Cyan',
+    'Magenta',
+    'Teal',
+    'Indigo',
+    'Violet',
+    'Crimson',
+    'Azure',
+    'Emerald',
   ];
 
   commands: CommandDefinition[] = [
     {
       trigger: 'anon',
       aliases: ['anonymous'],
-      patterns: [
-        /anon(?:ymous)?\s+(.+)/i,
-        /send anon(?:ymous)?\s+(.+)/i,
-        /confess\s+(.+)/i,
-      ],
+      patterns: [/anon(?:ymous)?\s+(.+)/i, /send anon(?:ymous)?\s+(.+)/i, /confess\s+(.+)/i],
       description: 'Send an anonymous message',
       examples: ['anon I think you are amazing', 'confess I ate the last cookie'],
       groupSupported: true,
@@ -127,7 +153,8 @@ export class AnonymousMessagingPlugin extends BasePlugin {
     command: ParsedCommand,
     context: CommandContext,
   ): Promise<PluginResponse> {
-    const messageText = command.args.join(' ') || command.rawText.replace(/^(anon|anonymous|confess)\s+/i, '');
+    const messageText =
+      command.args.join(' ') || command.rawText.replace(/^(anon|anonymous|confess)\s+/i, '');
 
     if (!messageText) {
       return {
@@ -191,7 +218,8 @@ export class AnonymousMessagingPlugin extends BasePlugin {
     command: ParsedCommand,
     context: CommandContext,
   ): Promise<PluginResponse> {
-    const replyText = command.args.join(' ') || command.rawText.replace(/^(reply anon|anon reply)\s+/i, '');
+    const replyText =
+      command.args.join(' ') || command.rawText.replace(/^(reply anon|anon reply)\s+/i, '');
 
     if (!replyText) {
       return {
@@ -267,7 +295,8 @@ export class AnonymousMessagingPlugin extends BasePlugin {
       };
     }
 
-    const pollText = command.args.join(' ') || command.rawText.replace(/^anon(?:ymous)? poll:?\s*/i, '');
+    const pollText =
+      command.args.join(' ') || command.rawText.replace(/^anon(?:ymous)? poll:?\s*/i, '');
 
     if (!pollText) {
       return {
@@ -314,8 +343,9 @@ export class AnonymousMessagingPlugin extends BasePlugin {
     context: CommandContext,
   ): Promise<PluginResponse> {
     // Parse DM command: anondm @username message
-    const match = command.rawText.match(/anon(?:ymous)? dm\s+@(\w+)\s+(.+)/i) ||
-                  command.rawText.match(/dm anon(?:ymous)?\s+@(\w+)\s+(.+)/i);
+    const match =
+      command.rawText.match(/anon(?:ymous)? dm\s+@(\w+)\s+(.+)/i) ||
+      command.rawText.match(/dm anon(?:ymous)?\s+@(\w+)\s+(.+)/i);
 
     if (!match) {
       return {
@@ -331,10 +361,11 @@ export class AnonymousMessagingPlugin extends BasePlugin {
 
     const alias = this.generateAlias();
 
-    const response = `🎭 *Anonymous DM sent to @${targetUsername}*\n\n` +
-                    `They will receive:\n` +
-                    `"💌 Anonymous ${alias}: ${messageText}"\n\n` +
-                    `_Your identity will remain secret_`;
+    const response =
+      `🎭 *Anonymous DM sent to @${targetUsername}*\n\n` +
+      `They will receive:\n` +
+      `"💌 Anonymous ${alias}: ${messageText}"\n\n` +
+      `_Your identity will remain secret_`;
 
     // Track event
     await this.trackEvent('anon_dm_sent', {
@@ -361,11 +392,12 @@ export class AnonymousMessagingPlugin extends BasePlugin {
       if (convoData) {
         const convo: AnonymousConversation = JSON.parse(convoData);
         const userAlias = context.userId === convo.participantA ? convo.aliasA : convo.aliasB;
-        
+
         return {
-          text: `🎭 You already have an active anonymous conversation as *${userAlias}*!\n\n` +
-                `Share this code with someone to let them join: \`${convo.id}\`\n\n` +
-                `Or type "join ${convo.id}" to rejoin the conversation.`,
+          text:
+            `🎭 You already have an active anonymous conversation as *${userAlias}*!\n\n` +
+            `Share this code with someone to let them join: \`${convo.id}\`\n\n` +
+            `Or type "join ${convo.id}" to rejoin the conversation.`,
         };
       }
     }
@@ -394,12 +426,13 @@ export class AnonymousMessagingPlugin extends BasePlugin {
     await this.redisService.set(activeConvoKey, convoId, 86400);
 
     return {
-      text: `🎭 *Anonymous Conversation Started*\n\n` +
-            `Your alias: *${conversation.aliasA}*\n` +
-            `Conversation code: \`${convoId}\`\n\n` +
-            `Share this code with someone to start chatting anonymously!\n` +
-            `They should type: \`join ${convoId}\`\n\n` +
-            `_Both identities will remain hidden_`,
+      text:
+        `🎭 *Anonymous Conversation Started*\n\n` +
+        `Your alias: *${conversation.aliasA}*\n` +
+        `Conversation code: \`${convoId}\`\n\n` +
+        `Share this code with someone to start chatting anonymously!\n` +
+        `They should type: \`join ${convoId}\`\n\n` +
+        `_Both identities will remain hidden_`,
       showTyping: true,
       delay: 500,
     };

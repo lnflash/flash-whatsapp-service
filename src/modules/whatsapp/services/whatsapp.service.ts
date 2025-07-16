@@ -246,10 +246,16 @@ export class WhatsappService {
         let finalText = response;
         const hints: string[] = [];
 
-        // Collect all potential hints
-        const baseHint = this.getContextualHint(session, command);
-        if (baseHint && !response.includes('💡')) {
-          hints.push(`💡 ${baseHint}`);
+        // For verification success responses, skip hints since the user just verified
+        const isVerificationSuccess = command.type === CommandType.VERIFY && 
+          response.includes('Welcome') && response.includes('connected');
+        
+        if (!isVerificationSuccess) {
+          // Collect all potential hints
+          const baseHint = this.getContextualHint(session, command);
+          if (baseHint && !response.includes('💡')) {
+            hints.push(`💡 ${baseHint}`);
+          }
         }
 
         // Add contextual help if user seems confused (highest priority)
@@ -262,7 +268,7 @@ export class WhatsappService {
 
         // Add undo hint if applicable (high priority)
         const undoHint = await this.undoTransactionService.getUndoHint(whatsappId);
-        if (undoHint && !hints.some(h => h.includes('undo'))) {
+        if (undoHint && !hints.some((h) => h.includes('undo'))) {
           hints.unshift(undoHint); // Add at beginning
         }
 
@@ -845,6 +851,9 @@ _This limitation is due to WhatsApp's privacy features._`;
 
               // Create welcome message with pending payment info
               const welcomeMessage = this.getWelcomeMessage(updatedSession, pendingClaimMessage);
+              
+              // Mark onboarding step as complete BEFORE returning
+              await this.onboardingService.updateProgress(whatsappId, 'verify_account');
 
               // Return with special forceVoice flag
               return {
@@ -861,6 +870,10 @@ _This limitation is due to WhatsApp's privacy features._`;
 
       // Create warm welcome message
       const welcomeMessage = this.getWelcomeMessage(updatedSession);
+      
+      // Mark onboarding step as complete BEFORE returning
+      // This ensures the next response won't show verification hints
+      await this.onboardingService.updateProgress(whatsappId, 'verify_account');
 
       // Return with special forceVoice flag
       return {
@@ -1328,11 +1341,15 @@ _This limitation is due to WhatsApp's privacy features._`;
     // Check for instructional questions first
     const isQuestion = command?.args?.isQuestion === 'true';
     const originalQuestion = command?.args?.originalQuestion;
-    
+
     if (isQuestion && originalQuestion) {
-      return this.getInstructionalResponse(command?.args?.category || 'general', originalQuestion, session);
+      return this.getInstructionalResponse(
+        command?.args?.category || 'general',
+        originalQuestion,
+        session,
+      );
     }
-    
+
     // Check if a category or navigation was requested
     if (command?.args?.category) {
       const category = command.args.category;
@@ -1461,64 +1478,87 @@ Share the QR code to get paid!`,
 
     return categories[category.toLowerCase()] || `Type: \`help\`, \`help send\`, \`help receive\``;
   }
-  
+
   /**
    * Get instructional response for "how do I" questions
    */
-  private getInstructionalResponse(category: string, question: string, session: UserSession | null): string {
+  private getInstructionalResponse(
+    category: string,
+    question: string,
+    session: UserSession | null,
+  ): string {
     const lowerQuestion = question.toLowerCase();
-    
+
     // Send money instructions
     if (category === 'send' || lowerQuestion.includes('send') || lowerQuestion.includes('pay')) {
       if (!session?.isVerified) {
         return `To send money, you first need to link your Flash account. Type \`link\` to get started.\n\nOnce linked, you can send money by typing:\n\`send [amount] to [recipient]\`\n\nFor example:\n• \`send 10 to @john\`\n• \`send 2.50 to mary\``;
       }
-      
+
       // Extract amount if mentioned in the question
-      const amountMatch = lowerQuestion.match(/\$(\d+(?:\.\d+)?)|\b(\d+(?:\.\d+)?)\s*(?:dollar|usd)?/i);
-      const amount = amountMatch ? (amountMatch[1] || amountMatch[2]) : '10';
-      
+      const amountMatch = lowerQuestion.match(
+        /\$(\d+(?:\.\d+)?)|\b(\d+(?:\.\d+)?)\s*(?:dollar|usd)?/i,
+      );
+      const amount = amountMatch ? amountMatch[1] || amountMatch[2] : '10';
+
       // Extract recipient if mentioned
       const recipientMatch = lowerQuestion.match(/to\s+(?:my\s+)?(?:friend\s+)?(\w+)/i);
       const recipient = recipientMatch ? recipientMatch[1] : 'username';
-      
+
       return `To send money, use this format:\n\`send ${amount} to ${recipient}\`\n\n${recipient === 'username' ? 'Replace "username" with:\n• @username (Flash user)\n• Contact name\n• Phone number' : `If ${recipient} is:\n• A Flash user: \`send ${amount} to @${recipient}\`\n• A saved contact: \`send ${amount} to ${recipient}\`\n• Not on Flash: save as contact first`}\n\nAll amounts are in USD.`;
     }
-    
+
     // Receive money instructions
-    if (category === 'receive' || lowerQuestion.includes('receive') || lowerQuestion.includes('get paid')) {
+    if (
+      category === 'receive' ||
+      lowerQuestion.includes('receive') ||
+      lowerQuestion.includes('get paid')
+    ) {
       if (!session?.isVerified) {
         return `To receive money, you first need to link your Flash account. Type \`link\` to get started.\n\nOnce linked, you can receive money by typing:\n\`receive [amount]\``;
       }
       return `To receive money, type:\n\`receive [amount]\`\n\nFor example:\n• \`receive 20\` - creates a $20 invoice\n• \`receive 5.50 lunch money\` - with memo\n\nShare the invoice to get paid instantly.`;
     }
-    
+
     // Balance instructions
-    if (category === 'wallet' || lowerQuestion.includes('balance') || lowerQuestion.includes('check') || lowerQuestion.includes('money')) {
+    if (
+      category === 'wallet' ||
+      lowerQuestion.includes('balance') ||
+      lowerQuestion.includes('check') ||
+      lowerQuestion.includes('money')
+    ) {
       if (!session?.isVerified) {
         return `To check your balance, you first need to link your Flash account. Type \`link\` to get started.\n\nOnce linked, just type \`balance\` anytime.`;
       }
       return `To check your balance, simply type:\n\`balance\`\n\nNeed to refresh? Type \`refresh\``;
     }
-    
+
     // Link account instructions
-    if (category === 'link' || lowerQuestion.includes('link') || lowerQuestion.includes('connect')) {
+    if (
+      category === 'link' ||
+      lowerQuestion.includes('link') ||
+      lowerQuestion.includes('connect')
+    ) {
       if (session?.isVerified) {
         return `Your account is already linked! You can now:\n• Send money: \`send 10 to @username\`\n• Check balance: \`balance\`\n• Receive money: \`receive 20\``;
       }
       return `To link your Flash account:\n1. Type \`link\`\n2. Check your Flash app for a code\n3. Type \`verify [code]\`\n\nNeed help? Make sure you have the Flash app installed.`;
     }
-    
+
     // Contacts instructions
     if (category === 'contacts' || lowerQuestion.includes('contact')) {
       return `To manage contacts:\n• View all: \`contacts\`\n• Add: \`contacts add john +1234567890\`\n• Remove: \`contacts remove john\`\n\nSaved contacts make sending easier!`;
     }
-    
+
     // Voice instructions
-    if (category === 'voice' || lowerQuestion.includes('voice') || lowerQuestion.includes('audio')) {
+    if (
+      category === 'voice' ||
+      lowerQuestion.includes('voice') ||
+      lowerQuestion.includes('audio')
+    ) {
       return `To use voice features:\n• Turn on: \`voice on\`\n• Turn off: \`voice off\`\n• Voice only: \`voice only\`\n\nOr say any command like "voice balance"`;
     }
-    
+
     // Default help for general questions
     return `I can help you with:\n\n• Send money: \`send [amount] to [recipient]\`\n• Receive money: \`receive [amount]\`\n• Check balance: \`balance\`\n• View history: \`history\`\n\nWhat would you like to do?`;
   }
@@ -2101,7 +2141,9 @@ Ready? Try \`balance\` to start!`;
           }
         } catch (error) {
           this.logger.error(`Lightning payment error: ${error.message}`);
-          return ResponseLengthUtil.getConciseResponse('error') + ' ' + error.message.substring(0, 50);
+          return (
+            ResponseLengthUtil.getConciseResponse('error') + ' ' + error.message.substring(0, 50)
+          );
         }
       }
 
@@ -3581,13 +3623,17 @@ Ready? Try \`balance\` to start!`;
 
             return ResponseLengthUtil.getConciseResponse('payment_success', {
               amount: pendingRequest.amount.toFixed(2),
-              recipient: `@${pendingRequest.requesterUsername}`
+              recipient: `@${pendingRequest.requesterUsername}`,
             });
           } else if (result?.status === PaymentSendResult.AlreadyPaid) {
             await this.redisService.del(pendingRequestKey);
             return '❌ This payment request has already been paid.';
           } else {
-            return ResponseLengthUtil.getConciseResponse('error') + ' ' + (result?.errors?.[0]?.message || 'Unknown error').substring(0, 50);
+            return (
+              ResponseLengthUtil.getConciseResponse('error') +
+              ' ' +
+              (result?.errors?.[0]?.message || 'Unknown error').substring(0, 50)
+            );
           }
         } catch (error) {
           this.logger.error(`Payment request error: ${error.message}`);
@@ -3707,11 +3753,17 @@ Ready? Try \`balance\` to start!`;
           } else if (result?.status === PaymentSendResult.AlreadyPaid) {
             return '❌ This invoice has already been paid.';
           } else {
-            return ResponseLengthUtil.getConciseResponse('error') + ' ' + (result?.errors?.[0]?.message || 'Unknown error').substring(0, 50);
+            return (
+              ResponseLengthUtil.getConciseResponse('error') +
+              ' ' +
+              (result?.errors?.[0]?.message || 'Unknown error').substring(0, 50)
+            );
           }
         } catch (error) {
           this.logger.error(`Payment error: ${error.message}`);
-          return ResponseLengthUtil.getConciseResponse('error') + ' ' + error.message.substring(0, 50);
+          return (
+            ResponseLengthUtil.getConciseResponse('error') + ' ' + error.message.substring(0, 50)
+          );
         }
       }
 
@@ -4685,7 +4737,7 @@ ${voiceList}`;
       }
 
       const action = command.args.action;
-      
+
       // Debug logging to trace the issue
       this.logger.debug(`Admin command received - action: ${action}, args:`, command.args);
 
@@ -5217,7 +5269,7 @@ ${voiceList}`;
    * Get hint for unverified users
    */
   private getHintForUnverifiedUser(): string {
-    return 'Enter your 6-digit verification code';
+    return 'Complete verification with your 6-digit code';
   }
 
   /**
@@ -5634,11 +5686,11 @@ Type \`templates\` to see your saved templates.`;
     setTimeout(async () => {
       try {
         this.logger.debug('Executing follow-up action:', pluginResponse.followUp);
-        
+
         const followUpCommand = this.commandParserService.parseCommand(
           pluginResponse.followUp.action,
         );
-        
+
         await this.handleCommand(
           followUpCommand,
           whatsappId,
@@ -5668,7 +5720,9 @@ Type \`templates\` to see your saved templates.`;
     try {
       // Build command context for plugins - parallelize async calls
       const [username, voiceMode, selectedVoice] = await Promise.all([
-        session?.flashAuthToken ? this.usernameService.getUsername(session.flashAuthToken) : Promise.resolve(undefined),
+        session?.flashAuthToken
+          ? this.usernameService.getUsername(session.flashAuthToken)
+          : Promise.resolve(undefined),
         this.userVoiceSettingsService.getUserVoiceMode(whatsappId),
         this.userVoiceSettingsService.getUserVoice(whatsappId),
       ]);

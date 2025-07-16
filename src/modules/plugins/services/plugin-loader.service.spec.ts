@@ -1,7 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PluginLoaderService } from './plugin-loader.service';
-import { PulsePlugin, CommandDefinition, ParsedCommand, CommandContext, PluginResponse } from '../interfaces/plugin.interface';
+import {
+  PulsePlugin,
+  CommandDefinition,
+  ParsedCommand,
+  CommandContext,
+  PluginResponse,
+} from '../interfaces/plugin.interface';
 
 // Mock plugin for testing
 class TestPlugin implements PulsePlugin {
@@ -9,7 +15,7 @@ class TestPlugin implements PulsePlugin {
   name = 'Test Plugin';
   description = 'A test plugin';
   version = '1.0.0';
-  
+
   commands: CommandDefinition[] = [
     {
       trigger: 'test',
@@ -26,10 +32,7 @@ class TestPlugin implements PulsePlugin {
     // Mock implementation
   }
 
-  async handleCommand(
-    command: ParsedCommand,
-    context: CommandContext,
-  ): Promise<PluginResponse> {
+  async handleCommand(command: ParsedCommand, context: CommandContext): Promise<PluginResponse> {
     return {
       text: 'Test response',
     };
@@ -76,7 +79,7 @@ describe('PluginLoaderService', () => {
 
     it('should not load the same plugin twice', async () => {
       const testPlugin = new TestPlugin();
-      
+
       await service.loadPlugin(testPlugin);
       await service.loadPlugin(testPlugin);
 
@@ -161,7 +164,7 @@ describe('PluginLoaderService', () => {
       const plugins = service.getLoadedPlugins();
 
       expect(plugins).toHaveLength(2);
-      expect(plugins.map(p => p.id)).toEqual(['test-plugin', 'test-plugin-2']);
+      expect(plugins.map((p) => p.id)).toEqual(['test-plugin', 'test-plugin-2']);
     });
   });
 });

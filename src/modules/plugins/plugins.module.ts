@@ -13,12 +13,7 @@ import { FlashApiModule } from '../flash-api/flash-api.module';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [
-    EventEmitterModule.forRoot(),
-    RedisModule,
-    FlashApiModule,
-    AuthModule,
-  ],
+  imports: [EventEmitterModule.forRoot(), RedisModule, FlashApiModule, AuthModule],
   providers: [
     PluginLoaderService,
     JokeMemePlugin,

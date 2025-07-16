@@ -11,6 +11,7 @@ import { CommandParserService } from './services/command-parser.service';
 import { CommandValidatorService } from './services/command-validator.service';
 // import { WhatsAppCloudService } from './services/whatsapp-cloud.service';
 import { WhatsAppWebService } from './services/whatsapp-web.service';
+import { WhatsAppMessagingService } from './services/whatsapp-messaging.service';
 import { QrCodeService } from './services/qr-code.service';
 import { InvoiceTrackerService } from './services/invoice-tracker.service';
 import { SupportModeService } from './services/support-mode.service';
@@ -40,6 +41,7 @@ import { EventsModule } from '../events/events.module';
 import { TtsModule } from '../tts/tts.module';
 import { SpeechModule } from '../speech/speech.module';
 import { PluginsModule } from '../plugins/plugins.module';
+import { MESSAGING_PLATFORM } from '../messaging/messaging.constants';
 
 @Module({
   imports: [
@@ -61,6 +63,11 @@ import { PluginsModule } from '../plugins/plugins.module';
     WhatsappService,
     // WhatsAppCloudService,  // Cloud API Service (disabled for prototype)
     WhatsAppWebService, // WhatsApp Web.js Service
+    WhatsAppMessagingService,
+    {
+      provide: MESSAGING_PLATFORM,
+      useClass: WhatsAppMessagingService,
+    },
     CommandParserService,
     CommandValidatorService,
     RateLimiterGuard,
@@ -84,6 +91,8 @@ import { PluginsModule } from '../plugins/plugins.module';
   exports: [
     WhatsappService,
     WhatsAppWebService,
+    WhatsAppMessagingService,
+    MESSAGING_PLATFORM,
     AdminSettingsService,
     UserVoiceSettingsService,
     CommandParserService,

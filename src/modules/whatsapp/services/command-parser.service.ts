@@ -207,10 +207,10 @@ export class CommandParserService {
       const naturalCommand = this.parseNaturalLanguage(trimmedText);
       if (naturalCommand.type !== CommandType.UNKNOWN) {
         // Add voice confirmation flag for payment commands from voice
-        if (isVoiceInput && (
-          naturalCommand.type === CommandType.SEND ||
-          naturalCommand.type === CommandType.REQUEST
-        )) {
+        if (
+          isVoiceInput &&
+          (naturalCommand.type === CommandType.SEND || naturalCommand.type === CommandType.REQUEST)
+        ) {
           naturalCommand.args.requiresConfirmation = 'true';
           naturalCommand.args.isVoiceCommand = 'true';
         }
@@ -915,18 +915,31 @@ export class CommandParserService {
     ) {
       // Extract specific voice action if present
       const args: any = {};
-      
-      if (lowerText.includes('voice on') || lowerText.includes('turn on') || 
-          lowerText.includes('enable voice') || lowerText.includes('activate voice') ||
-          lowerText.includes('start talking')) {
+
+      if (
+        lowerText.includes('voice on') ||
+        lowerText.includes('turn on') ||
+        lowerText.includes('enable voice') ||
+        lowerText.includes('activate voice') ||
+        lowerText.includes('start talking')
+      ) {
         args.action = 'on';
-      } else if (lowerText.includes('voice off') || lowerText.includes('turn off') || 
-                 lowerText.includes('disable voice') || lowerText.includes('deactivate voice') ||
-                 lowerText.includes('stop talking') || lowerText.includes('no voice') ||
-                 lowerText.includes('mute voice') || lowerText.includes('text only')) {
+      } else if (
+        lowerText.includes('voice off') ||
+        lowerText.includes('turn off') ||
+        lowerText.includes('disable voice') ||
+        lowerText.includes('deactivate voice') ||
+        lowerText.includes('stop talking') ||
+        lowerText.includes('no voice') ||
+        lowerText.includes('mute voice') ||
+        lowerText.includes('text only')
+      ) {
         args.action = 'off';
-      } else if (lowerText.includes('voice only') || lowerText.includes('only voice') ||
-                 lowerText.includes('just voice')) {
+      } else if (
+        lowerText.includes('voice only') ||
+        lowerText.includes('only voice') ||
+        lowerText.includes('just voice')
+      ) {
         args.action = 'only';
       } else if (lowerText.includes('voice status') || lowerText.includes('check voice')) {
         args.action = 'status';
@@ -936,7 +949,7 @@ export class CommandParserService {
         // Default to status for just "voice"
         args.action = 'status';
       }
-      
+
       return { type: CommandType.VOICE, args, rawText: text };
     }
 
@@ -1177,13 +1190,13 @@ export class CommandParserService {
 
     return { type: CommandType.UNKNOWN, args: {}, rawText: text };
   }
-  
+
   /**
    * Parse instructional questions (how do I, what is, where can I find, etc.)
    */
   private parseInstructionalQuestion(text: string): ParsedCommand {
     const lowerText = text.toLowerCase();
-    
+
     // Question patterns - be specific to avoid catching simple commands
     const questionPatterns = [
       /how (?:do i|can i|to|should i)\s+(.+)/i,
@@ -1207,88 +1220,104 @@ export class CommandParserService {
       /what does (.+) mean/i,
       /what\'s the (?:way|process|method) to\s+(.+)/i,
     ];
-    
+
     for (const pattern of questionPatterns) {
       const match = text.match(pattern);
       if (match) {
         const questionContent = match[1].toLowerCase();
-        
+
         // Check what they're asking about
-        if (questionContent.includes('send') || questionContent.includes('pay') || questionContent.includes('transfer')) {
+        if (
+          questionContent.includes('send') ||
+          questionContent.includes('pay') ||
+          questionContent.includes('transfer')
+        ) {
           // They're asking how to send money
           return {
             type: CommandType.HELP,
-            args: { 
+            args: {
               category: 'send',
               isQuestion: 'true',
-              originalQuestion: text
+              originalQuestion: text,
             },
-            rawText: text
+            rawText: text,
           };
-        } else if (questionContent.includes('receive') || questionContent.includes('get paid') || questionContent.includes('accept money')) {
+        } else if (
+          questionContent.includes('receive') ||
+          questionContent.includes('get paid') ||
+          questionContent.includes('accept money')
+        ) {
           return {
             type: CommandType.HELP,
-            args: { 
+            args: {
               category: 'receive',
               isQuestion: 'true',
-              originalQuestion: text
+              originalQuestion: text,
             },
-            rawText: text
+            rawText: text,
           };
-        } else if (questionContent.includes('balance') || questionContent.includes('check') || questionContent.includes('money')) {
+        } else if (
+          questionContent.includes('balance') ||
+          questionContent.includes('check') ||
+          questionContent.includes('money')
+        ) {
           return {
             type: CommandType.HELP,
-            args: { 
+            args: {
               category: 'wallet',
               isQuestion: 'true',
-              originalQuestion: text
+              originalQuestion: text,
             },
-            rawText: text
+            rawText: text,
           };
-        } else if (questionContent.includes('link') || questionContent.includes('connect') || questionContent.includes('account')) {
+        } else if (
+          questionContent.includes('link') ||
+          questionContent.includes('connect') ||
+          questionContent.includes('account')
+        ) {
           return {
             type: CommandType.HELP,
-            args: { 
+            args: {
               category: 'link',
               isQuestion: 'true',
-              originalQuestion: text
+              originalQuestion: text,
             },
-            rawText: text
+            rawText: text,
           };
         } else if (questionContent.includes('contact')) {
           return {
             type: CommandType.HELP,
-            args: { 
+            args: {
               category: 'contacts',
               isQuestion: 'true',
-              originalQuestion: text
+              originalQuestion: text,
             },
-            rawText: text
+            rawText: text,
           };
         } else if (questionContent.includes('voice') || questionContent.includes('audio')) {
           return {
             type: CommandType.HELP,
-            args: { 
+            args: {
               category: 'voice',
               isQuestion: 'true',
-              originalQuestion: text
+              originalQuestion: text,
             },
-            rawText: text
+            rawText: text,
           };
         } else {
           // General help question
           return {
             type: CommandType.HELP,
-            args: { 
+            args: {
               isQuestion: 'true',
-              originalQuestion: text
+              originalQuestion: text,
             },
-            rawText: text
+            rawText: text,
           };
         }
       }
     }
-    
+
     return { type: CommandType.UNKNOWN, args: {}, rawText: text };
   }
 

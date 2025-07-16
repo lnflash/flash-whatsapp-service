@@ -31,6 +31,8 @@ export class WhatsAppWebService
   private serverStartTime = new Date();
   private startupGracePeriod = 5000; // 5 seconds grace period
   private isInGracePeriod = true;
+  private lastConnectedTime: Date | undefined;
+  private eventEmitter = new EventTarget();
 
   constructor(
     private readonly configService: ConfigService,
@@ -190,6 +192,9 @@ export class WhatsAppWebService
 
       // Also log the QR string for alternative display methods
       this.logger.debug('QR code data available for alternative display');
+
+      // Emit QR event for messaging abstraction
+      this.emit('qr', qr);
     });
 
     // Authentication success
@@ -228,6 +233,7 @@ export class WhatsAppWebService
     // Client ready
     this.client.on('ready', async () => {
       this.isReady = true;
+      this.lastConnectedTime = new Date();
       const info = this.client.info;
 
       this.logger.log('🚀 WhatsApp Web client is READY!');
@@ -242,6 +248,9 @@ export class WhatsAppWebService
       } catch (e) {
         this.logger.error('Could not get state on ready:', e.message);
       }
+
+      // Emit ready event for messaging abstraction
+      this.emit('ready', {});
     });
 
     // Remote session saved (might indicate successful connection)
@@ -254,6 +263,9 @@ export class WhatsAppWebService
       this.logger.warn('WhatsApp Web client disconnected:', reason);
       this.isReady = false;
 
+      // Emit disconnected event for messaging abstraction
+      this.emit('disconnected', { reason });
+
       // Attempt to reinitialize after disconnection
       setTimeout(() => {
         this.client.initialize().catch((err) => {
@@ -265,6 +277,9 @@ export class WhatsAppWebService
     // Message handling
     this.client.on('message', async (msg: Message) => {
       this.logger.debug(`📥 Raw message received from ${msg.from}: "${msg.body}"`);
+
+      // Emit message event for messaging abstraction
+      this.emit('message', msg);
 
       let responseTarget: string = msg.from; // Default to sender
 
@@ -1164,7 +1179,7 @@ export class WhatsAppWebService
   /**
    * Send a text message
    */
-  async sendMessage(to: string, message: string): Promise<void> {
+  async sendMessage(to: string, message: string, mentions?: string[]): Promise<any> {
     if (!this.isReady) {
       this.logger.error('WhatsApp Web client is not ready');
       throw new Error('WhatsApp Web client is not ready');
@@ -1195,8 +1210,9 @@ export class WhatsAppWebService
         throw new Error('WhatsApp client is not initialized');
       }
 
-      await this.client.sendMessage(chatId, message);
+      const result = await this.client.sendMessage(chatId, message, { mentions });
       this.logger.debug(`✉️ Message delivered to ${phoneNumber}`);
+      return result;
     } catch (error) {
       this.logger.error(`Failed to send message to ${to}:`, error);
       // Log more details about the error
@@ -1342,12 +1358,6 @@ export class WhatsAppWebService
     });
   }
 
-  /**
-   * Check if the client is ready and authenticated
-   */
-  isClientReady(): boolean {
-    return this.isReady;
-  }
 
   /**
    * Get client info
@@ -1377,5 +1387,68 @@ export class WhatsAppWebService
         await ChromeCleanupUtil.cleanup();
       }
     }
+  }
+
+  /**
+   * Get last connected time
+   */
+  getLastConnectedTime(): Date | undefined {
+    return this.lastConnectedTime;
+  }
+
+  /**
+   * Check if client is ready
+   */
+  isClientReady(): boolean {
+    return this.isReady;
+  }
+
+
+  /**
+   * Send media (generic method for messaging abstraction)
+   */
+  async sendMedia(to: string, media: Buffer | string, caption?: string): Promise<any> {
+    if (!this.isReady) {
+      throw new Error('WhatsApp Web client is not ready');
+    }
+
+    try {
+      // Import MessageMedia from whatsapp-web.js
+      const { MessageMedia } = await import('whatsapp-web.js');
+
+      // Ensure the number has @c.us suffix
+      const chatId = to.includes('@') ? to : `${to}@c.us`;
+
+      let messageMedia;
+      if (typeof media === 'string') {
+        // Assume it's a URL or file path
+        messageMedia = await MessageMedia.fromUrl(media);
+      } else {
+        // It's a buffer
+        messageMedia = new MessageMedia('image/png', media.toString('base64'), 'media.png');
+      }
+
+      // Send the media with optional caption
+      const result = await this.client.sendMessage(chatId, messageMedia, { caption });
+      return result;
+    } catch (error) {
+      this.logger.error(`Failed to send media to ${to}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Event emitter methods for messaging abstraction
+   */
+  on(event: string, handler: Function): void {
+    this.eventEmitter.addEventListener(event, handler as any);
+  }
+
+  off(event: string, handler: Function): void {
+    this.eventEmitter.removeEventListener(event, handler as any);
+  }
+
+  private emit(event: string, data: any): void {
+    this.eventEmitter.dispatchEvent(new CustomEvent(event, { detail: data }));
   }
 }

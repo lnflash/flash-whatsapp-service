@@ -170,8 +170,10 @@ export class TranslationPlugin extends BasePlugin {
         return this.handleAutoTranslate(command, context);
       default:
         // Check for pattern-based translation
-        if (command.rawText.match(/(.+)\s+to\s+(\w+)$/i) || 
-            command.rawText.match(/what is\s+(.+)\s+in\s+(\w+)/i)) {
+        if (
+          command.rawText.match(/(.+)\s+to\s+(\w+)$/i) ||
+          command.rawText.match(/what is\s+(.+)\s+in\s+(\w+)/i)
+        ) {
           return this.handleTranslate(command, context);
         }
         return {
@@ -192,7 +194,10 @@ export class TranslationPlugin extends BasePlugin {
     const whatIsMatch = command.rawText.match(/what is\s+(.+)\s+in\s+(\w+)/i);
 
     if (toMatch) {
-      text = toMatch[1].replace(/^translate\s+/i, '').replace(/^tr\s+/i, '').trim();
+      text = toMatch[1]
+        .replace(/^translate\s+/i, '')
+        .replace(/^tr\s+/i, '')
+        .trim();
       targetLang = this.parseLanguageCode(toMatch[2]);
     } else if (whatIsMatch) {
       text = whatIsMatch[1].trim();
@@ -200,12 +205,12 @@ export class TranslationPlugin extends BasePlugin {
     } else {
       // Simple format: translate [text]
       text = command.args.join(' ') || command.rawText.replace(/^(translate|tr|trans)\s+/i, '');
-      
+
       // Try to detect if last word is a language
       const words = text.split(' ');
       const lastWord = words[words.length - 1].toLowerCase();
       const langCode = this.parseLanguageCode(lastWord);
-      
+
       if (langCode && words.length > 1) {
         targetLang = langCode;
         text = words.slice(0, -1).join(' ');
@@ -221,7 +226,7 @@ export class TranslationPlugin extends BasePlugin {
     // Check cache
     const cacheKey = `translate:${text}:${targetLang || 'auto'}`;
     const cached = await this.redisService.get(cacheKey);
-    
+
     if (cached) {
       const cache: TranslationCache = JSON.parse(cached);
       return this.formatTranslationResponse(cache);
@@ -256,8 +261,9 @@ export class TranslationPlugin extends BasePlugin {
     command: ParsedCommand,
     context: CommandContext,
   ): Promise<PluginResponse> {
-    const text = command.args.join(' ') || 
-                 command.rawText.replace(/^(detect language|what language is)\s+/i, '');
+    const text =
+      command.args.join(' ') ||
+      command.rawText.replace(/^(detect language|what language is)\s+/i, '');
 
     if (!text) {
       return {
@@ -286,9 +292,9 @@ export class TranslationPlugin extends BasePlugin {
 
   private showLanguages(): PluginResponse {
     let text = '🌍 *Supported Languages*\n\n';
-    
+
     const langs = Object.entries(this.languages).sort((a, b) => a[1].localeCompare(b[1]));
-    
+
     langs.forEach(([code, name]) => {
       text += `• ${name} (${code})\n`;
     });
@@ -328,16 +334,17 @@ export class TranslationPlugin extends BasePlugin {
       // Store user's preferred language
       const userLang = await this.getUserLanguage(context.userId);
       await this.redisService.set(settingKey, 'enabled', 86400 * 7); // 7 days
-      
+
       return {
-        text: `🌐 *Auto-translate enabled!*\n\n` +
-              `Messages in foreign languages will be automatically translated.\n` +
-              `Your language: ${this.languages[userLang] || 'English'}\n\n` +
-              `To disable: autotranslate off`,
+        text:
+          `🌐 *Auto-translate enabled!*\n\n` +
+          `Messages in foreign languages will be automatically translated.\n` +
+          `Your language: ${this.languages[userLang] || 'English'}\n\n` +
+          `To disable: autotranslate off`,
       };
     } else {
       await this.redisService.del(settingKey);
-      
+
       return {
         text: '🌐 Auto-translate disabled.',
       };
@@ -379,7 +386,7 @@ export class TranslationPlugin extends BasePlugin {
 
     // Check common words
     const lowerText = text.toLowerCase();
-    
+
     if (lowerText.includes('hello') || lowerText.includes('the') || lowerText.includes('is')) {
       return { language: 'en', confidence: 0.8 };
     }
@@ -404,7 +411,7 @@ export class TranslationPlugin extends BasePlugin {
   ): Promise<string> {
     // Check common phrases first
     const lowerText = text.toLowerCase().trim();
-    
+
     for (const [phrase, translations] of Object.entries(this.commonPhrases)) {
       if (lowerText === phrase && translations[targetLang]) {
         return translations[targetLang];
@@ -460,7 +467,7 @@ export class TranslationPlugin extends BasePlugin {
     };
 
     const words = text.split(' ');
-    const translatedWords = words.map(word => {
+    const translatedWords = words.map((word) => {
       const lower = word.toLowerCase();
       if (wordTranslations[lower] && wordTranslations[lower][targetLang]) {
         return wordTranslations[lower][targetLang];
@@ -473,7 +480,7 @@ export class TranslationPlugin extends BasePlugin {
 
   private parseLanguageCode(input: string): string | undefined {
     const lower = input.toLowerCase();
-    
+
     // Check if it's already a valid code
     if (this.languages[lower]) {
       return lower;
@@ -535,12 +542,12 @@ export class TranslationPlugin extends BasePlugin {
   private getPronunciation(text: string, langCode: string): string | undefined {
     // Simple pronunciation guide for demo
     const pronunciations: Record<string, Record<string, string>> = {
-      'こんにちは': { ja: 'kon-ni-chi-wa' },
-      'ありがとう': { ja: 'a-ri-ga-tō' },
-      '你好': { zh: 'nǐ hǎo' },
-      '谢谢': { zh: 'xiè xie' },
-      '안녕하세요': { ko: 'an-nyeong-ha-se-yo' },
-      '감사합니다': { ko: 'gam-sa-ham-ni-da' },
+      こんにちは: { ja: 'kon-ni-chi-wa' },
+      ありがとう: { ja: 'a-ri-ga-tō' },
+      你好: { zh: 'nǐ hǎo' },
+      谢谢: { zh: 'xiè xie' },
+      안녕하세요: { ko: 'an-nyeong-ha-se-yo' },
+      감사합니다: { ko: 'gam-sa-ham-ni-da' },
     };
 
     return pronunciations[text]?.[langCode];
