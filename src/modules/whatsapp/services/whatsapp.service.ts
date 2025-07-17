@@ -708,16 +708,19 @@ _Your phone number is hidden for privacy in this group._`;
               return this.processVybzContent(whatsappId, command.rawText, 'text', session);
             }
 
-            // Otherwise, use AI to respond
-            const shouldUseVoice = await this.ttsService.shouldUseVoice(
-              command.rawText,
-              true,
-              session.whatsappId,
-            );
-            return this.handleAiQuery(command.rawText, session, shouldUseVoice);
-          } else {
-            return this.getUnknownCommandMessage(session, whatsappId);
+            // AI queries are only allowed in DMs, not groups
+            if (!isGroup) {
+              // Otherwise, use AI to respond
+              const shouldUseVoice = await this.ttsService.shouldUseVoice(
+                command.rawText,
+                true,
+                session.whatsappId,
+              );
+              return this.handleAiQuery(command.rawText, session, shouldUseVoice);
+            }
           }
+          
+          return this.getUnknownCommandMessage(session, whatsappId, isGroup);
         }
       }
     } catch (error) {
@@ -1429,6 +1432,7 @@ _This is a WhatsApp privacy feature to protect your number in groups._`;
         command?.args?.category || 'general',
         originalQuestion,
         session,
+        isGroup,
       );
     }
 
@@ -1611,6 +1615,7 @@ Share the QR code to get paid!`,
     category: string,
     question: string,
     session: UserSession | null,
+    isGroup?: boolean,
   ): string {
     const lowerQuestion = question.toLowerCase();
 
@@ -1664,6 +1669,13 @@ Share the QR code to get paid!`,
       lowerQuestion.includes('link') ||
       lowerQuestion.includes('connect')
     ) {
+      // Check if asking about linking someone else (friend, user, etc.) or group linking
+      if (lowerQuestion.includes('friend') || lowerQuestion.includes('someone') || 
+          lowerQuestion.includes('user') || lowerQuestion.includes('group') ||
+          lowerQuestion.includes('other') || isGroup) {
+        return `To use Pulse with privacy mode in groups:\n\n1️⃣ Your friend should message me directly: @${this.configService.get('WHATSAPP_BOT_NUMBER', '18673225224')}\n2️⃣ They type \`link\` to connect their Flash account\n3️⃣ They type \`link group\` to get a privacy code\n4️⃣ In this group, they type \`link [code]\`\n\nTheir phone number stays private! 🛡️`;
+      }
+      
       if (session?.isVerified) {
         return `Your account is already linked! You can now:\n• Send money: \`send 10 to @username\`\n• Check balance: \`balance\`\n• Receive money: \`receive 20\``;
       }
@@ -3483,15 +3495,20 @@ Ready? Try \`balance\` to start!`;
   private async getUnknownCommandMessage(
     session: UserSession | null,
     whatsappId?: string,
+    isGroup?: boolean,
   ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
     let message: string;
-    if (!session || !session.isVerified) {
+    
+    // In groups, provide a simple message without hints
+    if (isGroup) {
+      message = "I don't understand that command. Type `help` to see available commands.";
+    } else if (!session || !session.isVerified) {
       message = ResponseLengthUtil.getConciseResponse('help_hint');
     } else {
       message = ResponseLengthUtil.getConciseResponse('help_hint');
     }
 
-    if (whatsappId) {
+    if (whatsappId && !isGroup) {
       return await this.convertToVoiceOnlyResponse(message, whatsappId);
     }
     return message;
