@@ -29,6 +29,14 @@ import { MfaGuard } from './guards/mfa.guard';
     }),
   ],
   providers: [AuthService, SessionService, OtpService, GroupAuthService, SessionGuard, MfaGuard],
-  exports: [AuthService, SessionService, OtpService, GroupAuthService, SessionGuard, MfaGuard, JwtModule],
+  exports: [
+    AuthService,
+    SessionService,
+    OtpService,
+    GroupAuthService,
+    SessionGuard,
+    MfaGuard,
+    JwtModule,
+  ],
 })
 export class AuthModule {}

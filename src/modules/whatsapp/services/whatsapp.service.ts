@@ -184,7 +184,7 @@ export class WhatsappService {
 
       // Get session if it exists
       let session = await this.sessionService.getSessionByWhatsappId(whatsappId);
-      
+
       // Debug logging for @lid users
       if (whatsappId.includes('@lid')) {
         this.logger.log(`Debug: @lid user detected (anonymized ID): ${whatsappId}`);
@@ -202,7 +202,7 @@ export class WhatsappService {
 
       // Check if this is a new user and show welcome message
       const isNew = await this.onboardingService.isNewUser(whatsappId);
-      
+
       if (isNew) {
         // For @lid users, show special instructions
         if (whatsappId.includes('@lid')) {
@@ -217,7 +217,7 @@ To use Pulse:
 
 _Your phone number is hidden for privacy in this group._`;
         }
-        
+
         // For completely new users, show welcome regardless of command
         return this.onboardingService.getWelcomeMessage(whatsappId);
       }
@@ -271,23 +271,23 @@ _Your phone number is hidden for privacy in this group._`;
         let finalText = response;
         const hints: string[] = [];
 
-        // For verification success responses, skip hints since the user just verified
-        const isVerificationSuccess =
+        // Only add hints for welcome messages (after verification) and help commands
+        const isWelcomeMessage =
           command.type === CommandType.VERIFY &&
           response.includes('Welcome') &&
           response.includes('connected');
 
-        if (!isVerificationSuccess && !messageData.isGroup) {
-          // Collect all potential hints (skip for group messages)
+        const isHelpCommand = command.type === CommandType.HELP;
+
+        // Only process hints for welcome and help messages
+        if ((isWelcomeMessage || isHelpCommand) && !messageData.isGroup) {
+          // Collect all potential hints
           const baseHint = this.getContextualHint(session, command);
           if (baseHint && !response.includes('💡')) {
             hints.push(`💡 ${baseHint}`);
           }
-        }
 
-        // Skip all hints for group messages
-        if (!messageData.isGroup) {
-          // Add contextual help if user seems confused (highest priority)
+          // Add contextual help if user seems confused
           const contextualHelp = await this.contextualHelpService.analyzeForConfusion(whatsappId);
           if (contextualHelp && !finalText.includes(contextualHelp)) {
             // Replace any existing hints with confusion help
@@ -295,22 +295,24 @@ _Your phone number is hidden for privacy in this group._`;
             hints.push(contextualHelp);
           }
 
-          // Add undo hint if applicable (high priority)
+          // Add undo hint if applicable
           const undoHint = await this.undoTransactionService.getUndoHint(whatsappId);
           if (undoHint && !hints.some((h) => h.includes('undo'))) {
             hints.unshift(undoHint); // Add at beginning
-          }
-
-          // Check for onboarding completion celebration (always show)
-          const completionMessage = await this.onboardingService.getCompletionMessage(whatsappId);
-          if (completionMessage) {
-            finalText += completionMessage;
           }
 
           // Add at most 2 hints to avoid clutter
           const hintsToAdd = hints.slice(0, 2);
           if (hintsToAdd.length > 0) {
             finalText += '\n\n' + hintsToAdd.join('\n\n');
+          }
+        }
+
+        // Check for onboarding completion celebration (always show, not a hint)
+        if (!messageData.isGroup) {
+          const completionMessage = await this.onboardingService.getCompletionMessage(whatsappId);
+          if (completionMessage) {
+            finalText += completionMessage;
           }
         }
 
@@ -350,13 +352,12 @@ _Your phone number is hidden for privacy in this group._`;
           if (response.voiceOnly) {
             return response;
           }
-          // Just add hint to text if not in voice-only mode (skip for groups)
-          const finalText = messageData.isGroup ? response.text : this.addHint(response.text, session, command);
-          return { ...response, text: finalText };
+          // Return response without adding hints (hints only for welcome/help)
+          return response;
         }
 
-        // Response doesn't have voice yet, process normally
-        const finalText = messageData.isGroup ? response.text : this.addHint(response.text, session, command);
+        // Response doesn't have voice yet, use text as is (hints only for welcome/help)
+        const finalText = response.text;
 
         // Check for forceVoice flag or normal voice conditions
         const useVoice = (response as any).forceVoice || shouldUseVoice;
@@ -719,7 +720,7 @@ _Your phone number is hidden for privacy in this group._`;
               return this.handleAiQuery(command.rawText, session, shouldUseVoice);
             }
           }
-          
+
           return this.getUnknownCommandMessage(session, whatsappId, isGroup);
         }
       }
@@ -765,7 +766,7 @@ _Your phone number is hidden for privacy in this group._`;
         }
 
         const code = await this.groupAuthService.generateGroupLinkCode(phoneNumber, whatsappId);
-        
+
         return `🔐 *Group Link Code Generated*
 
 Your code: \`${code}\`
@@ -1422,7 +1423,11 @@ _This is a WhatsApp privacy feature to protect your number in groups._`;
   /**
    * Get help message based on session status
    */
-  private getHelpMessage(session: UserSession | null, command?: ParsedCommand, isGroup?: boolean): string {
+  private getHelpMessage(
+    session: UserSession | null,
+    command?: ParsedCommand,
+    isGroup?: boolean,
+  ): string {
     // Check for instructional questions first
     const isQuestion = command?.args?.isQuestion === 'true';
     const originalQuestion = command?.args?.originalQuestion;
@@ -1605,7 +1610,10 @@ Share the QR code to get paid!`,
 • \`meme\` - random meme`,
     };
 
-    return categories[category.toLowerCase()] || `Type: \`help\`, \`help send\`, \`help receive\`, \`help games\``;
+    return (
+      categories[category.toLowerCase()] ||
+      `Type: \`help\`, \`help send\`, \`help receive\`, \`help games\``
+    );
   }
 
   /**
@@ -1670,12 +1678,17 @@ Share the QR code to get paid!`,
       lowerQuestion.includes('connect')
     ) {
       // Check if asking about linking someone else (friend, user, etc.) or group linking
-      if (lowerQuestion.includes('friend') || lowerQuestion.includes('someone') || 
-          lowerQuestion.includes('user') || lowerQuestion.includes('group') ||
-          lowerQuestion.includes('other') || isGroup) {
+      if (
+        lowerQuestion.includes('friend') ||
+        lowerQuestion.includes('someone') ||
+        lowerQuestion.includes('user') ||
+        lowerQuestion.includes('group') ||
+        lowerQuestion.includes('other') ||
+        isGroup
+      ) {
         return `To use Pulse with privacy mode in groups:\n\n1️⃣ Your friend should message me directly: @${this.configService.get('WHATSAPP_BOT_NUMBER', '18673225224')}\n2️⃣ They type \`link\` to connect their Flash account\n3️⃣ They type \`link group\` to get a privacy code\n4️⃣ In this group, they type \`link [code]\`\n\nTheir phone number stays private! 🛡️`;
       }
-      
+
       if (session?.isVerified) {
         return `Your account is already linked! You can now:\n• Send money: \`send 10 to @username\`\n• Check balance: \`balance\`\n• Receive money: \`receive 20\``;
       }
@@ -3498,15 +3511,9 @@ Ready? Try \`balance\` to start!`;
     isGroup?: boolean,
   ): Promise<string | { text: string; voice?: Buffer; voiceOnly?: boolean }> {
     let message: string;
-    
-    // In groups, provide a simple message without hints
-    if (isGroup) {
-      message = "I don't understand that command. Type `help` to see available commands.";
-    } else if (!session || !session.isVerified) {
-      message = ResponseLengthUtil.getConciseResponse('help_hint');
-    } else {
-      message = ResponseLengthUtil.getConciseResponse('help_hint');
-    }
+
+    // Provide a simple message without hints for all cases
+    message = "I don't understand that command. Type `help` to see available commands.";
 
     if (whatsappId && !isGroup) {
       return await this.convertToVoiceOnlyResponse(message, whatsappId);

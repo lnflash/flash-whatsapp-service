@@ -92,7 +92,7 @@ export class SessionService {
       // If no session found and this is an @lid format, check for group auth mapping
       if (!sessionId && whatsappId.includes('@lid') && this.groupAuthService) {
         this.logger.debug(`Checking group auth mapping for @lid: ${whatsappId}`);
-        
+
         const realId = await this.groupAuthService.getRealIdForLid(whatsappId);
         if (realId) {
           this.logger.debug(`Found mapping for @lid: ${whatsappId} -> ${realId}`);

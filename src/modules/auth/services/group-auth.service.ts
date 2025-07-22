@@ -32,7 +32,7 @@ export class GroupAuthService {
     try {
       // Generate a 6-character alphanumeric code
       const code = this.generateCode();
-      
+
       const linkCode: GroupLinkCode = {
         code,
         phoneNumber,
@@ -56,10 +56,13 @@ export class GroupAuthService {
   /**
    * Verify a group link code and create mapping
    */
-  async verifyGroupLinkCode(code: string, lidId: string): Promise<{ success: boolean; message: string }> {
+  async verifyGroupLinkCode(
+    code: string,
+    lidId: string,
+  ): Promise<{ success: boolean; message: string }> {
     try {
       const key = `${this.CODE_PREFIX}${code.toUpperCase()}`;
-      const linkCode = await this.redisService.getEncrypted(key) as GroupLinkCode;
+      const linkCode = (await this.redisService.getEncrypted(key)) as GroupLinkCode;
 
       if (!linkCode) {
         return {
@@ -79,7 +82,8 @@ export class GroupAuthService {
 
       return {
         success: true,
-        message: 'Your account is now linked in this group! You can use all features while maintaining your privacy.',
+        message:
+          'Your account is now linked in this group! You can use all features while maintaining your privacy.',
       };
     } catch (error) {
       this.logger.error(`Error verifying group link code: ${error.message}`);
@@ -97,12 +101,12 @@ export class GroupAuthService {
     try {
       const mappingKey = `${this.MAPPING_PREFIX}${lidId}`;
       const realId = await this.redisService.get(mappingKey);
-      
+
       if (realId) {
         // Refresh the TTL
         await this.redisService.expire(mappingKey, this.MAPPING_TTL);
       }
-      
+
       return realId;
     } catch (error) {
       this.logger.error(`Error getting real ID for lid: ${error.message}`);
@@ -127,12 +131,12 @@ export class GroupAuthService {
   private generateCode(): string {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let code = '';
-    
+
     for (let i = 0; i < 6; i++) {
       const randomIndex = randomBytes(1)[0] % chars.length;
       code += chars[randomIndex];
     }
-    
+
     return code;
   }
 

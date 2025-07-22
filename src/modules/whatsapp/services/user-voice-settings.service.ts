@@ -33,7 +33,9 @@ export class UserVoiceSettingsService {
       // If no data found and this is an @lid format, we can't look it up
       // @lid IDs are anonymized and don't correspond to phone numbers
       if (!data && whatsappId.includes('@lid')) {
-        this.logger.debug(`No voice settings for @lid format: ${whatsappId} - this is an anonymized ID`);
+        this.logger.debug(
+          `No voice settings for @lid format: ${whatsappId} - this is an anonymized ID`,
+        );
       }
 
       if (!data) {

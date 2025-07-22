@@ -37,17 +37,13 @@ export class WhatsAppIdNormalizer {
       `${phoneNumber}@lid`,
       `${phoneNumber}@s.whatsapp.net`,
     ];
-    
+
     // If phone number doesn't start with country code, try adding common ones
     // This handles cases where WhatsApp strips the country code in @lid format
     if (!phoneNumber.startsWith('1') && phoneNumber.length === 10) {
       // US/Canada numbers
       const withUS = `1${phoneNumber}`;
-      formats.push(
-        `${withUS}@c.us`,
-        `${withUS}@lid`,
-        `${withUS}@s.whatsapp.net`,
-      );
+      formats.push(`${withUS}@c.us`, `${withUS}@lid`, `${withUS}@s.whatsapp.net`);
     } else if (!phoneNumber.startsWith('1') && phoneNumber.length === 11) {
       // Might be missing country code for Caribbean/other regions
       const withCaribbean = `1${phoneNumber}`;
@@ -57,7 +53,7 @@ export class WhatsAppIdNormalizer {
         `${withCaribbean}@s.whatsapp.net`,
       );
     }
-    
+
     // Remove duplicates
     return formats.filter((id, index, self) => self.indexOf(id) === index);
   }

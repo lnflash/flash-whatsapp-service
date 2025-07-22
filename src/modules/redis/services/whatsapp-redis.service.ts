@@ -24,7 +24,7 @@ export class WhatsAppRedisService {
     // First try with the original ID
     const originalKey = keyPattern.replace('${whatsappId}', whatsappId);
     let value = await this.redisService.get(originalKey);
-    
+
     if (value) {
       return value;
     }
@@ -32,12 +32,13 @@ export class WhatsAppRedisService {
     // If not found and it's an @lid format, try alternatives
     if (this.idNormalizer.isLidFormat(whatsappId)) {
       const alternativeIds = this.idNormalizer.getPossibleFormats(whatsappId);
-      
+
       for (const altId of alternativeIds) {
-        if (altId !== whatsappId) { // Skip the original
+        if (altId !== whatsappId) {
+          // Skip the original
           const altKey = keyPattern.replace('${whatsappId}', altId);
           value = await this.redisService.get(altKey);
-          
+
           if (value) {
             this.logger.debug(`Found data with alternative format: ${altId}`);
             return value;
@@ -52,11 +53,14 @@ export class WhatsAppRedisService {
   /**
    * Get encrypted value from Redis, trying multiple WhatsApp ID formats if needed
    */
-  async getEncryptedWithIdNormalization(keyPattern: string, whatsappId: string): Promise<any | null> {
+  async getEncryptedWithIdNormalization(
+    keyPattern: string,
+    whatsappId: string,
+  ): Promise<any | null> {
     // First try with the original ID
     const originalKey = keyPattern.replace('${whatsappId}', whatsappId);
     let value = await this.redisService.getEncrypted(originalKey);
-    
+
     if (value) {
       return value;
     }
@@ -64,12 +68,13 @@ export class WhatsAppRedisService {
     // If not found and it's an @lid format, try alternatives
     if (this.idNormalizer.isLidFormat(whatsappId)) {
       const alternativeIds = this.idNormalizer.getPossibleFormats(whatsappId);
-      
+
       for (const altId of alternativeIds) {
-        if (altId !== whatsappId) { // Skip the original
+        if (altId !== whatsappId) {
+          // Skip the original
           const altKey = keyPattern.replace('${whatsappId}', altId);
           value = await this.redisService.getEncrypted(altKey);
-          
+
           if (value) {
             this.logger.debug(`Found encrypted data with alternative format: ${altId}`);
             return value;
@@ -115,7 +120,7 @@ export class WhatsAppRedisService {
    */
   async delWithIdNormalization(keyPattern: string, whatsappId: string): Promise<void> {
     const possibleIds = this.idNormalizer.getPossibleFormats(whatsappId);
-    
+
     for (const id of possibleIds) {
       const key = keyPattern.replace('${whatsappId}', id);
       await this.redisService.del(key);
