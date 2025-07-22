@@ -207,6 +207,17 @@ export class CommandParserService {
         }
       }
 
+      // Check for simple yes/no that might be consent responses
+      // These will be handled by the main service if there's a pending consent
+      if (trimmedText === 'yes' || trimmedText === 'no') {
+        // Return as UNKNOWN so the main service can check for pending consent
+        return {
+          type: CommandType.UNKNOWN,
+          args: {},
+          rawText: originalText,
+        };
+      }
+
       // Try natural language patterns first for all inputs (not just voice)
       const naturalCommand = this.parseNaturalLanguage(trimmedText);
       if (naturalCommand.type !== CommandType.UNKNOWN) {
@@ -1017,8 +1028,6 @@ export class CommandParserService {
       lowerText === 'pay' ||
       lowerText === 'confirm' ||
       lowerText === 'cancel' ||
-      lowerText === 'yes' ||
-      lowerText === 'no' ||
       lowerText === 'approve' ||
       lowerText === 'reject'
     ) {
