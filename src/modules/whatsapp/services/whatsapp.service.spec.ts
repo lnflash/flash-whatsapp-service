@@ -36,6 +36,7 @@ import { UserKnowledgeBaseService } from './user-knowledge-base.service';
 import { RandomQuestionService } from './random-question.service';
 import { PluginLoaderService } from '../../plugins/services/plugin-loader.service';
 import { PaymentSendResult, WalletCurrency } from '../../flash-api/services/payment.service';
+import { RequestDeduplicator } from '../../common/services/request-deduplicator.service';
 
 describe('WhatsappService', () => {
   let service: WhatsappService;
@@ -377,6 +378,16 @@ describe('WhatsappService', () => {
             executeCommand: jest.fn().mockResolvedValue(null),
             getLoadedPlugins: jest.fn().mockReturnValue([]),
             getAllCommands: jest.fn().mockReturnValue([]),
+          },
+        },
+        {
+          provide: RequestDeduplicator,
+          useValue: {
+            deduplicate: jest.fn().mockImplementation((_key, factory) => factory()),
+            clear: jest.fn(),
+            clearAll: jest.fn(),
+            getInFlightCount: jest.fn().mockReturnValue(0),
+            getCacheSize: jest.fn().mockReturnValue(0),
           },
         },
       ],

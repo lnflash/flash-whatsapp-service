@@ -153,11 +153,37 @@ export class WhatsappService {
       const whatsappId = messageData.whatsappId || this.extractWhatsappId(messageData.from);
       const phoneNumber = this.normalizePhoneNumber(messageData.from);
 
-      // Store the incoming message for traceability
-      await this.storeCloudMessage(messageData);
+      // Parse command from message (with voice flag if it came from voice)
+      const command = this.commandParserService.parseCommand(
+        messageData.text,
+        messageData.isVoiceCommand,
+      );
 
-      // Check if user is in a learning session
-      const pendingQuestion = await this.randomQuestionService.getPendingQuestion(whatsappId);
+      // Parallelize initial operations that don't depend on each other
+      const startTime = Date.now();
+      const [
+        _storeResult,
+        pendingQuestion,
+        session,
+        isNew,
+        supportModeStatus
+      ] = await Promise.all([
+        // Store the incoming message for traceability
+        this.storeCloudMessage(messageData),
+        // Check if user is in a learning session
+        this.randomQuestionService.getPendingQuestion(whatsappId),
+        // Get session if it exists
+        this.sessionService.getSessionByWhatsappId(whatsappId),
+        // Check if this is a new user
+        this.onboardingService.isNewUser(whatsappId),
+        // Check support mode status
+        this.supportModeService.isInSupportMode(whatsappId),
+      ]);
+      
+      // Log performance improvement
+      this.logger.debug(`Initial checks completed in ${Date.now() - startTime}ms`);
+
+      // Handle pending question if exists
       if (pendingQuestion && messageData.text.toLowerCase() !== 'skip') {
         // Process the answer to the pending question
         await this.userKnowledgeBaseService.storeUserKnowledge(
@@ -178,15 +204,6 @@ export class WhatsappService {
         return response;
       }
 
-      // Parse command from message (with voice flag if it came from voice)
-      const command = this.commandParserService.parseCommand(
-        messageData.text,
-        messageData.isVoiceCommand,
-      );
-
-      // Get session if it exists
-      let session = await this.sessionService.getSessionByWhatsappId(whatsappId);
-
       // Debug logging for @lid users
       if (whatsappId.includes('@lid')) {
         this.logger.log(`Debug: @lid user detected (anonymized ID): ${whatsappId}`);
@@ -194,16 +211,13 @@ export class WhatsappService {
         this.logger.log(`Debug: They need to link from a DM first`);
       }
 
-      // Track user activity for contextual help
-      await this.contextualHelpService.trackActivity(
+      // Track user activity for contextual help (fire and forget)
+      this.contextualHelpService.trackActivity(
         whatsappId,
         command.rawText,
         command.type,
         false,
-      );
-
-      // Check if this is a new user and show welcome message
-      const isNew = await this.onboardingService.isNewUser(whatsappId);
+      ).catch(err => this.logger.error('Failed to track activity', err));
 
       if (isNew) {
         // For @lid users, show special instructions
@@ -227,8 +241,8 @@ _Your phone number is hidden for privacy in this group._`;
       // Silently track onboarding progress in background
       await this.onboardingService.detectAndUpdateProgress(whatsappId, command.rawText);
 
-      // Check if user is in support mode
-      if (await this.supportModeService.isInSupportMode(whatsappId)) {
+      // Check if user is in support mode (using pre-fetched status)
+      if (supportModeStatus) {
         const result = await this.supportModeService.routeMessage(whatsappId, messageData.text);
         if (result.routed) {
           return result.response || '✉️ Message sent to support...';
@@ -263,10 +277,14 @@ _Your phone number is hidden for privacy in this group._`;
       const isAiResponse = command.type === CommandType.UNKNOWN;
       // Check if this was a voice-requested command (e.g., "voice help")
       const voiceRequested = command.args.voiceRequested === 'true';
-      const shouldUseVoice =
-        voiceRequested ||
-        (await this.ttsService.shouldUseVoice(messageData.text, isAiResponse, whatsappId));
-      const shouldSendVoiceOnly = await this.ttsService.shouldSendVoiceOnly(whatsappId);
+      
+      // Parallelize voice checks if voice is potentially needed
+      const [shouldUseVoice, shouldSendVoiceOnly] = voiceRequested 
+        ? [true, await this.ttsService.shouldSendVoiceOnly(whatsappId)]
+        : await Promise.all([
+            this.ttsService.shouldUseVoice(messageData.text, isAiResponse, whatsappId),
+            this.ttsService.shouldSendVoiceOnly(whatsappId)
+          ]);
 
       // Add hints to text responses and optionally add voice
       if (typeof response === 'string') {
@@ -2390,8 +2408,21 @@ _By using Pulse, you agree to AI-assisted message processing to help serve you b
                   recipientSession.flashAuthToken
                 ) {
                   // Found the recipient! Send them a notification
-                  const senderUsername =
-                    (await this.usernameService.getUsername(session.flashAuthToken)) || 'Someone';
+                  // Clear cache first (fire and forget)
+                  this.balanceService.clearBalanceCache(recipientSession.flashUserId!)
+                    .catch(err => this.logger.error('Failed to clear recipient balance cache', err));
+
+                  // Parallelize operations for recipient notification
+                  const [senderUsername, balance, currentVoiceSettings] = await Promise.all([
+                    this.usernameService.getUsername(session.flashAuthToken).then(u => u || 'Someone'),
+                    this.balanceService.getUserBalance(
+                      recipientSession.flashUserId!,
+                      recipientSession.flashAuthToken,
+                    ),
+                    this.userVoiceSettingsService?.getUserVoiceSettings(
+                      recipientSession.whatsappId,
+                    ),
+                  ]);
 
                   let recipientMessage = `💰 *Payment Received!*\n\n`;
                   recipientMessage += `Amount: *$${amount.toFixed(2)} USD*\n`;
@@ -2401,26 +2432,13 @@ _By using Pulse, you agree to AI-assisted message processing to help serve you b
                   }
                   recipientMessage += `\n✅ Payment confirmed instantly`;
 
-                  // Get recipient's updated balance
-                  if (recipientSession.flashUserId) {
-                    await this.balanceService.clearBalanceCache(recipientSession.flashUserId);
-                    const balance = await this.balanceService.getUserBalance(
-                      recipientSession.flashUserId,
-                      recipientSession.flashAuthToken,
-                    );
-
-                    if (balance.fiatBalance > 0 || balance.btcBalance === 0) {
-                      recipientMessage += `\n💼 New balance: *$${balance.fiatBalance.toFixed(2)} USD*`;
-                    }
+                  if (balance.fiatBalance > 0 || balance.btcBalance === 0) {
+                    recipientMessage += `\n💼 New balance: *$${balance.fiatBalance.toFixed(2)} USD*`;
                   }
 
                   // Set recipient to 'voice on' mode if not already set
                   if (this.userVoiceSettingsService) {
-                    const currentSettings =
-                      await this.userVoiceSettingsService.getUserVoiceSettings(
-                        recipientSession.whatsappId,
-                      );
-                    if (!currentSettings || currentSettings.mode === UserVoiceMode.OFF) {
+                    if (!currentVoiceSettings || currentVoiceSettings.mode === UserVoiceMode.OFF) {
                       await this.userVoiceSettingsService.setUserVoiceMode(
                         recipientSession.whatsappId,
                         UserVoiceMode.ON,
@@ -2437,13 +2455,8 @@ _By using Pulse, you agree to AI-assisted message processing to help serve you b
                   if (command.args.memo) {
                     naturalVoiceMessage += ` They said: ${command.args.memo}.`;
                   }
-                  if (recipientSession.flashUserId) {
-                    const balance = await this.balanceService.getUserBalance(
-                      recipientSession.flashUserId,
-                      recipientSession.flashAuthToken,
-                    );
-                    naturalVoiceMessage += ` Your new balance is ${convertCurrencyToWords(balance.fiatBalance.toFixed(2))}.`;
-                  }
+                  // Use the balance we already fetched above
+                  naturalVoiceMessage += ` Your new balance is ${convertCurrencyToWords(balance.fiatBalance.toFixed(2))}.`;
                   naturalVoiceMessage += ` The payment was confirmed instantly.`;
 
                   // Generate voice audio
@@ -2595,20 +2608,19 @@ _By using Pulse, you agree to AI-assisted message processing to help serve you b
                     return `❌ Unable to process pending payment. Please try again later.`;
                   }
 
-                  // Get admin wallet
-                  const adminWallets = await this.paymentService.getUserWallets(adminToken);
+                  // Parallelize wallet fetches
+                  const [adminWallets, userWallets] = await Promise.all([
+                    this.paymentService.getUserWallets(adminToken),
+                    this.paymentService.getUserWallets(session.flashAuthToken),
+                  ]);
+
                   const adminWalletId = adminWallets.usdWallet?.id || adminWallets.defaultWalletId;
+                  const senderWalletId = userWallets.usdWallet?.id || userWallets.defaultWalletId;
 
                   if (!adminWalletId) {
                     this.logger.error('Admin wallet not found');
                     return `❌ Unable to process pending payment. Please try again later.`;
                   }
-
-                  // Get user's wallets
-                  const userWallets = await this.paymentService.getUserWallets(
-                    session.flashAuthToken,
-                  );
-                  const senderWalletId = userWallets.usdWallet?.id || userWallets.defaultWalletId;
 
                   // First generate the claim code that will be used
                   const claimCode = this.generateClaimCode();
@@ -2734,18 +2746,19 @@ _By using Pulse, you agree to AI-assisted message processing to help serve you b
             return `❌ Unable to process pending payment. Please try again later.`;
           }
 
-          // Get admin wallet
-          const adminWallets = await this.paymentService.getUserWallets(adminToken);
+          // Parallelize wallet fetches
+          const [adminWallets, userWallets] = await Promise.all([
+            this.paymentService.getUserWallets(adminToken),
+            this.paymentService.getUserWallets(session.flashAuthToken),
+          ]);
+
           const adminWalletId = adminWallets.usdWallet?.id || adminWallets.defaultWalletId;
+          const senderWalletId = userWallets.usdWallet?.id || userWallets.defaultWalletId;
 
           if (!adminWalletId) {
             this.logger.error('Admin wallet not found');
             return `❌ Unable to process pending payment. Please try again later.`;
           }
-
-          // Get user's wallets
-          const userWallets = await this.paymentService.getUserWallets(session.flashAuthToken);
-          const senderWalletId = userWallets.usdWallet?.id || userWallets.defaultWalletId;
 
           // First generate the claim code that will be used
           const claimCode = this.generateClaimCode();
@@ -4460,9 +4473,11 @@ Respond with JSON: { "approved": true/false, "reason": "brief explanation if rej
         return '❌ Unable to process claim. Please contact support.';
       }
 
-      // Get wallets
-      const adminWallets = await this.paymentService.getUserWallets(adminToken);
-      const userWallets = await this.paymentService.getUserWallets(session.flashAuthToken!);
+      // Parallelize wallet fetches
+      const [adminWallets, userWallets] = await Promise.all([
+        this.paymentService.getUserWallets(adminToken),
+        this.paymentService.getUserWallets(session.flashAuthToken!),
+      ]);
 
       const adminWalletId = adminWallets.usdWallet?.id || adminWallets.defaultWalletId;
       const userWalletId = userWallets.usdWallet?.id || userWallets.defaultWalletId;
@@ -5985,6 +6000,41 @@ Type \`templates\` to see your saved templates.`;
     } catch (error) {
       this.logger.error('Error handling plugin command:', error);
       return null;
+    }
+  }
+
+  /**
+   * Helper method to generate voice response with parallelized checks
+   */
+  private async generateVoiceResponse(
+    text: string,
+    whatsappId: string,
+    isVoiceCommand: boolean = false,
+    isAiResponse: boolean = false,
+  ): Promise<{ text: string; voice?: Buffer; voiceOnly?: boolean }> {
+    // Parallelize voice setting checks
+    const [shouldUseVoice, shouldSendVoiceOnly] = await Promise.all([
+      this.ttsService.shouldUseVoice(text, isAiResponse, whatsappId),
+      this.ttsService.shouldSendVoiceOnly(whatsappId),
+    ]);
+
+    if (!shouldUseVoice && !isVoiceCommand) {
+      return { text, voice: undefined, voiceOnly: false };
+    }
+
+    try {
+      // Generate voice audio
+      const audioBuffer = await this.ttsService.textToSpeech(text, 'en', whatsappId);
+
+      return {
+        text: shouldSendVoiceOnly ? '' : text,
+        voice: audioBuffer,
+        voiceOnly: shouldSendVoiceOnly,
+      };
+    } catch (error) {
+      this.logger.error('Failed to generate voice response:', error);
+      // Fallback to text-only response
+      return { text, voice: undefined, voiceOnly: false };
     }
   }
 }
