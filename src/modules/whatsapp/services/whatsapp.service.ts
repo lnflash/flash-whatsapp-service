@@ -1336,15 +1336,8 @@ _This is a WhatsApp privacy feature to protect your number in groups._`;
     isVoiceMode: boolean = false,
   ): Promise<string> {
     try {
-      if (!session.consentGiven) {
-        // Store the pending question for after consent is given
-        // Use whatsappId without + to match the format used in handleConsentCommand
-        const normalizedWhatsappId = session.whatsappId.replace('+', '');
-        const pendingQuestionKey = `pending_ai_question:${normalizedWhatsappId}`;
-        await this.redisService.set(pendingQuestionKey, query, 300); // 5 minute expiry
-
-        return 'Hi There! I would love to chat with you more, but first I need you to give your consent to talking to an AI bot. To use AI-powered support, please type "yes" to consent or "no" to decline.';
-      }
+      // Consent is automatically granted for linked users (as per welcome message)
+      // No need to check or prompt for consent
 
       // Create context with user info, but remove sensitive data
       const context = {
@@ -1758,7 +1751,9 @@ I'm Pulse - I can send money, check balances, and handle Bitcoin payments throug
 • \`receive 25\` - request money
 • \`help\` - see all commands
 
-Ready? Try \`balance\` to start!`;
+Ready? Try \`balance\` to start!
+
+_By using Pulse, you agree to AI-assisted message processing to help serve you better._`;
 
     return message;
   }

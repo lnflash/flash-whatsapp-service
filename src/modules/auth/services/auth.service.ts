@@ -112,6 +112,8 @@ export class AuthService {
         isVerified: true,
         mfaVerified: true,
         mfaExpiresAt: new Date(Date.now() + 300000), // 5 minutes
+        consentGiven: true, // Auto-grant consent for linked users
+        consentTimestamp: new Date(),
       });
 
       if (!updatedSession) {
