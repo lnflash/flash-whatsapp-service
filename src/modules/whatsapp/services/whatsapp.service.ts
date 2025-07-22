@@ -51,6 +51,7 @@ import { AdminAnalyticsService } from './admin-analytics.service';
 import { UserKnowledgeBaseService } from './user-knowledge-base.service';
 import { RandomQuestionService } from './random-question.service';
 import { PluginLoaderService, CommandContext } from '../../plugins';
+import { RequestDeduplicator, DeduplicationKeyBuilder } from '../../common/services/request-deduplicator.service';
 // import { WhatsAppCloudService } from './whatsapp-cloud.service'; // Disabled for prototype branch
 
 @Injectable()
@@ -91,6 +92,7 @@ export class WhatsappService {
     private readonly userKnowledgeBaseService: UserKnowledgeBaseService,
     private readonly randomQuestionService: RandomQuestionService,
     private readonly pluginLoaderService: PluginLoaderService,
+    private readonly requestDeduplicator: RequestDeduplicator,
     // private readonly whatsAppCloudService: WhatsAppCloudService, // Disabled for prototype branch
     @Inject(forwardRef(() => WhatsAppWebService))
     private readonly whatsappWebService?: WhatsAppWebService,
@@ -899,7 +901,13 @@ _This is a WhatsApp privacy feature to protect your number in groups._`;
 
         // Fetch and store username mapping for efficient lookups
         try {
-          const username = await this.usernameService.getUsername(updatedSession.flashAuthToken);
+          const username = updatedSession.flashAuthToken 
+            ? await this.requestDeduplicator.deduplicate(
+                DeduplicationKeyBuilder.forUserProfile(updatedSession.flashUserId!),
+                () => this.usernameService.getUsername(updatedSession.flashAuthToken!),
+                { ttl: 30000 } // Cache username for 30 seconds
+              )
+            : null;
           if (username) {
             await this.sessionService.storeUsernameMapping(username, whatsappId);
           }
@@ -998,10 +1006,15 @@ _This is a WhatsApp privacy feature to protect your number in groups._`;
       // Skip MFA for WhatsApp since the user already authenticated
       // The initial WhatsApp verification is sufficient for security
 
-      // Get balance from Flash API using the auth token
-      const balanceInfo = await this.balanceService.getUserBalance(
-        session.flashUserId,
-        session.flashAuthToken,
+      // Get balance from Flash API using the auth token with deduplication
+      const deduplicationKey = DeduplicationKeyBuilder.forBalance(session.flashUserId!);
+      const balanceInfo = await this.requestDeduplicator.deduplicate(
+        deduplicationKey,
+        () => this.balanceService.getUserBalance(
+          session.flashUserId!,
+          session.flashAuthToken!,
+        ),
+        { ttl: 5000 } // Cache balance for 5 seconds
       );
 
       // If display currency is not USD, convert using exchange rate from API
@@ -1105,11 +1118,16 @@ _This is a WhatsApp privacy feature to protect your number in groups._`;
       // Clear the balance cache
       await this.balanceService.clearBalanceCache(session.flashUserId);
 
-      // Fetch fresh balance data
-      const balanceInfo = await this.balanceService.getUserBalance(
-        session.flashUserId,
-        session.flashAuthToken,
-        true,
+      // Fetch fresh balance data with deduplication (but with no caching since this is a refresh)
+      const deduplicationKey = DeduplicationKeyBuilder.forBalance(session.flashUserId!, 'refresh');
+      const balanceInfo = await this.requestDeduplicator.deduplicate(
+        deduplicationKey,
+        () => this.balanceService.getUserBalance(
+          session.flashUserId!,
+          session.flashAuthToken!,
+          true,
+        ),
+        { ttl: 0 } // No caching for refresh command
       );
 
       // If display currency is not USD, convert using exchange rate from API
@@ -1185,7 +1203,12 @@ _This is a WhatsApp privacy feature to protect your number in groups._`;
 
       if (!newUsername) {
         // User just typed "username" - show their current username
-        const currentUsername = await this.usernameService.getUsername(session.flashAuthToken);
+        const deduplicationKey = DeduplicationKeyBuilder.forUserProfile(session.flashUserId!);
+        const currentUsername = await this.requestDeduplicator.deduplicate(
+          deduplicationKey,
+          () => this.usernameService.getUsername(session.flashAuthToken!),
+          { ttl: 30000 } // Cache username for 30 seconds
+        );
 
         if (currentUsername) {
           // Store username mapping for efficient lookups
@@ -1197,7 +1220,12 @@ _This is a WhatsApp privacy feature to protect your number in groups._`;
       } else {
         // User wants to set a username
         // First check if they already have one
-        const currentUsername = await this.usernameService.getUsername(session.flashAuthToken);
+        const deduplicationKey = DeduplicationKeyBuilder.forUserProfile(session.flashUserId!);
+        const currentUsername = await this.requestDeduplicator.deduplicate(
+          deduplicationKey,
+          () => this.usernameService.getUsername(session.flashAuthToken!),
+          { ttl: 30000 } // Cache username for 30 seconds
+        );
 
         if (currentUsername) {
           return `You already have a username: @${currentUsername}\n\nUsernames cannot be changed once set.`;
@@ -1245,12 +1273,22 @@ _This is a WhatsApp privacy feature to protect your number in groups._`;
         // User is authenticated, use their auth token to get their display currency
         authToken = session.flashAuthToken;
 
-        // The authenticated query will automatically use the user's display currency
-        const priceInfo = await this.priceService.getBitcoinPrice(currency, authToken);
+        // The authenticated query will automatically use the user's display currency with deduplication
+        const deduplicationKey = DeduplicationKeyBuilder.forPrice(currency);
+        const priceInfo = await this.requestDeduplicator.deduplicate(
+          deduplicationKey,
+          () => this.priceService.getBitcoinPrice(currency, authToken),
+          { ttl: 10000 } // Cache price for 10 seconds
+        );
         return this.priceService.formatPriceMessage(priceInfo);
       } else {
-        // User not authenticated, show USD price
-        const priceInfo = await this.priceService.getBitcoinPrice(currency);
+        // User not authenticated, show USD price with deduplication
+        const deduplicationKey = DeduplicationKeyBuilder.forPrice(currency);
+        const priceInfo = await this.requestDeduplicator.deduplicate(
+          deduplicationKey,
+          () => this.priceService.getBitcoinPrice(currency),
+          { ttl: 10000 } // Cache price for 10 seconds
+        );
         return (
           this.priceService.formatPriceMessage(priceInfo) +
           '\n\n💡 Tip: You can link your Flash account to see prices in your preferred currency!'

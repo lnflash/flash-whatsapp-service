@@ -14,6 +14,7 @@ import { AdminDashboardModule } from './modules/admin-dashboard/admin-dashboard.
 import { MetricsMiddleware } from './common/middleware/metrics.middleware';
 import { CryptoModule } from './common/crypto/crypto.module';
 import { HealthController } from './health.controller';
+import { CommonModule } from './modules/common/common.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { HealthController } from './health.controller';
     }),
 
     // Core modules
+    CommonModule,
     CryptoModule,
     WhatsappModule,
     RedisModule,
