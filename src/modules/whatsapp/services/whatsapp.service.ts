@@ -843,10 +843,32 @@ _This is a WhatsApp privacy feature to protect your number in groups._`;
     } catch (error) {
       this.logger.error(`Error handling link command: ${error.message}`, error.stack);
 
+      if (error.message.includes('Phone number is not a valid phone number')) {
+        return `❌ This phone number is not recognized by Flash.
+
+Please ensure:
+• You have a Flash account with this number
+• The number is in the correct format
+• You're using the same number registered with Flash
+
+If you don't have a Flash account yet, please download the Flash app first.`;
+      }
+
       if (error.message.includes('Please open the Flash mobile app')) {
         return error.message;
       }
 
+      if (error.message.includes('Phone number is not a valid phone number')) {
+        return `❌ This phone number is not recognized by Flash.
+
+Please ensure:
+• You have a Flash account with this number
+• The number is in the correct format
+• You're using the same number registered with Flash
+
+If you don't have a Flash account yet, please download the Flash app first.`;
+      }
+      
       if (error.message.includes('No Flash account found')) {
         return "We couldn't find a Flash account with your phone number. Please make sure you're using the same number registered with Flash.";
       }
@@ -1465,15 +1487,24 @@ _This is a WhatsApp privacy feature to protect your number in groups._`;
    */
   private extractWhatsappId(from: string): string {
     // Remove 'whatsapp:' prefix and any '+' sign
-    return from.replace('whatsapp:', '').replace('+', '');
+    // Also handle @c.us suffix if present
+    return from
+      .replace('whatsapp:', '')
+      .replace('+', '')
+      .replace('@c.us', '')
+      .replace('@s.whatsapp.net', '');
   }
 
   /**
    * Normalize phone number to E.164 format
    */
   private normalizePhoneNumber(from: string): string {
-    // Remove 'whatsapp:' prefix
-    const number = from.replace('whatsapp:', '');
+    // Remove 'whatsapp:' prefix and WhatsApp suffixes
+    const number = from
+      .replace('whatsapp:', '')
+      .replace('@c.us', '')
+      .replace('@s.whatsapp.net', '')
+      .replace('@g.us', '');
 
     // Already has + sign, return as is
     if (number.startsWith('+')) {

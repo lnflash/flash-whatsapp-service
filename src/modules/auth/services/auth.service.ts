@@ -27,6 +27,8 @@ export class AuthService {
 
       // Ensure phone number has country code
       const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
+      
+      this.logger.log(`Initiating account linking for WhatsApp ID: ${whatsappId}, Phone: ${formattedPhone}`);
 
       // Check if there's an existing session
       let session = await this.sessionService.getSessionByWhatsappId(whatsappId);
@@ -50,6 +52,7 @@ export class AuthService {
       }
 
       // Send OTP via Flash API (to WhatsApp)
+      this.logger.debug(`Sending OTP to ${formattedPhone} via Flash API`);
       const result = await this.flashApiService.initiatePhoneVerification(formattedPhone);
 
       if (!result.success) {
