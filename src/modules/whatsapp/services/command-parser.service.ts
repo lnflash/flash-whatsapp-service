@@ -35,6 +35,8 @@ export interface ParsedCommand {
   rawText: string;
 }
 
+export type CommandData = ParsedCommand['args'];
+
 @Injectable()
 export class CommandParserService {
   private readonly logger = new Logger(CommandParserService.name);

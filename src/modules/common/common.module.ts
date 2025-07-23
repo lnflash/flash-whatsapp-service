@@ -1,9 +1,9 @@
 import { Module, Global } from '@nestjs/common';
-import { RequestDeduplicator } from './services/request-deduplicator.service';
+import { RequestDeduplicatorService } from './services/request-deduplicator.service';
 
 @Global()
 @Module({
-  providers: [RequestDeduplicator],
-  exports: [RequestDeduplicator],
+  providers: [RequestDeduplicatorService],
+  exports: [RequestDeduplicatorService],
 })
 export class CommonModule {}

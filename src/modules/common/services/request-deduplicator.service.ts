@@ -11,8 +11,8 @@ export interface DeduplicationOptions {
  * and all others wait for and receive the same result.
  */
 @Injectable()
-export class RequestDeduplicator {
-  private readonly logger = new Logger(RequestDeduplicator.name);
+export class RequestDeduplicatorService {
+  private readonly logger = new Logger(RequestDeduplicatorService.name);
   private readonly inFlightRequests = new Map<string, Promise<any>>();
   private readonly resultCache = new Map<string, { result: any; expiresAt: number }>();
 
@@ -146,6 +146,9 @@ export class RequestDeduplicator {
     }
   }
 }
+
+// Export the legacy name for backward compatibility
+export { RequestDeduplicatorService as RequestDeduplicator };
 
 /**
  * Helper function to generate deduplication keys for common scenarios

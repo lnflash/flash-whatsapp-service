@@ -30,6 +30,14 @@ import { AdminAnalyticsService } from './services/admin-analytics.service';
 import { UserKnowledgeBaseService } from './services/user-knowledge-base.service';
 import { RandomQuestionService } from './services/random-question.service';
 
+// Command Architecture
+import { CommandRegistry } from './commands/command-registry.service';
+import { CommandExecutorService } from './commands/command-executor.service';
+import { BalanceCommandHandler } from './commands/handlers/balance.handler';
+import { SendCommandHandler } from './commands/handlers/send.handler';
+import { HelpCommandHandler } from './commands/handlers/help.handler';
+import { LinkCommandHandler } from './commands/handlers/link.handler';
+
 // Guards and Templates
 import { RateLimiterGuard } from '../../common/guards/rate-limiter.guard';
 import { BalanceTemplate } from './templates/balance-template';
@@ -46,6 +54,7 @@ import { EventsModule } from '../events/events.module';
 import { TtsModule } from '../tts/tts.module';
 import { SpeechModule } from '../speech/speech.module';
 import { PluginsModule } from '../plugins/plugins.module';
+import { CommonModule } from '../common/common.module';
 import { MESSAGING_PLATFORM } from '../messaging/messaging.constants';
 
 @Module({
@@ -59,6 +68,7 @@ import { MESSAGING_PLATFORM } from '../messaging/messaging.constants';
     TtsModule,
     SpeechModule,
     PluginsModule,
+    CommonModule,
   ],
   controllers: [
     // WhatsappController,    // Cloud API Controller (disabled for prototype)
@@ -77,6 +87,16 @@ import { MESSAGING_PLATFORM } from '../messaging/messaging.constants';
     },
     CommandParserService,
     CommandValidatorService,
+    
+    // Command Architecture
+    CommandRegistry,
+    CommandExecutorService,
+    BalanceCommandHandler,
+    SendCommandHandler,
+    HelpCommandHandler,
+    LinkCommandHandler,
+    
+    // Other services
     RateLimiterGuard,
     BalanceTemplate,
     QrCodeService,
@@ -113,6 +133,8 @@ import { MESSAGING_PLATFORM } from '../messaging/messaging.constants';
     UserKnowledgeBaseService,
     RandomQuestionService,
     WhatsAppIdNormalizer,
+    CommandRegistry,
+    CommandExecutorService,
   ],
 })
 export class WhatsappModule {}

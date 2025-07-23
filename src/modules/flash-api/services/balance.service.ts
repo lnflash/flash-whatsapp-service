@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { FlashApiService } from '../flash-api.service';
 import { RedisService } from '../../redis/redis.service';
 
-interface BalanceInfo {
+export interface BalanceInfo {
   btcBalance: number;
   fiatBalance: number;
   fiatCurrency: string;
