@@ -123,10 +123,10 @@ export class SecurityAuditService {
           events = events.filter(e => e.severity === filters.severity);
         }
         if (filters.startDate) {
-          events = events.filter(e => new Date(e.timestamp) >= filters.startDate);
+          events = events.filter(e => new Date(e.timestamp) >= filters.startDate!);
         }
         if (filters.endDate) {
-          events = events.filter(e => new Date(e.timestamp) <= filters.endDate);
+          events = events.filter(e => new Date(e.timestamp) <= filters.endDate!);
         }
       }
 
@@ -165,7 +165,7 @@ export class SecurityAuditService {
 
     events.forEach(event => {
       // Count by severity
-      summary.bySeverity[event.severity]++;
+      summary.bySeverity[event.severity as keyof typeof summary.bySeverity]++;
       
       // Count by type
       summary.byType[event.type] = (summary.byType[event.type] || 0) + 1;
