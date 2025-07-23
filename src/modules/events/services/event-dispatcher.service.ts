@@ -246,7 +246,7 @@ export class EventDispatcherService {
     // Also store in sorted set for time-based queries
     await this.redis.zadd(
       `${this.queuePrefix}timeline`,
-      event.timestamp.getTime(),
+      event.timestamp!.getTime(),
       event.id!,
     );
   }
@@ -262,8 +262,9 @@ export class EventDispatcherService {
         return;
       }
 
-      this.amqpConnection = await amqp.connect(rabbitmqUrl);
-      this.amqpChannel = await this.amqpConnection.createChannel();
+      const connection = await amqp.connect(rabbitmqUrl);
+      this.amqpConnection = connection as any;
+      this.amqpChannel = await connection.createChannel();
       
       // Setup exchange
       const exchange = this.configService.get('rabbitmq.exchangeName', 'pulse.events');
@@ -328,7 +329,8 @@ export class EventDispatcherService {
    */
   private setupEventInterceptor(): void {
     // Intercept all events for monitoring
-    this.eventEmitter.onAny((event: string | symbol, ...values: any[]) => {
+    this.eventEmitter.onAny((eventName: string | string[], ...values: any[]) => {
+      const event = Array.isArray(eventName) ? eventName.join('.') : eventName;
       if (typeof event === 'string') {
         this.updateEventStats(event);
       }

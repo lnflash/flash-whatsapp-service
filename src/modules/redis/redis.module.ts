@@ -1,5 +1,6 @@
 import { Module, Global } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { RedisModule as IoRedisModule } from '@nestjs-modules/ioredis';
 import { RedisService } from './redis.service';
 import { WhatsAppRedisService } from './services/whatsapp-redis.service';
 import { RedisBatchService } from './services/redis-batch.service';
@@ -9,7 +10,18 @@ import { WhatsAppIdNormalizer } from '../../common/utils/whatsapp/whatsapp-id-no
 
 @Global()
 @Module({
-  imports: [ConfigModule, CryptoModule],
+  imports: [
+    ConfigModule,
+    CryptoModule,
+    IoRedisModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        type: 'single',
+        url: `redis://:${configService.get('redis.password')}@${configService.get('redis.host')}:${configService.get('redis.port')}/${configService.get('redis.db', 0)}`,
+      }),
+    }),
+  ],
   providers: [
     RedisService,
     WhatsAppRedisService,
@@ -22,6 +34,7 @@ import { WhatsAppIdNormalizer } from '../../common/utils/whatsapp/whatsapp-id-no
     WhatsAppRedisService,
     RedisBatchService,
     RedisPoolService,
+    IoRedisModule,
   ],
 })
 export class RedisModule {}

@@ -503,8 +503,9 @@ export class QueueMonitorService implements OnModuleInit {
         return;
       }
 
-      this.amqpConnection = await amqp.connect(rabbitmqUrl);
-      this.amqpChannel = await this.amqpConnection.createChannel();
+      const connection = await amqp.connect(rabbitmqUrl);
+      this.amqpConnection = connection as any;
+      this.amqpChannel = await connection.createChannel();
       this.logger.log('AMQP connection established for queue monitoring');
     } catch (error) {
       this.logger.error('Failed to initialize AMQP connection:', error);
