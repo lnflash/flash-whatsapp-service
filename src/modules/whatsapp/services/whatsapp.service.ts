@@ -802,7 +802,15 @@ To link in a group:
       // First check if user already has a linked session
       const existingSession = await this.sessionService.getSessionByWhatsappId(whatsappId);
       if (existingSession) {
-        return 'Your Flash account is already linked.';
+        // Check if the session is fully verified with Flash credentials
+        if (existingSession.isVerified && existingSession.flashUserId && existingSession.flashAuthToken) {
+          return 'Your Flash account is already linked.';
+        } else {
+          // Session exists but is incomplete - user needs to complete verification
+          this.logger.warn(`Incomplete session found for ${whatsappId}: isVerified=${existingSession.isVerified}, hasFlashUserId=${!!existingSession.flashUserId}, hasAuthToken=${!!existingSession.flashAuthToken}`);
+          // Delete the incomplete session to allow re-linking
+          await this.sessionService.deleteSession(whatsappId);
+        }
       }
 
       // Check if this is an @lid format user in a group
@@ -1018,7 +1026,10 @@ _This is a WhatsApp privacy feature to protect your number in groups._`;
       }
 
       if (!session.isVerified || !session.flashUserId || !session.flashAuthToken) {
-        return ResponseLengthUtil.getConciseResponse('not_linked');
+        this.logger.warn(`Incomplete session for balance check: whatsappId=${whatsappId}, isVerified=${session.isVerified}, hasFlashUserId=${!!session.flashUserId}, hasAuthToken=${!!session.flashAuthToken}`);
+        // Clear the incomplete session
+        await this.sessionService.deleteSession(whatsappId);
+        return 'Your session has expired. Please type "link" to reconnect your Flash account.';
       }
 
       // Skip MFA for WhatsApp since the user already authenticated
@@ -1130,7 +1141,9 @@ _This is a WhatsApp privacy feature to protect your number in groups._`;
       }
 
       if (!session.isVerified || !session.flashUserId || !session.flashAuthToken) {
-        return ResponseLengthUtil.getConciseResponse('not_linked');
+        this.logger.warn(`Incomplete session for refresh: whatsappId=${whatsappId}`);
+        await this.sessionService.deleteSession(whatsappId);
+        return 'Your session has expired. Please type "link" to reconnect your Flash account.';
       }
 
       // Clear the balance cache
@@ -1214,7 +1227,9 @@ _This is a WhatsApp privacy feature to protect your number in groups._`;
       }
 
       if (!session.isVerified || !session.flashUserId || !session.flashAuthToken) {
-        return ResponseLengthUtil.getConciseResponse('not_linked');
+        this.logger.warn(`Incomplete session for username change: whatsappId=${whatsappId}`);
+        await this.sessionService.deleteSession(whatsappId);
+        return 'Your session has expired. Please type "link" to reconnect your Flash account.';
       }
 
       const newUsername = command.args.username;
