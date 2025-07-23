@@ -33,7 +33,9 @@
     "ai:train": "ts-node scripts/manage-ai-training.ts",
     "ai:add": "ts-node scripts/manage-ai-training.ts add",
     "ai:test": "ts-node scripts/manage-ai-training.ts test",
-    "ai:list": "ts-node scripts/manage-ai-training.ts list"
+    "ai:list": "ts-node scripts/manage-ai-training.ts list",
+    "cleanup:session": "ts-node scripts/cleanup-corrupted-session.ts",
+    "cleanup:all-corrupted": "ts-node scripts/cleanup-corrupted-session.ts --all-corrupted"
   },
   "keywords": [
     "flash",

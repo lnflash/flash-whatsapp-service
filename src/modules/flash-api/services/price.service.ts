@@ -46,8 +46,17 @@ export class PriceService {
 
       return price;
     } catch (error) {
-      this.logger.error(`Error getting Bitcoin price: ${error.message}`, error.stack);
-      throw new BadRequestException('Failed to retrieve Bitcoin price');
+      // Provide more specific error messages based on the error type
+      if (error.message?.includes('No price data available')) {
+        this.logger.error(`Flash API returned no price data for ${currency}`);
+        throw new BadRequestException(`Price not available for ${currency}. The currency may not be supported.`);
+      } else if (error.message?.includes('fetch') || error.message?.includes('network')) {
+        this.logger.error(`Network error fetching Bitcoin price: ${error.message}`);
+        throw new BadRequestException('Network error: Unable to connect to price service');
+      } else {
+        this.logger.error(`Error getting Bitcoin price: ${error.message}`, error.stack);
+        throw new BadRequestException('Failed to retrieve Bitcoin price');
+      }
     }
   }
 

@@ -76,6 +76,15 @@ export class SessionService {
 
       return session as UserSession;
     } catch (error) {
+      // Check if this is a decryption error
+      if (error.message?.includes('decrypt') || error.message?.includes('Decryption failed')) {
+        this.logger.warn(
+          `Session ${sessionId} cannot be decrypted (possibly created with old encryption keys). Consider running cleanup script.`,
+        );
+        // Return null instead of throwing to prevent repeated errors
+        return null;
+      }
+      
       this.logger.error(`Error getting session: ${error.message}`, error.stack);
       return null;
     }

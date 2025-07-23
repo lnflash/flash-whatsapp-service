@@ -123,6 +123,8 @@ export class CacheWarmerService implements OnModuleInit {
   private async warmPriceCache(): Promise<void> {
     const currencies = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY', 'CHF', 'CNY'];
     const warmupData = [];
+    let successCount = 0;
+    let failureCount = 0;
 
     for (const currency of currencies) {
       warmupData.push({
@@ -130,9 +132,23 @@ export class CacheWarmerService implements OnModuleInit {
         factory: async () => {
           try {
             const price = await this.priceService.getBitcoinPrice(currency);
+            successCount++;
             return price;
           } catch (error) {
-            this.logger.warn(`Failed to fetch price for ${currency}:`, error.message);
+            failureCount++;
+            // Enhanced error handling for specific Flash API errors
+            if (error.message?.includes('PriceNotAvailableError')) {
+              this.logger.warn(
+                `Flash API: Price not available for ${currency}. This may be due to API configuration or unsupported currency.`,
+              );
+            } else if (error.message?.includes('Failed to retrieve Bitcoin price')) {
+              this.logger.warn(
+                `Flash API: Failed to retrieve price for ${currency}. Check API connectivity and credentials.`,
+              );
+            } else {
+              this.logger.warn(`Failed to fetch price for ${currency}: ${error.message}`);
+            }
+            // Return null to allow cache warming to continue for other currencies
             return null;
           }
         },
@@ -141,7 +157,14 @@ export class CacheWarmerService implements OnModuleInit {
     }
 
     await this.cacheManager.warmCache(warmupData);
-    this.logger.debug(`Warmed price cache for ${currencies.length} currencies`);
+    
+    if (failureCount > 0) {
+      this.logger.warn(
+        `Price cache warming completed with issues: ${successCount} successful, ${failureCount} failed out of ${currencies.length} currencies`,
+      );
+    } else {
+      this.logger.debug(`Successfully warmed price cache for all ${currencies.length} currencies`);
+    }
   }
 
   /**
