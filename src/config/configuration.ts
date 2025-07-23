@@ -95,6 +95,9 @@ export default () => ({
       enabled: process.env.CACHE_WARMUP_ENABLED !== 'false',
       onStartup: process.env.CACHE_WARMUP_ON_STARTUP !== 'false',
       schedule: process.env.CACHE_WARMUP_SCHEDULE || '0 * * * *', // Every hour
+      currencies: process.env.CACHE_WARMUP_CURRENCIES ? 
+        process.env.CACHE_WARMUP_CURRENCIES.split(',').map(c => c.trim()) : 
+        ['USD', 'JMD'], // Only warm currencies used in the application
       items: [
         { type: 'price', enabled: process.env.CACHE_WARMUP_PRICE !== 'false' },
         { type: 'session', enabled: process.env.CACHE_WARMUP_SESSION !== 'false' },

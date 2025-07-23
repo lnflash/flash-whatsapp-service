@@ -121,7 +121,8 @@ export class CacheWarmerService implements OnModuleInit {
    * Warm price cache for common currencies
    */
   private async warmPriceCache(): Promise<void> {
-    const currencies = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY', 'CHF', 'CNY'];
+    // Only warm currencies that are actually used in the application
+    const currencies = this.configService.get<string[]>('cache.warmup.currencies') || ['USD', 'JMD'];
     const warmupData = [];
     let successCount = 0;
     let failureCount = 0;
