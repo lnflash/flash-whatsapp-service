@@ -59,12 +59,6 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return this.redisClient.get(key);
   }
 
-  /**
-   * Delete key
-   */
-  async del(key: string): Promise<void> {
-    await this.redisClient.del(key);
-  }
 
   /**
    * Set key with expiry only if it doesn't exist
@@ -247,7 +241,67 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   /**
    * Get Redis info
    */
-  async info(): Promise<string> {
+  async info(section?: string): Promise<string> {
+    if (section) {
+      return this.redisClient.info(section);
+    }
     return this.redisClient.info();
+  }
+
+  /**
+   * Get connection status
+   */
+  get status(): string {
+    return this.redisClient.status;
+  }
+
+  /**
+   * Create a pipeline for batch operations
+   */
+  pipeline(): any {
+    return this.redisClient.pipeline();
+  }
+
+  /**
+   * Get multiple values at once
+   */
+  async mget(...keys: string[]): Promise<(string | null)[]> {
+    return this.redisClient.mget(...keys);
+  }
+
+  /**
+   * Delete multiple keys
+   */
+  async del(...keys: string[]): Promise<number> {
+    if (keys.length === 0) return 0;
+    return this.redisClient.del(...keys);
+  }
+
+  /**
+   * Hash get
+   */
+  async hget(key: string, field: string): Promise<string | null> {
+    return this.redisClient.hget(key, field);
+  }
+
+  /**
+   * Hash set
+   */
+  async hset(key: string, field: string, value: string): Promise<number> {
+    return this.redisClient.hset(key, field, value);
+  }
+
+  /**
+   * Set add
+   */
+  async sadd(key: string, ...members: string[]): Promise<number> {
+    return this.redisClient.sadd(key, ...members);
+  }
+
+  /**
+   * Set remove
+   */
+  async srem(key: string, ...members: string[]): Promise<number> {
+    return this.redisClient.srem(key, ...members);
   }
 }

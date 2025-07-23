@@ -32,6 +32,17 @@ export default () => ({
     port: parseInt(process.env.REDIS_PORT || '6379', 10),
     password: process.env.REDIS_PASSWORD || undefined,
     db: parseInt(process.env.REDIS_DB || '0', 10),
+    
+    // Connection pool configuration
+    pool: {
+      enabled: process.env.REDIS_POOL_ENABLED !== 'false',
+      min: parseInt(process.env.REDIS_POOL_MIN || '2', 10),
+      max: parseInt(process.env.REDIS_POOL_MAX || '10', 10),
+      acquireTimeout: parseInt(process.env.REDIS_POOL_ACQUIRE_TIMEOUT || '3000', 10),
+      idleTimeout: parseInt(process.env.REDIS_POOL_IDLE_TIMEOUT || '30000', 10),
+      connectionName: process.env.REDIS_POOL_CONNECTION_NAME || 'pulse-pool',
+      enableReadReplicas: process.env.REDIS_ENABLE_READ_REPLICAS === 'true',
+    },
   },
 
   // Flash API Configuration
@@ -76,6 +87,19 @@ export default () => ({
     priceTtl: parseInt(process.env.PRICE_CACHE_TTL || '900', 10), // 15 minutes in seconds
     usernameTtl: parseInt(process.env.USERNAME_CACHE_TTL || '3600', 10), // 1 hour in seconds
     exchangeRateTtl: parseInt(process.env.EXCHANGE_RATE_CACHE_TTL || '1800', 10), // 30 minutes in seconds
+    transactionTtl: parseInt(process.env.TRANSACTION_CACHE_TTL || '86400', 10), // 24 hours in seconds
+    sessionTtl: parseInt(process.env.SESSION_CACHE_TTL || '1800', 10), // 30 minutes in seconds
+    
+    // Cache warming configuration
+    warmup: {
+      enabled: process.env.CACHE_WARMUP_ENABLED !== 'false',
+      onStartup: process.env.CACHE_WARMUP_ON_STARTUP !== 'false',
+      schedule: process.env.CACHE_WARMUP_SCHEDULE || '0 * * * *', // Every hour
+      items: [
+        { type: 'price', enabled: process.env.CACHE_WARMUP_PRICE !== 'false' },
+        { type: 'session', enabled: process.env.CACHE_WARMUP_SESSION !== 'false' },
+      ],
+    },
   },
   // Legacy support
   balanceCacheTtl: parseInt(process.env.BALANCE_CACHE_TTL || '300', 10), // 5 minutes in seconds

@@ -84,7 +84,7 @@ describe('OtpService', () => {
 
       // Mock Redis getEncrypted and del
       jest.spyOn(redisService, 'getEncrypted').mockResolvedValue({ hash: otpHash });
-      jest.spyOn(redisService, 'del').mockResolvedValue();
+      jest.spyOn(redisService, 'del').mockResolvedValue(1);
 
       const isValid = await service.verifyOtp(sessionId, otpCode);
 
@@ -107,7 +107,7 @@ describe('OtpService', () => {
 
       // Mock Redis getEncrypted
       jest.spyOn(redisService, 'getEncrypted').mockResolvedValue({ hash: otpHash });
-      jest.spyOn(redisService, 'del').mockResolvedValue();
+      jest.spyOn(redisService, 'del').mockResolvedValue(1);
 
       const isValid = await service.verifyOtp(sessionId, wrongOtp);
 

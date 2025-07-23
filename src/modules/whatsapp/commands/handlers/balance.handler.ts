@@ -6,7 +6,7 @@ import { CommandType } from '../../services/command-parser.service';
 import { CommandResult, CommandResultBuilder, CommandErrorCode } from '../base/command-result.interface';
 import { BalanceService } from '../../../flash-api/services/balance.service';
 import { BalanceTemplate } from '../../templates/balance-template';
-import { RequestDeduplicatorService } from '../../../common/services/request-deduplicator.service';
+import { CacheManagerService } from '../../../common/services/cache-manager.service';
 import { ConfigService } from '@nestjs/config';
 import { VoiceResponseService } from '../../services/voice-response.service';
 
@@ -15,7 +15,7 @@ export class BalanceCommandHandler extends BaseCommandHandler {
   constructor(
     private readonly balanceService: BalanceService,
     private readonly balanceTemplate: BalanceTemplate,
-    private readonly deduplicator: RequestDeduplicatorService,
+    private readonly cacheManager: CacheManagerService,
     private readonly configService: ConfigService,
     private readonly voiceResponseService: VoiceResponseService,
   ) {
@@ -30,11 +30,11 @@ export class BalanceCommandHandler extends BaseCommandHandler {
 
   protected async handleCommand(context: CommandContext): Promise<CommandResult> {
     try {
-      // Get balance with deduplication
-      const balance = await this.deduplicator.deduplicate(
-        `balance:${context.flashUserId}`,
+      // Get balance with cache
+      const balance = await this.cacheManager.get(
+        CacheManagerService.keys.balance(context.flashUserId!),
         () => this.balanceService.getUserBalance(context.flashUserId!, context.session?.flashAuthToken || ''),
-        { ttl: this.getBalanceCacheTTL() }
+        { ttl: this.getBalanceCacheTTL() / 1000 } // Convert to seconds
       );
 
       if (!balance) {
