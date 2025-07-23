@@ -120,6 +120,28 @@ Common causes:
 3. **Docker/Container setup**: Ensure Redis data volume is mounted persistently
 4. **Multiple Redis instances**: Ensure Pulse connects to the same Redis instance
 
+### Getting "Decryption failed" Errors?
+
+If you see errors like:
+```
+ERROR [RedisService] Error: Decryption failed: Unsupported state or unable to authenticate data
+```
+
+This means you have old sessions encrypted with different keys. Clean them up:
+
+```bash
+# Interactive cleanup (recommended)
+node scripts/cleanup-old-sessions.js
+
+# Force cleanup without confirmation
+node scripts/cleanup-old-sessions.js --force
+
+# Also clean cache entries
+node scripts/cleanup-old-sessions.js --force --include-cache
+```
+
+After cleanup, users will need to re-link their accounts ONE TIME.
+
 ### Still Getting Decryption Errors?
 
 If you changed the encryption keys after users already linked:
