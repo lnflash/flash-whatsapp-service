@@ -57,6 +57,9 @@ export class VoiceResponseService {
         case CommandType.VOICE:
           return this.generateVoiceSettingsResponse(responseData, commandArgs);
 
+        case CommandType.VERIFY:
+          return this.generateWelcomeVoiceResponse(responseData, context);
+
         default:
           return this.generateGenericVoiceResponse(originalResponse);
       }
@@ -71,6 +74,11 @@ export class VoiceResponseService {
    */
   private extractResponseData(response: string): Record<string, any> {
     const data: Record<string, any> = {};
+    
+    // Check for pending payments in welcome message
+    if (response.includes('pending payment') && response.includes('credited')) {
+      data.pendingPayments = true;
+    }
 
     // Extract amounts (USD)
     const usdMatch = response.match(/\$?([\d,]+\.?\d*)\s*USD/i);
@@ -606,5 +614,33 @@ export class VoiceResponseService {
       response += `You can also add new voices or remove existing ones.`;
       return response;
     }
+  }
+
+  /**
+   * Generate natural welcome message for voice
+   */
+  private generateWelcomeVoiceResponse(data: Record<string, any>, context?: Record<string, any>): string {
+    const userName = context?.userName || 'there';
+    const firstName = userName === 'there' ? '' : userName.split(' ')[0];
+    
+    let response = '';
+    
+    if (firstName && firstName !== 'there') {
+      response = `Welcome ${firstName}! Great news, your Flash account is now connected. `;
+    } else {
+      response = `Welcome! Your Flash account is successfully connected. `;
+    }
+    
+    // Check if there were pending payments claimed
+    if (data.pendingPayments) {
+      response += `Even better, you had some money waiting for you that's now in your account. `;
+    }
+    
+    response += `I'm Pulse, your personal assistant for sending and receiving money through WhatsApp. `;
+    response += `You can ask me things like 'what's my balance' or 'send 10 dollars to John'. `;
+    response += `To see everything I can do, just say 'help'. `;
+    response += `Ready to get started? Try asking for your balance!`;
+    
+    return response;
   }
 }

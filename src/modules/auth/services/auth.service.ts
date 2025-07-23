@@ -117,6 +117,7 @@ export class AuthService {
         mfaExpiresAt: new Date(Date.now() + 300000), // 5 minutes
         consentGiven: true, // Auto-grant consent for linked users
         consentTimestamp: new Date(),
+        profileName: userDetails.username || undefined, // Store the username for welcome message
       });
 
       if (!updatedSession) {

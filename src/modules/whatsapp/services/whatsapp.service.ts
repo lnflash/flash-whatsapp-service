@@ -1833,9 +1833,9 @@ Share the QR code to get paid!`,
    */
   private getWelcomeMessage(session: UserSession | null, pendingClaimMessage?: string): string {
     const userName = session?.profileName || 'there';
-    const firstName = userName.split(' ')[0]; // Use first name for friendlier greeting
+    const firstName = userName === 'there' ? userName : userName.split(' ')[0]; // Use first name for friendlier greeting, but keep 'there' as is
 
-    let message = `🎉 *Welcome, ${firstName}!*
+    let message = `🎉 *Welcome${firstName !== 'there' ? ', ' + firstName : ''}!*
 
 Your Flash account is connected.`;
 
@@ -1845,7 +1845,7 @@ Your Flash account is connected.`;
 
     message += `
 
-I'm Pulse - I can send money, check balances, and handle Bitcoin payments through WhatsApp.
+I'm Pulse - I can send money, check balances, and handle Flash payments through WhatsApp.
 
 *Quick commands:*
 • \`balance\` - check your money
