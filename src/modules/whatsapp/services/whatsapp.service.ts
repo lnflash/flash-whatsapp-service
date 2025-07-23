@@ -923,7 +923,7 @@ _This is a WhatsApp privacy feature to protect your number in groups._`;
             ? await this.requestDeduplicator.deduplicate(
                 DeduplicationKeyBuilder.forUserProfile(updatedSession.flashUserId!),
                 () => this.usernameService.getUsername(updatedSession.flashAuthToken!),
-                { ttl: 30000 } // Cache username for 30 seconds
+                { ttl: this.getCacheTTLs().username } // Use configured username TTL
               )
             : null;
           if (username) {
@@ -1225,7 +1225,7 @@ _This is a WhatsApp privacy feature to protect your number in groups._`;
         const currentUsername = await this.requestDeduplicator.deduplicate(
           deduplicationKey,
           () => this.usernameService.getUsername(session.flashAuthToken!),
-          { ttl: 30000 } // Cache username for 30 seconds
+          { ttl: this.getCacheTTLs().username } // Use configured username TTL
         );
 
         if (currentUsername) {
@@ -1242,7 +1242,7 @@ _This is a WhatsApp privacy feature to protect your number in groups._`;
         const currentUsername = await this.requestDeduplicator.deduplicate(
           deduplicationKey,
           () => this.usernameService.getUsername(session.flashAuthToken!),
-          { ttl: 30000 } // Cache username for 30 seconds
+          { ttl: this.getCacheTTLs().username } // Use configured username TTL
         );
 
         if (currentUsername) {
@@ -1296,7 +1296,7 @@ _This is a WhatsApp privacy feature to protect your number in groups._`;
         const priceInfo = await this.requestDeduplicator.deduplicate(
           deduplicationKey,
           () => this.priceService.getBitcoinPrice(currency, authToken),
-          { ttl: 10000 } // Cache price for 10 seconds
+          { ttl: this.getCacheTTLs().price } // Use configured price TTL
         );
         return this.priceService.formatPriceMessage(priceInfo);
       } else {
@@ -1305,7 +1305,7 @@ _This is a WhatsApp privacy feature to protect your number in groups._`;
         const priceInfo = await this.requestDeduplicator.deduplicate(
           deduplicationKey,
           () => this.priceService.getBitcoinPrice(currency),
-          { ttl: 10000 } // Cache price for 10 seconds
+          { ttl: this.getCacheTTLs().price } // Use configured price TTL
         );
         return (
           this.priceService.formatPriceMessage(priceInfo) +
@@ -6001,6 +6001,17 @@ Type \`templates\` to see your saved templates.`;
       this.logger.error('Error handling plugin command:', error);
       return null;
     }
+  }
+
+  /**
+   * Get configured cache TTLs for deduplication
+   */
+  private getCacheTTLs() {
+    return {
+      price: this.configService.get<number>('cache.priceTtl', 900) * 1000, // Convert to ms
+      username: this.configService.get<number>('cache.usernameTtl', 3600) * 1000,
+      exchangeRate: this.configService.get<number>('cache.exchangeRateTtl', 1800) * 1000,
+    };
   }
 
   /**

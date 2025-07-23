@@ -58,6 +58,13 @@ export default () => ({
   },
 
   // Caching
+  cache: {
+    balanceTtl: parseInt(process.env.BALANCE_CACHE_TTL || '300', 10), // 5 minutes in seconds
+    priceTtl: parseInt(process.env.PRICE_CACHE_TTL || '900', 10), // 15 minutes in seconds
+    usernameTtl: parseInt(process.env.USERNAME_CACHE_TTL || '3600', 10), // 1 hour in seconds
+    exchangeRateTtl: parseInt(process.env.EXCHANGE_RATE_CACHE_TTL || '1800', 10), // 30 minutes in seconds
+  },
+  // Legacy support
   balanceCacheTtl: parseInt(process.env.BALANCE_CACHE_TTL || '300', 10), // 5 minutes in seconds
 
   // Rate Limiting

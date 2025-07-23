@@ -13,13 +13,17 @@ interface PriceInfo {
 @Injectable()
 export class PriceService {
   private readonly logger = new Logger(PriceService.name);
-  private readonly cacheTtl: number = 60; // 1 minute cache for price data
+  private readonly cacheTtl: number;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly flashApiService: FlashApiService,
     private readonly redisService: RedisService,
-  ) {}
+  ) {
+    // Use configured TTL or default to 15 minutes
+    this.cacheTtl = this.configService.get<number>('cache.priceTtl', 900);
+    this.logger.log(`Price cache TTL set to ${this.cacheTtl} seconds`);
+  }
 
   /**
    * Get Bitcoin price for a specific currency
