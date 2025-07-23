@@ -3,6 +3,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { RequestDeduplicatorService } from './services/request-deduplicator.service';
 import { CacheManagerService } from './services/cache-manager.service';
 import { CacheWarmerService } from './services/cache-warmer.service';
+import { SecurityAuditService } from '../../common/services/security-audit.service';
 import { RedisModule } from '../redis/redis.module';
 import { FlashApiModule } from '../flash-api/flash-api.module';
 import { AuthModule } from '../auth/auth.module';
@@ -19,11 +20,13 @@ import { AuthModule } from '../auth/auth.module';
     RequestDeduplicatorService,
     CacheManagerService,
     CacheWarmerService,
+    SecurityAuditService,
   ],
   exports: [
     RequestDeduplicatorService,
     CacheManagerService,
     CacheWarmerService,
+    SecurityAuditService,
   ],
 })
 export class CommonModule {}

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import { AdminDashboardController } from './controllers/admin-dashboard.controller';
 import { AdminAuthController } from './controllers/admin-auth.controller';
+import { SecurityDashboardController } from './controllers/security-dashboard.controller';
 import { AdminDashboardService } from './services/admin-dashboard.service';
 import { AdminAuthService } from './services/admin-auth.service';
 import { AdminFacadeService } from './services/admin-facade.service';
@@ -18,7 +19,7 @@ import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [ConfigModule, AuthModule, WhatsappModule, FlashApiModule, RedisModule, EventsModule],
-  controllers: [AdminDashboardController, AdminAuthController],
+  controllers: [AdminDashboardController, AdminAuthController, SecurityDashboardController],
   providers: [
     AdminDashboardService,
     AdminAuthService,

@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { SanitizeInterceptor } from './common/interceptors/sanitize.interceptor';
 import { Request, Response } from 'express';
 import * as express from 'express';
 import { join } from 'path';
@@ -66,7 +67,7 @@ async function bootstrap() {
   app.useGlobalFilters(new GlobalExceptionFilter(configService), new HttpExceptionFilter());
 
   // Apply global interceptors
-  app.useGlobalInterceptors(new LoggingInterceptor());
+  app.useGlobalInterceptors(new SanitizeInterceptor(), new LoggingInterceptor());
 
   // Setup Swagger documentation
   const config = new DocumentBuilder()

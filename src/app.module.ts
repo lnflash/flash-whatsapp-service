@@ -12,8 +12,11 @@ import { AuthModule } from './modules/auth/auth.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AdminDashboardModule } from './modules/admin-dashboard/admin-dashboard.module';
 import { MetricsMiddleware } from './common/middleware/metrics.middleware';
+import { SecurityMiddleware } from './common/middleware/security.middleware';
+import { ApiRateLimitMiddleware } from './common/middleware/api-rate-limit.middleware';
 import { CryptoModule } from './common/crypto/crypto.module';
 import { HealthController } from './health.controller';
+import { CatchAllController } from './common/controllers/catch-all.controller';
 import { CommonModule } from './modules/common/common.module';
 
 @Module({
@@ -41,11 +44,17 @@ import { CommonModule } from './modules/common/common.module';
     NotificationsModule,
     AdminDashboardModule,
   ],
-  controllers: [HealthController],
-  providers: [],
+  controllers: [HealthController, CatchAllController],
+  providers: [SecurityMiddleware, ApiRateLimitMiddleware],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
+    // Apply security middleware first (to block malicious requests early)
+    consumer.apply(SecurityMiddleware).forRoutes('*');
+    
+    // Apply rate limiting to API routes
+    consumer.apply(ApiRateLimitMiddleware).forRoutes('/api/*');
+    
     // Apply metrics middleware to all routes
     consumer.apply(MetricsMiddleware).forRoutes('*');
   }
