@@ -186,7 +186,7 @@ export class SendCommandHandler extends BaseCommandHandler {
       const successMessage = `✅ *Payment Sent Successfully*\n\n` +
         `Amount: ${this.formatAmount(pendingTx.amount)} BTC\n` +
         `To: @${pendingTx.recipientUsername}\n` +
-        `Transaction ID: ${result.status?.paymentId || 'N/A'}`;
+        `Status: ${result.status || 'Completed'}`;
 
       // Add voice if needed
       if (context.isVoiceCommand) {
@@ -226,18 +226,21 @@ export class SendCommandHandler extends BaseCommandHandler {
     return username; // Return username as ID for now
   }
 
-  private async getBalance(flashUserId: string) {
+  private async getBalance(flashUserId: string): Promise<BalanceInfo> {
     return this.deduplicator.deduplicate(
       `balance:${flashUserId}`,
-      () => this.balanceService.getBalance(flashUserId),
+      () => this.balanceService.getUserBalance(flashUserId, ''), // TODO: need auth token
       { ttl: this.getBalanceCacheTTL() }
     );
   }
 
-  private async getExchangeRate(currency: string) {
+  private async getExchangeRate(currency: string): Promise<number> {
     return this.deduplicator.deduplicate(
       `rate:BTC:${currency.toUpperCase()}`,
-      () => this.priceService.getBTCPrice(currency),
+      async () => {
+        const priceInfo = await this.priceService.getBitcoinPrice(currency);
+        return priceInfo.btcPrice;
+      },
       { ttl: this.getExchangeRateCacheTTL() }
     );
   }
@@ -263,6 +266,6 @@ export class SendCommandHandler extends BaseCommandHandler {
     }
 
     // Validate basic send requirements
-    return !!(commandData.recipient && commandData.amount !== undefined && commandData.amount > 0);
+    return !!(commandData.recipient && commandData.amount !== undefined && parseFloat(commandData.amount) > 0);
   }
 }

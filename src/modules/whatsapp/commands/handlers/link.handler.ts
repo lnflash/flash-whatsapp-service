@@ -82,7 +82,7 @@ export class LinkCommandHandler extends BaseCommandHandler {
       // Get initial balance to show
       // Balance will be fetched separately if needed
       const balance = null; // TODO: inject BalanceService if needed
-      const balanceInfo = balance ? `\n\n💰 *Current Balance:* ${this.formatAmount(balance.availableBalance)} BTC` : '';
+      const balanceInfo = ''; // Balance info removed since balance is null
 
       const fullMessage = welcomeMessage + balanceInfo;
 
