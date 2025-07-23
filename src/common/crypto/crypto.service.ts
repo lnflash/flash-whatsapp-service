@@ -11,13 +11,18 @@ export class CryptoService {
   constructor(private readonly configService: ConfigService) {
     // Get encryption key from env or generate a secure one
     const keyString = this.configService.get<string>('ENCRYPTION_KEY');
+    
     if (!keyString || keyString.length < 32) {
-      throw new Error('ENCRYPTION_KEY must be at least 32 characters long');
+      // Log a warning but use a default key for development
+      console.warn('WARNING: ENCRYPTION_KEY not set or too short. Using default key - DO NOT USE IN PRODUCTION!');
+      const defaultKey = 'pulse-default-encryption-key-32-chars-minimum!!';
+      const salt = this.configService.get<string>('ENCRYPTION_SALT') || 'flash-connect-salt-default-16chr';
+      this.encryptionKey = crypto.pbkdf2Sync(defaultKey, salt, 100000, 32, 'sha256');
+    } else {
+      // Derive a proper key from the string using PBKDF2
+      const salt = this.configService.get<string>('ENCRYPTION_SALT') || 'flash-connect-salt-default-16chr';
+      this.encryptionKey = crypto.pbkdf2Sync(keyString, salt, 100000, 32, 'sha256');
     }
-
-    // Derive a proper key from the string using PBKDF2
-    const salt = this.configService.get<string>('ENCRYPTION_SALT') || 'flash-connect-salt';
-    this.encryptionKey = crypto.pbkdf2Sync(keyString, salt, 100000, 32, 'sha256');
   }
 
   /**
