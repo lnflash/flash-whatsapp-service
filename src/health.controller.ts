@@ -122,10 +122,11 @@ export class HealthController {
       const isReady = this.whatsappWebService.isClientReady();
       const status = this.whatsappWebService.getStatus();
 
+      const connectedInstances = status.instances.filter(i => i.connected);
       return {
         status: isReady ? 'up' : 'down',
-        message: status.connected
-          ? `Connected: ${status.number || 'Unknown number'}`
+        message: connectedInstances.length > 0
+          ? `Connected: ${connectedInstances.length} instance(s)`
           : 'Disconnected',
         latency: Date.now() - start,
       };

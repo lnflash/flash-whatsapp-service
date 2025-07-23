@@ -32,14 +32,20 @@ export class WhatsAppMessagingService implements MessagingPlatform {
   }
 
   async disconnect(): Promise<void> {
-    await this.whatsappWebService.disconnect();
+    // Disconnect all instances
+    const status = this.whatsappWebService.getStatus();
+    for (const instance of status.instances) {
+      if (instance.connected) {
+        await this.whatsappWebService.disconnect(instance.phoneNumber);
+      }
+    }
   }
 
   getConnectionStatus(): ConnectionStatus {
     return {
       connected: this.whatsappWebService.isClientReady(),
       platform: 'whatsapp',
-      lastConnected: this.whatsappWebService.getLastConnectedTime(),
+      lastConnected: undefined, // Multi-instance doesn't track single last connected time
     };
   }
 
