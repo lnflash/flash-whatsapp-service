@@ -161,15 +161,38 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Get and decrypt value
+   * Get and decrypt value with fallback for legacy sessions
    */
   async getEncrypted(key: string): Promise<any | null> {
     try {
       const encrypted = await this.redisClient.get(key);
       if (!encrypted) return null;
 
-      const decrypted = this.cryptoService.decrypt(encrypted);
-      return JSON.parse(decrypted);
+      // First try: decrypt with current keys
+      try {
+        const decrypted = this.cryptoService.decrypt(encrypted);
+        return JSON.parse(decrypted);
+      } catch (decryptError) {
+        // If decryption fails, check if it's a legacy unencrypted session
+        try {
+          // Try parsing as plain JSON (legacy sessions)
+          const parsed = JSON.parse(encrypted);
+          
+          // Re-encrypt with current keys for future use
+          await this.setEncrypted(key, parsed);
+          this.logger.warn(`Migrated legacy session for key ${key}`);
+          
+          return parsed;
+        } catch (parseError) {
+          // If it's not plain JSON, log error and return null
+          this.logger.error(`Failed to decrypt or migrate session for key ${key}`);
+          
+          // Delete the corrupted session to prevent repeated errors
+          await this.redisClient.del(key);
+          
+          return null;
+        }
+      }
     } catch (error) {
       this.logger.error(`Failed to get encrypted value for key ${key}:`, error);
       return null;

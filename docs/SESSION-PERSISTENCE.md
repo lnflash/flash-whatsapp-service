@@ -127,10 +127,21 @@ If you see errors like:
 ERROR [RedisService] Error: Decryption failed: Unsupported state or unable to authenticate data
 ```
 
-This means you have old sessions encrypted with different keys. Clean them up:
-
+**IMMEDIATE FIX:**
 ```bash
-# Interactive cleanup (recommended)
+# Run this on your server to fix the issue immediately
+node scripts/fix-sessions-immediate.js
+```
+
+This will:
+- Delete all corrupted sessions
+- Clean cache entries
+- Check Redis persistence status
+- Users will need to re-link ONE TIME
+
+**Alternative cleanup options:**
+```bash
+# Interactive cleanup (if immediate fix doesn't work)
 node scripts/cleanup-old-sessions.js
 
 # Force cleanup without confirmation
@@ -139,8 +150,6 @@ node scripts/cleanup-old-sessions.js --force
 # Also clean cache entries
 node scripts/cleanup-old-sessions.js --force --include-cache
 ```
-
-After cleanup, users will need to re-link their accounts ONE TIME.
 
 ### Still Getting Decryption Errors?
 
