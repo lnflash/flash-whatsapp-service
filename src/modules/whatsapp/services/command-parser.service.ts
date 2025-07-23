@@ -332,7 +332,6 @@ export class CommandParserService {
       lowerText.includes('what is my wallet balance') ||
       lowerText === 'balance' ||
       lowerText === 'bal' ||
-      lowerText === 'money' ||
       lowerText === 'funds' ||
       lowerText === '$'
     ) {
