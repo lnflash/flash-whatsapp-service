@@ -42,11 +42,16 @@ export class WhatsAppWebService
       await ChromeCleanupUtil.cleanup();
 
       // Get instance configurations
-      const instances = this.configService.get<InstanceConfiguration[]>('whatsappWeb.instances', []);
-      
+      const instances = this.configService.get<InstanceConfiguration[]>(
+        'whatsappWeb.instances',
+        [],
+      );
+
       if (instances.length === 0) {
         // No instances configured, initialize a default one if needed
-        this.logger.warn('No WhatsApp instances configured. Add WHATSAPP_INSTANCES to your .env file.');
+        this.logger.warn(
+          'No WhatsApp instances configured. Add WHATSAPP_INSTANCES to your .env file.',
+        );
         // For backward compatibility, create a single instance
         const defaultPhone = process.env.WHATSAPP_DEFAULT_PHONE || '';
         if (defaultPhone) {
@@ -83,7 +88,6 @@ export class WhatsAppWebService
 
       // Set up event proxying from instance manager to this service
       this.setupEventProxying();
-
     } catch (error) {
       this.logger.error('Failed to initialize WhatsApp Web service:', error);
       this.logger.error('Stack trace:', error.stack);
@@ -140,11 +144,13 @@ export class WhatsAppWebService
   /**
    * Get current connection status for all instances
    */
-  getStatus(): { instances: Array<{ phoneNumber: string; connected: boolean; number?: string; name?: string }> } {
+  getStatus(): {
+    instances: Array<{ phoneNumber: string; connected: boolean; number?: string; name?: string }>;
+  } {
     const instances = this.instanceManager.getAllInstances();
-    
+
     return {
-      instances: instances.map(instance => {
+      instances: instances.map((instance) => {
         if (instance.status !== 'ready' || !instance.client) {
           return {
             phoneNumber: instance.phoneNumber,
@@ -175,7 +181,7 @@ export class WhatsAppWebService
    */
   getInstanceStatus(phoneNumber: string): { connected: boolean; number?: string; name?: string } {
     const instance = this.instanceManager.getInstance(phoneNumber);
-    
+
     if (!instance || instance.status !== 'ready') {
       return { connected: false };
     }
@@ -195,7 +201,12 @@ export class WhatsAppWebService
   /**
    * Send a text message through a specific instance or best available
    */
-  async sendMessage(to: string, message: string, mentions?: string[], instancePhone?: string): Promise<any> {
+  async sendMessage(
+    to: string,
+    message: string,
+    mentions?: string[],
+    instancePhone?: string,
+  ): Promise<any> {
     // If instance is specified, use it
     if (instancePhone) {
       return this.messageRouter.sendMessage(instancePhone, to, message);
@@ -229,9 +240,14 @@ export class WhatsAppWebService
   /**
    * Send an image with optional caption
    */
-  async sendImage(to: string, imageBuffer: Buffer, caption?: string, instancePhone?: string): Promise<void> {
+  async sendImage(
+    to: string,
+    imageBuffer: Buffer,
+    caption?: string,
+    instancePhone?: string,
+  ): Promise<void> {
     const content = { text: caption || '', media: imageBuffer };
-    
+
     if (instancePhone) {
       await this.messageRouter.sendMessage(instancePhone, to, content);
       return;
@@ -257,7 +273,7 @@ export class WhatsAppWebService
    */
   async sendVoiceNote(to: string, audioBuffer: Buffer, instancePhone?: string): Promise<void> {
     const content = { text: '', voice: audioBuffer };
-    
+
     if (instancePhone) {
       await this.messageRouter.sendMessage(instancePhone, to, content);
       return;
@@ -274,7 +290,12 @@ export class WhatsAppWebService
   /**
    * Send media (generic method for messaging abstraction)
    */
-  async sendMedia(to: string, media: Buffer | string, caption?: string, instancePhone?: string): Promise<any> {
+  async sendMedia(
+    to: string,
+    media: Buffer | string,
+    caption?: string,
+    instancePhone?: string,
+  ): Promise<any> {
     if (typeof media === 'string') {
       throw new Error('URL media not supported in multi-instance mode yet');
     }
@@ -287,7 +308,7 @@ export class WhatsAppWebService
    */
   async getQRCode(phoneNumber?: string): Promise<string | null> {
     const instances = this.instanceManager.getAllInstances();
-    
+
     // If phone number specified, get QR for that instance
     if (phoneNumber) {
       const instance = this.instanceManager.getInstance(phoneNumber);
@@ -298,7 +319,7 @@ export class WhatsAppWebService
     }
 
     // Otherwise, get the first instance with a pending QR
-    const pendingInstance = instances.find(i => i.status === 'qr_pending' && i.qrCode);
+    const pendingInstance = instances.find((i) => i.status === 'qr_pending' && i.qrCode);
     return pendingInstance?.qrCode || null;
   }
 
@@ -307,8 +328,8 @@ export class WhatsAppWebService
    */
   async getAllQRCodes(): Promise<Array<{ phoneNumber: string; qrCode: string | null }>> {
     const instances = this.instanceManager.getAllInstances();
-    
-    return instances.map(instance => ({
+
+    return instances.map((instance) => ({
       phoneNumber: instance.phoneNumber,
       qrCode: instance.status === 'qr_pending' ? instance.qrCode || null : null,
     }));
@@ -340,10 +361,10 @@ export class WhatsAppWebService
    */
   async clearSession(phoneNumber: string): Promise<void> {
     await this.instanceManager.removeInstance(phoneNumber);
-    
+
     // Wait a bit before recreating
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
     // Recreate the instance
     await this.instanceManager.createInstance({ phoneNumber });
   }
@@ -368,12 +389,12 @@ export class WhatsAppWebService
   getClientInfo(): any {
     // Return info from the first ready instance for backward compatibility
     const instances = this.instanceManager.getAllInstances();
-    const readyInstance = instances.find(i => i.status === 'ready');
-    
+    const readyInstance = instances.find((i) => i.status === 'ready');
+
     if (!readyInstance) {
       return null;
     }
-    
+
     return readyInstance.client.info;
   }
 
@@ -382,7 +403,7 @@ export class WhatsAppWebService
    */
   async logout(): Promise<void> {
     const instances = this.instanceManager.getAllInstances();
-    
+
     for (const instance of instances) {
       if (instance.status === 'ready') {
         try {
@@ -392,7 +413,7 @@ export class WhatsAppWebService
         }
       }
     }
-    
+
     // Clean up Chrome processes after logout
     await ChromeCleanupUtil.cleanup();
   }
@@ -402,7 +423,7 @@ export class WhatsAppWebService
    */
   isClientReady(): boolean {
     const instances = this.instanceManager.getAllInstances();
-    return instances.some(i => i.status === 'ready');
+    return instances.some((i) => i.status === 'ready');
   }
 
   /**

@@ -8,28 +8,28 @@ export interface CommandContext {
   phoneNumber: string;
   instancePhone?: string;
   timestamp: Date;
-  
+
   // Command data
   command: CommandType;
   commandData: CommandData;
   rawText: string;
-  
+
   // Group context
   isGroup: boolean;
   groupId?: string;
   groupName?: string;
-  
+
   // User context
   session?: UserSession;
   flashUserId?: string;
   username?: string;
   isAdmin?: boolean;
-  
+
   // Platform context
   platform: 'whatsapp';
   isVoiceCommand?: boolean;
   language?: string;
-  
+
   // Additional metadata
   metadata?: Record<string, any>;
 }

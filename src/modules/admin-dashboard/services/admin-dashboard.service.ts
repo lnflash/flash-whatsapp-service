@@ -357,7 +357,7 @@ export class AdminDashboardService {
   private async getWhatsAppStatus() {
     const status = this.whatsappWebService.getStatus();
     const info = await this.whatsappWebService.getClientInfo();
-    const connectedInstances = status.instances.filter(i => i.connected);
+    const connectedInstances = status.instances.filter((i) => i.connected);
 
     return {
       connected: connectedInstances.length > 0,

@@ -20,7 +20,7 @@ export class RequestDeduplicatorService {
    * Deduplicates requests based on a key. If a request with the same key
    * is already in flight, returns the existing promise. Otherwise, executes
    * the factory function and caches the result.
-   * 
+   *
    * @param key Unique identifier for the request
    * @param factory Function that performs the actual request
    * @param options Configuration options
@@ -29,7 +29,7 @@ export class RequestDeduplicatorService {
   async deduplicate<T>(
     key: string,
     factory: () => Promise<T>,
-    options: DeduplicationOptions = {}
+    options: DeduplicationOptions = {},
   ): Promise<T> {
     const { ttl = 5000, throwOnError = true } = options;
 
@@ -94,11 +94,11 @@ export class RequestDeduplicatorService {
     key: string,
     factory: () => Promise<T>,
     ttl: number,
-    throwOnError: boolean
+    throwOnError: boolean,
   ): Promise<T> {
     try {
       const result = await factory();
-      
+
       // Cache successful result
       if (ttl > 0) {
         this.resultCache.set(key, {
@@ -115,11 +115,11 @@ export class RequestDeduplicatorService {
       return result;
     } catch (error) {
       this.logger.error(`Error in deduplicated request for key ${key}:`, error);
-      
+
       if (throwOnError) {
         throw error;
       }
-      
+
       return error as T;
     } finally {
       // Remove from in-flight map

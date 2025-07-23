@@ -1,4 +1,7 @@
-import { CommandContext, CommandContextBuilder as ICommandContextBuilder } from './command-context.interface';
+import {
+  CommandContext,
+  CommandContextBuilder as ICommandContextBuilder,
+} from './command-context.interface';
 import { CommandType, CommandData } from '../../services/command-parser.service';
 import { UserSession } from '../../../auth/interfaces/user-session.interface';
 

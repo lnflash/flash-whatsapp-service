@@ -11,12 +11,7 @@ import { AuthModule } from '../auth/auth.module';
 
 @Global()
 @Module({
-  imports: [
-    ScheduleModule.forRoot(),
-    RedisModule,
-    FlashApiModule,
-    AuthModule,
-  ],
+  imports: [ScheduleModule.forRoot(), RedisModule, FlashApiModule, AuthModule],
   providers: [
     RequestDeduplicatorService,
     CacheManagerService,

@@ -51,7 +51,10 @@ import { AdminAnalyticsService } from './admin-analytics.service';
 import { UserKnowledgeBaseService } from './user-knowledge-base.service';
 import { RandomQuestionService } from './random-question.service';
 import { PluginLoaderService, CommandContext } from '../../plugins';
-import { RequestDeduplicator, DeduplicationKeyBuilder } from '../../common/services/request-deduplicator.service';
+import {
+  RequestDeduplicator,
+  DeduplicationKeyBuilder,
+} from '../../common/services/request-deduplicator.service';
 // import { WhatsAppCloudService } from './whatsapp-cloud.service'; // Disabled for prototype branch
 
 @Injectable()
@@ -161,13 +164,7 @@ export class WhatsappService {
 
       // Parallelize initial operations that don't depend on each other
       const startTime = Date.now();
-      const [
-        _storeResult,
-        pendingQuestion,
-        session,
-        isNew,
-        supportModeStatus
-      ] = await Promise.all([
+      const [_storeResult, pendingQuestion, session, isNew, supportModeStatus] = await Promise.all([
         // Store the incoming message for traceability
         this.storeCloudMessage(messageData),
         // Check if user is in a learning session
@@ -179,7 +176,7 @@ export class WhatsappService {
         // Check support mode status
         this.supportModeService.isInSupportMode(whatsappId),
       ]);
-      
+
       // Log performance improvement
       this.logger.debug(`Initial checks completed in ${Date.now() - startTime}ms`);
 
@@ -212,12 +209,9 @@ export class WhatsappService {
       }
 
       // Track user activity for contextual help (fire and forget)
-      this.contextualHelpService.trackActivity(
-        whatsappId,
-        command.rawText,
-        command.type,
-        false,
-      ).catch(err => this.logger.error('Failed to track activity', err));
+      this.contextualHelpService
+        .trackActivity(whatsappId, command.rawText, command.type, false)
+        .catch((err) => this.logger.error('Failed to track activity', err));
 
       if (isNew) {
         // For @lid users, show special instructions
@@ -277,13 +271,13 @@ _Your phone number is hidden for privacy in this group._`;
       const isAiResponse = command.type === CommandType.UNKNOWN;
       // Check if this was a voice-requested command (e.g., "voice help")
       const voiceRequested = command.args.voiceRequested === 'true';
-      
+
       // Parallelize voice checks if voice is potentially needed
-      const [shouldUseVoice, shouldSendVoiceOnly] = voiceRequested 
+      const [shouldUseVoice, shouldSendVoiceOnly] = voiceRequested
         ? [true, await this.ttsService.shouldSendVoiceOnly(whatsappId)]
         : await Promise.all([
             this.ttsService.shouldUseVoice(messageData.text, isAiResponse, whatsappId),
-            this.ttsService.shouldSendVoiceOnly(whatsappId)
+            this.ttsService.shouldSendVoiceOnly(whatsappId),
           ]);
 
       // Add hints to text responses and optionally add voice
@@ -806,11 +800,17 @@ To link in a group:
       const existingSession = await this.sessionService.getSessionByWhatsappId(whatsappId);
       if (existingSession) {
         // Check if the session is fully verified with Flash credentials
-        if (existingSession.isVerified && existingSession.flashUserId && existingSession.flashAuthToken) {
+        if (
+          existingSession.isVerified &&
+          existingSession.flashUserId &&
+          existingSession.flashAuthToken
+        ) {
           return 'Your Flash account is already linked.';
         } else {
           // Session exists but is incomplete - user needs to complete verification
-          this.logger.warn(`Incomplete session found for ${whatsappId}: isVerified=${existingSession.isVerified}, hasFlashUserId=${!!existingSession.flashUserId}, hasAuthToken=${!!existingSession.flashAuthToken}`);
+          this.logger.warn(
+            `Incomplete session found for ${whatsappId}: isVerified=${existingSession.isVerified}, hasFlashUserId=${!!existingSession.flashUserId}, hasAuthToken=${!!existingSession.flashAuthToken}`,
+          );
           // Delete the incomplete session to allow re-linking
           await this.sessionService.deleteSession(whatsappId);
         }
@@ -871,7 +871,7 @@ Please ensure:
 
 If you don't have a Flash account yet, please download the Flash app first.`;
       }
-      
+
       if (error.message.includes('No Flash account found')) {
         return "We couldn't find a Flash account with your phone number. Please make sure you're using the same number registered with Flash.";
       }
@@ -952,11 +952,11 @@ If you don't have a Flash account yet, please download the Flash app first.`;
 
         // Fetch and store username mapping for efficient lookups
         try {
-          const username = updatedSession.flashAuthToken 
+          const username = updatedSession.flashAuthToken
             ? await this.requestDeduplicator.deduplicate(
                 DeduplicationKeyBuilder.forUserProfile(updatedSession.flashUserId!),
                 () => this.usernameService.getUsername(updatedSession.flashAuthToken!),
-                { ttl: this.getCacheTTLs().username } // Use configured username TTL
+                { ttl: this.getCacheTTLs().username }, // Use configured username TTL
               )
             : null;
           if (username) {
@@ -1051,7 +1051,9 @@ If you don't have a Flash account yet, please download the Flash app first.`;
       }
 
       if (!session.isVerified || !session.flashUserId || !session.flashAuthToken) {
-        this.logger.warn(`Incomplete session for balance check: whatsappId=${whatsappId}, isVerified=${session.isVerified}, hasFlashUserId=${!!session.flashUserId}, hasAuthToken=${!!session.flashAuthToken}`);
+        this.logger.warn(
+          `Incomplete session for balance check: whatsappId=${whatsappId}, isVerified=${session.isVerified}, hasFlashUserId=${!!session.flashUserId}, hasAuthToken=${!!session.flashAuthToken}`,
+        );
         // Clear the incomplete session
         await this.sessionService.deleteSession(whatsappId);
         return 'Your session has expired. Please type "link" to reconnect your Flash account.';
@@ -1064,11 +1066,8 @@ If you don't have a Flash account yet, please download the Flash app first.`;
       const deduplicationKey = DeduplicationKeyBuilder.forBalance(session.flashUserId!);
       const balanceInfo = await this.requestDeduplicator.deduplicate(
         deduplicationKey,
-        () => this.balanceService.getUserBalance(
-          session.flashUserId!,
-          session.flashAuthToken!,
-        ),
-        { ttl: 5000 } // Cache balance for 5 seconds
+        () => this.balanceService.getUserBalance(session.flashUserId!, session.flashAuthToken!),
+        { ttl: 5000 }, // Cache balance for 5 seconds
       );
 
       // If display currency is not USD, convert using exchange rate from API
@@ -1178,12 +1177,9 @@ If you don't have a Flash account yet, please download the Flash app first.`;
       const deduplicationKey = DeduplicationKeyBuilder.forBalance(session.flashUserId!, 'refresh');
       const balanceInfo = await this.requestDeduplicator.deduplicate(
         deduplicationKey,
-        () => this.balanceService.getUserBalance(
-          session.flashUserId!,
-          session.flashAuthToken!,
-          true,
-        ),
-        { ttl: 0 } // No caching for refresh command
+        () =>
+          this.balanceService.getUserBalance(session.flashUserId!, session.flashAuthToken!, true),
+        { ttl: 0 }, // No caching for refresh command
       );
 
       // If display currency is not USD, convert using exchange rate from API
@@ -1265,7 +1261,7 @@ If you don't have a Flash account yet, please download the Flash app first.`;
         const currentUsername = await this.requestDeduplicator.deduplicate(
           deduplicationKey,
           () => this.usernameService.getUsername(session.flashAuthToken!),
-          { ttl: this.getCacheTTLs().username } // Use configured username TTL
+          { ttl: this.getCacheTTLs().username }, // Use configured username TTL
         );
 
         if (currentUsername) {
@@ -1282,7 +1278,7 @@ If you don't have a Flash account yet, please download the Flash app first.`;
         const currentUsername = await this.requestDeduplicator.deduplicate(
           deduplicationKey,
           () => this.usernameService.getUsername(session.flashAuthToken!),
-          { ttl: this.getCacheTTLs().username } // Use configured username TTL
+          { ttl: this.getCacheTTLs().username }, // Use configured username TTL
         );
 
         if (currentUsername) {
@@ -1336,7 +1332,7 @@ If you don't have a Flash account yet, please download the Flash app first.`;
         const priceInfo = await this.requestDeduplicator.deduplicate(
           deduplicationKey,
           () => this.priceService.getBitcoinPrice(currency, authToken),
-          { ttl: this.getCacheTTLs().price } // Use configured price TTL
+          { ttl: this.getCacheTTLs().price }, // Use configured price TTL
         );
         return this.priceService.formatPriceMessage(priceInfo);
       } else {
@@ -1345,7 +1341,7 @@ If you don't have a Flash account yet, please download the Flash app first.`;
         const priceInfo = await this.requestDeduplicator.deduplicate(
           deduplicationKey,
           () => this.priceService.getBitcoinPrice(currency),
-          { ttl: this.getCacheTTLs().price } // Use configured price TTL
+          { ttl: this.getCacheTTLs().price }, // Use configured price TTL
         );
         return (
           this.priceService.formatPriceMessage(priceInfo) +
@@ -2458,12 +2454,17 @@ _By using Pulse, you agree to AI-assisted message processing to help serve you b
                 ) {
                   // Found the recipient! Send them a notification
                   // Clear cache first (fire and forget)
-                  this.balanceService.clearBalanceCache(recipientSession.flashUserId!)
-                    .catch(err => this.logger.error('Failed to clear recipient balance cache', err));
+                  this.balanceService
+                    .clearBalanceCache(recipientSession.flashUserId!)
+                    .catch((err) =>
+                      this.logger.error('Failed to clear recipient balance cache', err),
+                    );
 
                   // Parallelize operations for recipient notification
                   const [senderUsername, balance, currentVoiceSettings] = await Promise.all([
-                    this.usernameService.getUsername(session.flashAuthToken).then(u => u || 'Someone'),
+                    this.usernameService
+                      .getUsername(session.flashAuthToken)
+                      .then((u) => u || 'Someone'),
                     this.balanceService.getUserBalance(
                       recipientSession.flashUserId!,
                       recipientSession.flashAuthToken,
@@ -5019,11 +5020,14 @@ ${voiceList}`;
       switch (action) {
         case 'status': {
           const status = this.whatsappWebService.getStatus();
-          const readyInstances = status.instances.filter(i => i.connected);
+          const readyInstances = status.instances.filter((i) => i.connected);
           if (readyInstances.length > 0) {
-            const instanceInfo = status.instances.map(i => 
-              `• ${i.phoneNumber}: ${i.connected ? '✅ Connected' : '❌ Disconnected'} (${i.number || 'Unknown'})`
-            ).join('\n');
+            const instanceInfo = status.instances
+              .map(
+                (i) =>
+                  `• ${i.phoneNumber}: ${i.connected ? '✅ Connected' : '❌ Disconnected'} (${i.number || 'Unknown'})`,
+              )
+              .join('\n');
             return `✅ *WhatsApp Status*\n\nActive Instances: ${readyInstances.length}/${status.instances.length}\n\n${instanceInfo}`;
           } else {
             return `❌ *WhatsApp Status*\n\nNo instances connected\n\nUse \`admin reconnect\` to connect a new number.`;

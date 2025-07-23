@@ -2,7 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { BaseCommandHandler } from '../base/base-command.handler';
 import { CommandCategory } from '../base/command-handler.interface';
 import { CommandContext } from '../base/command-context.interface';
-import { CommandResult, CommandResultBuilder, CommandErrorCode } from '../base/command-result.interface';
+import {
+  CommandResult,
+  CommandResultBuilder,
+  CommandErrorCode,
+} from '../base/command-result.interface';
 import { CommandType } from '../../services/command-parser.service';
 import { CommandRegistry } from '../command-registry.service';
 import { VoiceResponseService } from '../../services/voice-response.service';
@@ -55,18 +59,18 @@ export class HelpCommandHandler extends BaseCommandHandler {
 
   private async getGeneralHelp(context: CommandContext): Promise<CommandResult> {
     const commands = this.commandRegistry.getCommandsForHelp(context.isAdmin);
-    
+
     let helpMessage = '*📱 Flash Bitcoin Wallet - Available Commands*\n\n';
 
     // Group commands by category
     for (const [category, handlers] of commands) {
       helpMessage += `*${this.formatCategoryName(category)}*\n`;
-      
+
       for (const handler of handlers) {
         const aliases = handler.aliases?.length ? ` (${handler.aliases.join(', ')})` : '';
         helpMessage += `• /${handler.command}${aliases} - ${handler.description}\n`;
       }
-      
+
       helpMessage += '\n';
     }
 
@@ -82,9 +86,7 @@ export class HelpCommandHandler extends BaseCommandHandler {
       );
       const voiceBuffer = Buffer.from(voiceResponse);
 
-      return CommandResultBuilder.success(helpMessage)
-        .withVoice(voiceBuffer)
-        .build();
+      return CommandResultBuilder.success(helpMessage).withVoice(voiceBuffer).build();
     }
 
     return CommandResultBuilder.success(helpMessage).build();
@@ -92,7 +94,7 @@ export class HelpCommandHandler extends BaseCommandHandler {
 
   private getCommandHelp(context: CommandContext, commandName: string): CommandResult {
     const handler = this.commandRegistry.getHandler(commandName);
-    
+
     if (!handler) {
       return CommandResultBuilder.error({
         code: CommandErrorCode.INVALID_ARGUMENTS,
@@ -112,14 +114,14 @@ export class HelpCommandHandler extends BaseCommandHandler {
     helpMessage += `${handler.description}\n\n`;
 
     if (handler.aliases?.length) {
-      helpMessage += `*Aliases:* ${handler.aliases.map(a => `/${a}`).join(', ')}\n\n`;
+      helpMessage += `*Aliases:* ${handler.aliases.map((a) => `/${a}`).join(', ')}\n\n`;
     }
 
     // Add usage examples based on command
     const examples = this.getCommandExamples(handler.command);
     if (examples.length > 0) {
       helpMessage += '*Examples:*\n';
-      examples.forEach(example => {
+      examples.forEach((example) => {
         helpMessage += `• ${example}\n`;
       });
     }
@@ -137,7 +139,7 @@ export class HelpCommandHandler extends BaseCommandHandler {
     }
 
     const handlers = this.commandRegistry.getHandlersByCategory(category);
-    const filteredHandlers = handlers.filter(h => !h.adminOnly || context.isAdmin);
+    const filteredHandlers = handlers.filter((h) => !h.adminOnly || context.isAdmin);
 
     if (filteredHandlers.length === 0) {
       return CommandResultBuilder.error({
@@ -158,7 +160,7 @@ export class HelpCommandHandler extends BaseCommandHandler {
 
   private async getOnboardingHelp(context: CommandContext): Promise<CommandResult> {
     const onboardingMessage = await this.onboardingService.getWelcomeMessage(context.whatsappId);
-    
+
     if (context.isVoiceCommand) {
       const voiceResponse = await this.voiceResponseService.generateNaturalVoiceResponse(
         CommandType.HELP,
@@ -168,9 +170,7 @@ export class HelpCommandHandler extends BaseCommandHandler {
       );
       const voiceBuffer = Buffer.from(voiceResponse);
 
-      return CommandResultBuilder.success(onboardingMessage)
-        .withVoice(voiceBuffer)
-        .build();
+      return CommandResultBuilder.success(onboardingMessage).withVoice(voiceBuffer).build();
     }
 
     return CommandResultBuilder.success(onboardingMessage).build();
@@ -178,7 +178,8 @@ export class HelpCommandHandler extends BaseCommandHandler {
 
   private getContextualHelp(context: CommandContext): CommandResult {
     // TODO: Implement contextual help based on user activity
-    const helpMessage = `*💡 Quick Tips*\n\n` +
+    const helpMessage =
+      `*💡 Quick Tips*\n\n` +
       `• Check your balance: /balance\n` +
       `• Send Bitcoin: /send <amount> to <username>\n` +
       `• Request payment: /receive <amount> from <username>\n` +
@@ -203,7 +204,7 @@ export class HelpCommandHandler extends BaseCommandHandler {
 
   private parseCategoryName(name: string): CommandCategory | null {
     const normalized = name.toLowerCase();
-    
+
     for (const category of Object.values(CommandCategory)) {
       if (category.toLowerCase() === normalized) {
         return category;
@@ -212,20 +213,20 @@ export class HelpCommandHandler extends BaseCommandHandler {
 
     // Check common aliases
     const aliases: Record<string, CommandCategory> = {
-      'tx': CommandCategory.TRANSACTION,
-      'payment': CommandCategory.TRANSACTION,
-      'payments': CommandCategory.TRANSACTION,
-      'account': CommandCategory.ACCOUNT,
-      'profile': CommandCategory.ACCOUNT,
-      'admin': CommandCategory.ADMIN,
-      'management': CommandCategory.ADMIN,
-      'help': CommandCategory.HELP,
-      'info': CommandCategory.HELP,
-      'util': CommandCategory.UTILITY,
-      'utils': CommandCategory.UTILITY,
-      'tools': CommandCategory.UTILITY,
-      'group': CommandCategory.GROUP,
-      'groups': CommandCategory.GROUP,
+      tx: CommandCategory.TRANSACTION,
+      payment: CommandCategory.TRANSACTION,
+      payments: CommandCategory.TRANSACTION,
+      account: CommandCategory.ACCOUNT,
+      profile: CommandCategory.ACCOUNT,
+      admin: CommandCategory.ADMIN,
+      management: CommandCategory.ADMIN,
+      help: CommandCategory.HELP,
+      info: CommandCategory.HELP,
+      util: CommandCategory.UTILITY,
+      utils: CommandCategory.UTILITY,
+      tools: CommandCategory.UTILITY,
+      group: CommandCategory.GROUP,
+      groups: CommandCategory.GROUP,
     };
 
     return aliases[normalized] || null;
@@ -233,34 +234,12 @@ export class HelpCommandHandler extends BaseCommandHandler {
 
   private getCommandExamples(command: string): string[] {
     const examples: Record<string, string[]> = {
-      'send': [
-        '/send 0.001 btc to @alice',
-        '/send 50 usd to @bob',
-        '/send 100 eur to alice',
-      ],
-      'receive': [
-        '/receive 0.001 btc',
-        '/receive 20 usd',
-        '/receive 50 eur from @alice',
-      ],
-      'balance': [
-        '/balance',
-        '/bal',
-      ],
-      'link': [
-        '/link myusername',
-        '/link alice123',
-      ],
-      'price': [
-        '/price',
-        '/price usd',
-        '/price eur',
-      ],
-      'transactions': [
-        '/transactions',
-        '/transactions 10',
-        '/tx 5',
-      ],
+      send: ['/send 0.001 btc to @alice', '/send 50 usd to @bob', '/send 100 eur to alice'],
+      receive: ['/receive 0.001 btc', '/receive 20 usd', '/receive 50 eur from @alice'],
+      balance: ['/balance', '/bal'],
+      link: ['/link myusername', '/link alice123'],
+      price: ['/price', '/price usd', '/price eur'],
+      transactions: ['/transactions', '/transactions 10', '/tx 5'],
     };
 
     return examples[command] || [];

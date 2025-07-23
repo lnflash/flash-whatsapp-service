@@ -68,21 +68,19 @@ export class RedisBatchService {
       const results = await pipeline.exec();
       const duration = Date.now() - startTime;
 
-      this.logger.debug(
-        `Executed ${operations.length} operations in ${duration}ms`,
-      );
+      this.logger.debug(`Executed ${operations.length} operations in ${duration}ms`);
 
       // Process results
       return this.processResults(operations, results, options);
     } catch (error) {
       this.logger.error('Batch execution failed:', error);
-      
+
       if (options.throwOnError) {
         throw error;
       }
 
       // Return error results for all operations
-      return operations.map(op => ({
+      return operations.map((op) => ({
         success: false,
         error: error as Error,
         operation: op,
@@ -123,7 +121,7 @@ export class RedisBatchService {
    * Batch get operation with automatic chunking
    */
   async batchGet(keys: string[]): Promise<Map<string, any>> {
-    const operations: BatchOperation[] = keys.map(key => ({
+    const operations: BatchOperation[] = keys.map((key) => ({
       type: 'get',
       key,
     }));
@@ -146,7 +144,7 @@ export class RedisBatchService {
   async batchSet(
     entries: Array<{ key: string; value: any; ttl?: number }>,
   ): Promise<Map<string, boolean>> {
-    const operations: BatchOperation[] = entries.map(entry => ({
+    const operations: BatchOperation[] = entries.map((entry) => ({
       type: 'set',
       key: entry.key,
       value: entry.value,
@@ -167,22 +165,20 @@ export class RedisBatchService {
    * Batch delete operation
    */
   async batchDelete(keys: string[]): Promise<number> {
-    const operations: BatchOperation[] = keys.map(key => ({
+    const operations: BatchOperation[] = keys.map((key) => ({
       type: 'del',
       key,
     }));
 
     const results = await this.executeBatchChunked(operations);
-    return results.filter(r => r.success).length;
+    return results.filter((r) => r.success).length;
   }
 
   /**
    * Batch hash operations
    */
-  async batchHashGet(
-    hashOps: Array<{ key: string; field: string }>,
-  ): Promise<Map<string, any>> {
-    const operations: BatchOperation[] = hashOps.map(op => ({
+  async batchHashGet(hashOps: Array<{ key: string; field: string }>): Promise<Map<string, any>> {
+    const operations: BatchOperation[] = hashOps.map((op) => ({
       type: 'hget',
       key: op.key,
       field: op.field,
@@ -204,9 +200,7 @@ export class RedisBatchService {
   /**
    * Optimize multiple related operations
    */
-  async executeTransaction(
-    operations: BatchOperation[],
-  ): Promise<BatchResult[]> {
+  async executeTransaction(operations: BatchOperation[]): Promise<BatchResult[]> {
     return this.executeBatch(operations, { atomic: true, throwOnError: true });
   }
 
@@ -220,7 +214,7 @@ export class RedisBatchService {
     try {
       const info = await this.redisService.info('clients');
       const connected = this.redisService.status === 'ready';
-      
+
       // Parse pending commands from info
       const pendingMatch = info.match(/blocked_clients:(\d+)/);
       const pendingCommands = pendingMatch ? parseInt(pendingMatch[1], 10) : 0;
@@ -286,10 +280,7 @@ export class RedisBatchService {
       const operation = operations[index];
 
       if (error) {
-        this.logger.error(
-          `Operation ${operation.type} on key ${operation.key} failed:`,
-          error,
-        );
+        this.logger.error(`Operation ${operation.type} on key ${operation.key} failed:`, error);
 
         if (options.throwOnError) {
           throw error;
@@ -336,6 +327,6 @@ export class RedisBatchService {
    * Delay helper
    */
   private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

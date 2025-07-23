@@ -22,12 +22,7 @@ import { RedisModule } from '../redis/redis.module';
     CommonModule,
     RedisModule,
   ],
-  providers: [
-    EventsService,
-    EventDispatcherService,
-    QueueMonitorService,
-    EventReplayService,
-  ],
+  providers: [EventsService, EventDispatcherService, QueueMonitorService, EventReplayService],
   exports: [
     EventsService,
     EventEmitterModule,

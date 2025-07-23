@@ -37,7 +37,9 @@ describe('VoiceResponseService', () => {
         {},
       );
 
-      expect(response).toMatch(/sent ten dollars to alice|alice just received ten dollars|payment of ten dollars to alice|transferred ten dollars to alice/i);
+      expect(response).toMatch(
+        /sent ten dollars to alice|alice just received ten dollars|payment of ten dollars to alice|transferred ten dollars to alice/i,
+      );
       expect(response).not.toContain('✅');
     });
 

@@ -56,10 +56,7 @@ export class EventDispatcherService {
   /**
    * Dispatch an event with various routing options
    */
-  async dispatch(
-    event: EventPayload,
-    options: EventDispatchOptions = {},
-  ): Promise<void> {
+  async dispatch(event: EventPayload, options: EventDispatchOptions = {}): Promise<void> {
     // Ensure event has required fields
     event.id = event.id || uuidv4();
     event.timestamp = event.timestamp || new Date();
@@ -90,12 +87,12 @@ export class EventDispatcherService {
       this.logger.debug(`Event dispatched: ${event.type} (${event.id})`);
     } catch (error) {
       this.logger.error(`Failed to dispatch event ${event.type}:`, error);
-      
+
       // Store in dead letter queue if dispatch fails
       if (options.retryable) {
         await this.storeInDeadLetter(event, error);
       }
-      
+
       throw error;
     }
   }
@@ -103,16 +100,13 @@ export class EventDispatcherService {
   /**
    * Register a handler for specific event types
    */
-  registerHandler(
-    eventType: string,
-    handler: (event: EventPayload) => Promise<void>,
-  ): void {
+  registerHandler(eventType: string, handler: (event: EventPayload) => Promise<void>): void {
     if (!this.eventHandlers.has(eventType)) {
       this.eventHandlers.set(eventType, new Set());
     }
-    
+
     this.eventHandlers.get(eventType)!.add(handler);
-    
+
     // Also register with EventEmitter2
     this.eventEmitter.on(eventType, async (event: EventPayload) => {
       try {
@@ -121,33 +115,26 @@ export class EventDispatcherService {
         this.logger.error(`Handler error for ${eventType}:`, error);
       }
     });
-    
+
     this.logger.log(`Registered handler for event type: ${eventType}`);
   }
 
   /**
    * Batch dispatch multiple events
    */
-  async batchDispatch(
-    events: EventPayload[],
-    options: EventDispatchOptions = {},
-  ): Promise<void> {
+  async batchDispatch(events: EventPayload[], options: EventDispatchOptions = {}): Promise<void> {
     const startTime = Date.now();
-    const results = await Promise.allSettled(
-      events.map(event => this.dispatch(event, options)),
-    );
+    const results = await Promise.allSettled(events.map((event) => this.dispatch(event, options)));
 
-    const successful = results.filter(r => r.status === 'fulfilled').length;
-    const failed = results.filter(r => r.status === 'rejected').length;
+    const successful = results.filter((r) => r.status === 'fulfilled').length;
+    const failed = results.filter((r) => r.status === 'rejected').length;
 
     this.logger.log(
       `Batch dispatch completed: ${successful} successful, ${failed} failed (${Date.now() - startTime}ms)`,
     );
 
     if (failed > 0) {
-      const errors = results
-        .filter(r => r.status === 'rejected')
-        .map((r: any) => r.reason);
+      const errors = results.filter((r) => r.status === 'rejected').map((r: any) => r.reason);
       throw new Error(`Batch dispatch partially failed: ${errors.join(', ')}`);
     }
   }
@@ -157,7 +144,7 @@ export class EventDispatcherService {
    */
   getEventStats(): Record<string, any> {
     const stats: Record<string, any> = {};
-    
+
     this.eventStats.forEach((value, key) => {
       stats[key] = {
         count: value.count,
@@ -178,12 +165,12 @@ export class EventDispatcherService {
    * Clear old events from persistent storage
    */
   async cleanupOldEvents(olderThanHours: number = 24): Promise<number> {
-    const cutoffTime = Date.now() - (olderThanHours * 60 * 60 * 1000);
+    const cutoffTime = Date.now() - olderThanHours * 60 * 60 * 1000;
     const pattern = `${this.queuePrefix}persistent:*`;
-    
+
     let deleted = 0;
     const keys = await this.redis.keys(pattern);
-    
+
     for (const key of keys) {
       const event = await this.redis.get(key);
       if (event) {
@@ -208,10 +195,7 @@ export class EventDispatcherService {
   /**
    * Queue event for async processing
    */
-  private async queueEvent(
-    event: EventPayload,
-    options: EventDispatchOptions,
-  ): Promise<void> {
+  private async queueEvent(event: EventPayload, options: EventDispatchOptions): Promise<void> {
     const queueName = this.getQueueName(event.type, options.priority);
     const serialized = JSON.stringify(event);
 
@@ -244,11 +228,7 @@ export class EventDispatcherService {
     }
 
     // Also store in sorted set for time-based queries
-    await this.redis.zadd(
-      `${this.queuePrefix}timeline`,
-      event.timestamp!.getTime(),
-      event.id!,
-    );
+    await this.redis.zadd(`${this.queuePrefix}timeline`, event.timestamp!.getTime(), event.id!);
   }
 
   /**
@@ -265,11 +245,11 @@ export class EventDispatcherService {
       const connection = await amqp.connect(rabbitmqUrl);
       this.amqpConnection = connection as any;
       this.amqpChannel = await connection.createChannel();
-      
+
       // Setup exchange
       const exchange = this.configService.get('rabbitmq.exchangeName', 'pulse.events');
       await this.amqpChannel.assertExchange(exchange, 'topic', { durable: true });
-      
+
       this.logger.log('AMQP connection established');
     } catch (error) {
       this.logger.error('Failed to initialize AMQP connection:', error);
@@ -319,7 +299,7 @@ export class EventDispatcherService {
     };
 
     await this.redis.lpush(this.deadLetterQueue, JSON.stringify(deadLetterEvent));
-    
+
     // Keep only last 1000 dead letter events
     await this.redis.ltrim(this.deadLetterQueue, 0, 999);
   }
@@ -356,7 +336,7 @@ export class EventDispatcherService {
 
     const ageMinutes = (Date.now() - stat.lastSeen.getTime()) / 60000;
     if (ageMinutes === 0) return stat.count;
-    
+
     return Math.round(stat.count / Math.max(ageMinutes, 1));
   }
 
@@ -373,7 +353,7 @@ export class EventDispatcherService {
       'session.expired',
     ];
 
-    return publishableTypes.some(type => eventType.startsWith(type));
+    return publishableTypes.some((type) => eventType.startsWith(type));
   }
 
   /**
@@ -389,9 +369,12 @@ export class EventDispatcherService {
    */
   private getPriorityValue(priority?: string): number {
     switch (priority) {
-      case 'high': return 10;
-      case 'low': return 1;
-      default: return 5;
+      case 'high':
+        return 10;
+      case 'low':
+        return 1;
+      default:
+        return 5;
     }
   }
 
@@ -417,21 +400,21 @@ export class EventDispatcherService {
     for (const queue of queues) {
       // Get all events that should be processed now
       const events = await this.redis.zrangebyscore(queue, '-inf', now);
-      
+
       if (events.length > 0) {
         // Remove from delayed queue
         await this.redis.zremrangebyscore(queue, '-inf', now);
-        
+
         // Move to active queue
         const activeQueue = queue.replace(':delayed', '');
         const pipeline = this.redis.pipeline();
-        
+
         for (const event of events) {
           pipeline.lpush(activeQueue, event);
         }
-        
+
         await pipeline.exec();
-        
+
         this.logger.debug(`Moved ${events.length} delayed events to active queue`);
       }
     }

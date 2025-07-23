@@ -89,7 +89,7 @@ import { MESSAGING_PLATFORM } from '../messaging/messaging.constants';
     },
     CommandParserService,
     CommandValidatorService,
-    
+
     // Command Architecture
     CommandRegistry,
     CommandExecutorService,
@@ -97,7 +97,7 @@ import { MESSAGING_PLATFORM } from '../messaging/messaging.constants';
     SendCommandHandler,
     HelpCommandHandler,
     LinkCommandHandler,
-    
+
     // Other services
     RateLimiterGuard,
     BalanceTemplate,

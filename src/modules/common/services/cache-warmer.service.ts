@@ -46,7 +46,7 @@ export class CacheWarmerService implements OnModuleInit {
     if (this.warmupConfig.enabled && this.warmupConfig.onStartup) {
       // Delay startup warming to allow services to initialize
       setTimeout(() => {
-        this.warmCache().catch(error => {
+        this.warmCache().catch((error) => {
           this.logger.error('Startup cache warming failed:', error);
         });
       }, 5000);
@@ -94,9 +94,9 @@ export class CacheWarmerService implements OnModuleInit {
 
       // Execute all warmup tasks
       const results = await Promise.allSettled(warmupTasks);
-      
-      const successful = results.filter(r => r.status === 'fulfilled').length;
-      const failed = results.filter(r => r.status === 'rejected').length;
+
+      const successful = results.filter((r) => r.status === 'fulfilled').length;
+      const failed = results.filter((r) => r.status === 'rejected').length;
       const duration = Date.now() - startTime;
 
       this.logger.log(
@@ -109,7 +109,6 @@ export class CacheWarmerService implements OnModuleInit {
           this.logger.error(`Warmup task ${index} failed:`, result.reason);
         }
       });
-
     } catch (error) {
       this.logger.error('Cache warming failed:', error);
     } finally {
@@ -122,7 +121,10 @@ export class CacheWarmerService implements OnModuleInit {
    */
   private async warmPriceCache(): Promise<void> {
     // Only warm currencies that are actually used in the application
-    const currencies = this.configService.get<string[]>('cache.warmup.currencies') || ['USD', 'JMD'];
+    const currencies = this.configService.get<string[]>('cache.warmup.currencies') || [
+      'USD',
+      'JMD',
+    ];
     const warmupData = [];
     let successCount = 0;
     let failureCount = 0;
@@ -158,7 +160,7 @@ export class CacheWarmerService implements OnModuleInit {
     }
 
     await this.cacheManager.warmCache(warmupData);
-    
+
     if (failureCount > 0) {
       this.logger.warn(
         `Price cache warming completed with issues: ${successCount} successful, ${failureCount} failed out of ${currencies.length} currencies`,
@@ -175,13 +177,13 @@ export class CacheWarmerService implements OnModuleInit {
     try {
       // Get all active sessions
       const sessions = await this.sessionService.getAllActiveSessions();
-      
+
       if (sessions.length === 0) {
         this.logger.debug('No active sessions to warm');
         return;
       }
 
-      const warmupData = sessions.map(session => ({
+      const warmupData = sessions.map((session) => ({
         key: CacheManagerService.keys.session(session.sessionId),
         factory: async () => session,
         ttl: 1800, // 30 minutes
@@ -198,7 +200,7 @@ export class CacheWarmerService implements OnModuleInit {
    * Check if a specific cache type should be warmed
    */
   private shouldWarmType(type: string): boolean {
-    const item = this.warmupConfig.items.find(i => i.type === type);
+    const item = this.warmupConfig.items.find((i) => i.type === type);
     return item?.enabled ?? false;
   }
 

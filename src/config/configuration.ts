@@ -15,11 +15,12 @@ export default () => ({
 
   // WhatsApp Web Multi-Instance Configuration
   whatsappWeb: {
-    instances: process.env.WHATSAPP_INSTANCES ? 
-      process.env.WHATSAPP_INSTANCES.split(',').map(phone => ({
-        phoneNumber: phone.trim(),
-        enabled: true,
-      })) : [],
+    instances: process.env.WHATSAPP_INSTANCES
+      ? process.env.WHATSAPP_INSTANCES.split(',').map((phone) => ({
+          phoneNumber: phone.trim(),
+          enabled: true,
+        }))
+      : [],
     defaultSessionPath: process.env.WHATSAPP_SESSION_PATH || './whatsapp-sessions',
     chromeDebugPortStart: parseInt(process.env.CHROME_DEBUG_PORT_START || '9222', 10),
     autoReconnect: process.env.WHATSAPP_AUTO_RECONNECT !== 'false',
@@ -32,7 +33,7 @@ export default () => ({
     port: parseInt(process.env.REDIS_PORT || '6379', 10),
     password: process.env.REDIS_PASSWORD || undefined,
     db: parseInt(process.env.REDIS_DB || '0', 10),
-    
+
     // Connection pool configuration
     pool: {
       enabled: process.env.REDIS_POOL_ENABLED !== 'false',
@@ -89,15 +90,15 @@ export default () => ({
     exchangeRateTtl: parseInt(process.env.EXCHANGE_RATE_CACHE_TTL || '1800', 10), // 30 minutes in seconds
     transactionTtl: parseInt(process.env.TRANSACTION_CACHE_TTL || '86400', 10), // 24 hours in seconds
     sessionTtl: parseInt(process.env.SESSION_CACHE_TTL || '1800', 10), // 30 minutes in seconds
-    
+
     // Cache warming configuration
     warmup: {
       enabled: process.env.CACHE_WARMUP_ENABLED !== 'false',
       onStartup: process.env.CACHE_WARMUP_ON_STARTUP !== 'false',
       schedule: process.env.CACHE_WARMUP_SCHEDULE || '0 * * * *', // Every hour
-      currencies: process.env.CACHE_WARMUP_CURRENCIES ? 
-        process.env.CACHE_WARMUP_CURRENCIES.split(',').map(c => c.trim()) : 
-        ['USD', 'JMD'], // Only warm currencies used in the application
+      currencies: process.env.CACHE_WARMUP_CURRENCIES
+        ? process.env.CACHE_WARMUP_CURRENCIES.split(',').map((c) => c.trim())
+        : ['USD', 'JMD'], // Only warm currencies used in the application
       items: [
         { type: 'price', enabled: process.env.CACHE_WARMUP_PRICE !== 'false' },
         { type: 'session', enabled: process.env.CACHE_WARMUP_SESSION !== 'false' },

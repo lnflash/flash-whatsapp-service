@@ -1,11 +1,16 @@
 import { Logger } from '@nestjs/common';
 import { CommandHandler, CommandCategory, CommandMetadata } from './command-handler.interface';
 import { CommandContext } from './command-context.interface';
-import { CommandResult, CommandResultBuilder, CommandError, CommandErrorCode } from './command-result.interface';
+import {
+  CommandResult,
+  CommandResultBuilder,
+  CommandError,
+  CommandErrorCode,
+} from './command-result.interface';
 
 export abstract class BaseCommandHandler implements CommandHandler {
   protected readonly logger: Logger;
-  
+
   readonly command: string;
   readonly aliases?: string[];
   readonly description: string;
@@ -22,27 +27,27 @@ export abstract class BaseCommandHandler implements CommandHandler {
     this.adminOnly = metadata.adminOnly;
     this.requiresAuth = metadata.requiresAuth;
     this.requiresSession = metadata.requiresSession;
-    
+
     this.logger = new Logger(`${this.constructor.name}`);
   }
 
   async execute(context: CommandContext): Promise<CommandResult> {
     const startTime = Date.now();
-    
+
     try {
       // Pre-execution validation
       if (this.requiresAuth && !context.session) {
         return this.createAuthRequiredError();
       }
-      
+
       if (this.requiresSession && !context.flashUserId) {
         return this.createSessionRequiredError();
       }
-      
+
       if (this.adminOnly && !context.isAdmin) {
         return this.createInsufficientPermissionsError();
       }
-      
+
       // Custom validation
       if (this.validate) {
         const isValid = await this.validate(context);
@@ -50,18 +55,17 @@ export abstract class BaseCommandHandler implements CommandHandler {
           return this.createValidationError(context);
         }
       }
-      
+
       // Execute command
       const result = await this.handleCommand(context);
-      
+
       // Add execution metrics
       result.executionTime = Date.now() - startTime;
-      
+
       return result;
-      
     } catch (error) {
       this.logger.error(`Error executing command ${this.command}:`, error);
-      
+
       return CommandResultBuilder.error({
         code: CommandErrorCode.INTERNAL_ERROR,
         message: 'An error occurred processing your command. Please try again.',
@@ -84,7 +88,8 @@ export abstract class BaseCommandHandler implements CommandHandler {
   protected createSessionRequiredError(): CommandResult {
     return CommandResultBuilder.error({
       code: CommandErrorCode.SESSION_EXPIRED,
-      message: '🔐 Your session has expired. Please link your account again using */link <username>*',
+      message:
+        '🔐 Your session has expired. Please link your account again using */link <username>*',
     }).build();
   }
 
@@ -104,7 +109,7 @@ export abstract class BaseCommandHandler implements CommandHandler {
   }
 
   protected formatAmount(amount: number): string {
-    return new Intl.NumberFormat('en-US', { 
+    return new Intl.NumberFormat('en-US', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 8,
     }).format(amount);
@@ -117,7 +122,7 @@ export abstract class BaseCommandHandler implements CommandHandler {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
-    
+
     return formatter.format(amount);
   }
 }

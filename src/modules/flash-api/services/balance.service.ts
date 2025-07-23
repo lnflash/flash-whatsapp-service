@@ -29,8 +29,9 @@ export class BalanceService {
     private readonly redisService: RedisService,
   ) {
     // Override TTL from config if provided
-    const configTtl = this.configService.get<number>('cache.balanceTtl') || 
-                      this.configService.get<number>('balanceCacheTtl'); // Legacy support
+    const configTtl =
+      this.configService.get<number>('cache.balanceTtl') ||
+      this.configService.get<number>('balanceCacheTtl'); // Legacy support
     if (configTtl) {
       this.cacheTtl = configTtl;
       this.logger.log(`Balance cache TTL set to ${this.cacheTtl} seconds`);

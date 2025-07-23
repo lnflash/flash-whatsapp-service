@@ -1,14 +1,10 @@
-import {
-  Controller,
-  Get,
-  Query,
-  UseGuards,
-  ParseIntPipe,
-  DefaultValuePipe,
-} from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, ParseIntPipe, DefaultValuePipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AdminGuard } from '../guards/admin.guard';
-import { SecurityAuditService, SecurityEventType } from '../../../common/services/security-audit.service';
+import {
+  SecurityAuditService,
+  SecurityEventType,
+} from '../../../common/services/security-audit.service';
 
 @ApiTags('Admin Security')
 @Controller('api/admin/security')
@@ -109,7 +105,7 @@ export class SecurityDashboardController {
 
     // Group by API key (partial) and count
     const usage = new Map<string, number>();
-    events.forEach(event => {
+    events.forEach((event) => {
       const key = event.details?.apiKey || 'unknown';
       usage.set(key, (usage.get(key) || 0) + 1);
     });

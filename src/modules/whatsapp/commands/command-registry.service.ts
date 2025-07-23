@@ -48,37 +48,39 @@ export class CommandRegistry implements OnModuleInit {
   registerHandler(handler: CommandHandler): void {
     // Register main command
     this.commands.set(handler.command.toLowerCase(), handler);
-    
+
     // Register aliases
     if (handler.aliases) {
       for (const alias of handler.aliases) {
         this.aliases.set(alias.toLowerCase(), handler.command.toLowerCase());
       }
     }
-    
+
     // Register by category
     if (!this.categories.has(handler.category)) {
       this.categories.set(handler.category, []);
     }
     this.categories.get(handler.category)!.push(handler);
-    
-    this.logger.debug(`Registered command: ${handler.command} with ${handler.aliases?.length || 0} aliases`);
+
+    this.logger.debug(
+      `Registered command: ${handler.command} with ${handler.aliases?.length || 0} aliases`,
+    );
   }
 
   getHandler(command: string): CommandHandler | undefined {
     const normalizedCommand = command.toLowerCase();
-    
+
     // Check direct command
     if (this.commands.has(normalizedCommand)) {
       return this.commands.get(normalizedCommand);
     }
-    
+
     // Check aliases
     if (this.aliases.has(normalizedCommand)) {
       const mainCommand = this.aliases.get(normalizedCommand)!;
       return this.commands.get(mainCommand);
     }
-    
+
     return undefined;
   }
 
@@ -128,8 +130,13 @@ export class CommandRegistry implements OnModuleInit {
     return Array.from(this.categories.keys());
   }
 
-  getCommandList(): { command: string; aliases: string[]; description: string; category: CommandCategory }[] {
-    return this.getAllHandlers().map(handler => ({
+  getCommandList(): {
+    command: string;
+    aliases: string[];
+    description: string;
+    category: CommandCategory;
+  }[] {
+    return this.getAllHandlers().map((handler) => ({
       command: handler.command,
       aliases: handler.aliases || [],
       description: handler.description,
@@ -148,14 +155,14 @@ export class CommandRegistry implements OnModuleInit {
 
   getCommandsForHelp(includeAdmin = false): Map<CommandCategory, CommandHandler[]> {
     const helpCommands = new Map<CommandCategory, CommandHandler[]>();
-    
+
     for (const [category, handlers] of this.categories) {
-      const filteredHandlers = handlers.filter(h => includeAdmin || !h.adminOnly);
+      const filteredHandlers = handlers.filter((h) => includeAdmin || !h.adminOnly);
       if (filteredHandlers.length > 0) {
         helpCommands.set(category, filteredHandlers);
       }
     }
-    
+
     return helpCommands;
   }
 }

@@ -28,9 +28,9 @@ describe('RequestDeduplicator', () => {
   describe('deduplicate', () => {
     it('should execute factory function for first request', async () => {
       const factory = jest.fn().mockResolvedValue('result');
-      
+
       const result = await service.deduplicate('test-key', factory);
-      
+
       expect(factory).toHaveBeenCalledTimes(1);
       expect(result).toBe('result');
     });
@@ -61,7 +61,7 @@ describe('RequestDeduplicator', () => {
 
     it('should cache results for specified TTL', async () => {
       const factory = jest.fn().mockResolvedValue('result');
-      
+
       // First call
       await service.deduplicate('test-key', factory, { ttl: 1000 });
       expect(factory).toHaveBeenCalledTimes(1);
@@ -74,7 +74,7 @@ describe('RequestDeduplicator', () => {
 
     it('should expire cache after TTL', async () => {
       const factory = jest.fn().mockResolvedValue('result');
-      
+
       // First call with short TTL
       await service.deduplicate('test-key', factory, { ttl: 50 });
       expect(factory).toHaveBeenCalledTimes(1);
@@ -92,7 +92,7 @@ describe('RequestDeduplicator', () => {
       const factory = jest.fn().mockRejectedValue(error);
 
       await expect(
-        service.deduplicate('test-key', factory, { throwOnError: true })
+        service.deduplicate('test-key', factory, { throwOnError: true }),
       ).rejects.toThrow('Test error');
     });
 
@@ -123,7 +123,7 @@ describe('RequestDeduplicator', () => {
   describe('clear', () => {
     it('should clear specific key from cache', async () => {
       const factory = jest.fn().mockResolvedValue('result');
-      
+
       // Cache a result
       await service.deduplicate('test-key', factory, { ttl: 1000 });
       expect(factory).toHaveBeenCalledTimes(1);
@@ -141,7 +141,7 @@ describe('RequestDeduplicator', () => {
     it('should clear all cached data', async () => {
       const factory1 = jest.fn().mockResolvedValue('result1');
       const factory2 = jest.fn().mockResolvedValue('result2');
-      
+
       // Cache multiple results
       await service.deduplicate('key1', factory1, { ttl: 1000 });
       await service.deduplicate('key2', factory2, { ttl: 1000 });
@@ -181,7 +181,7 @@ describe('RequestDeduplicator', () => {
 
     it('should track cache size', async () => {
       const factory = jest.fn().mockResolvedValue('result');
-      
+
       expect(service.getCacheSize()).toBe(0);
 
       await service.deduplicate('key1', factory, { ttl: 1000 });
@@ -195,7 +195,7 @@ describe('RequestDeduplicator', () => {
   describe('cleanupExpiredCache', () => {
     it('should remove expired entries', async () => {
       const factory = jest.fn().mockResolvedValue('result');
-      
+
       // Add entries with different TTLs
       await service.deduplicate('key1', factory, { ttl: 50 });
       await service.deduplicate('key2', factory, { ttl: 1000 });

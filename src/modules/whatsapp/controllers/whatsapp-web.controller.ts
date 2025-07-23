@@ -46,7 +46,7 @@ export class WhatsAppWebController {
   @HttpCode(HttpStatus.OK)
   getInstanceStatus(@Param('phoneNumber') phoneNumber: string) {
     const status = this.whatsAppWebService.getInstanceStatus(phoneNumber);
-    
+
     return {
       phoneNumber,
       ...status,
@@ -60,7 +60,7 @@ export class WhatsAppWebController {
   async getQRCode(@Res() res: Response) {
     try {
       const qrCodes = await this.whatsAppWebService.getAllQRCodes();
-      const pendingInstances = qrCodes.filter(item => item.qrCode !== null);
+      const pendingInstances = qrCodes.filter((item) => item.qrCode !== null);
 
       if (pendingInstances.length === 0) {
         return res.status(200).json({
@@ -71,7 +71,7 @@ export class WhatsAppWebController {
       }
 
       // Generate QR code images for pending instances
-      const qrData = pendingInstances.map(item => ({
+      const qrData = pendingInstances.map((item) => ({
         phoneNumber: item.phoneNumber,
         qrCode: item.qrCode,
         qrImageUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(item.qrCode || '')}`,
@@ -221,10 +221,10 @@ export class WhatsAppWebController {
       const phoneNumber = dto.to.replace(/\D/g, '');
 
       await this.whatsAppWebService.sendMessage(
-        phoneNumber, 
+        phoneNumber,
         dto.message || 'Hello from Pulse!',
         undefined,
-        dto.instancePhone
+        dto.instancePhone,
       );
 
       return {

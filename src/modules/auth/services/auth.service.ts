@@ -27,8 +27,10 @@ export class AuthService {
 
       // Ensure phone number has country code
       const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
-      
-      this.logger.log(`Initiating account linking for WhatsApp ID: ${whatsappId}, Phone: ${formattedPhone}`);
+
+      this.logger.log(
+        `Initiating account linking for WhatsApp ID: ${whatsappId}, Phone: ${formattedPhone}`,
+      );
 
       // Check if there's an existing session
       let session = await this.sessionService.getSessionByWhatsappId(whatsappId);

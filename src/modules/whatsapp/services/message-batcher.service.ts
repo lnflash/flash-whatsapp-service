@@ -145,15 +145,13 @@ export class MessageBatcherService implements OnModuleDestroy {
       // Update statistics
       this.updateStats(batch.messages.length, true);
 
-      this.logger.debug(
-        `Flushed batch for ${to}: ${batch.messages.length} messages`,
-      );
+      this.logger.debug(`Flushed batch for ${to}: ${batch.messages.length} messages`);
     } catch (error) {
       this.logger.error(`Failed to flush batch for ${to}:`, error);
-      
+
       // Re-queue failed messages
       await this.requeueFailedMessages(batch.messages);
-      
+
       this.updateStats(batch.messages.length, false);
     }
   }
@@ -163,19 +161,15 @@ export class MessageBatcherService implements OnModuleDestroy {
    */
   async flushAllBatches(): Promise<void> {
     const batchKeys = Array.from(this.batches.keys());
-    
+
     this.logger.log(`Flushing ${batchKeys.length} batches...`);
-    
-    const results = await Promise.allSettled(
-      batchKeys.map(to => this.flushBatch(to)),
-    );
 
-    const successful = results.filter(r => r.status === 'fulfilled').length;
-    const failed = results.filter(r => r.status === 'rejected').length;
+    const results = await Promise.allSettled(batchKeys.map((to) => this.flushBatch(to)));
 
-    this.logger.log(
-      `Batch flush completed: ${successful} successful, ${failed} failed`,
-    );
+    const successful = results.filter((r) => r.status === 'fulfilled').length;
+    const failed = results.filter((r) => r.status === 'rejected').length;
+
+    this.logger.log(`Batch flush completed: ${successful} successful, ${failed} failed`);
   }
 
   /**
@@ -183,15 +177,16 @@ export class MessageBatcherService implements OnModuleDestroy {
    */
   getStats(): Record<string, any> {
     const currentBatches = Array.from(this.batches.values());
-    
+
     return {
       ...this.stats,
       activeBatches: this.batches.size,
       pendingMessages: currentBatches.reduce((sum, b) => sum + b.messages.length, 0),
-      oldestBatch: currentBatches.length > 0
-        ? Math.min(...currentBatches.map(b => b.lastUpdated.getTime()))
-        : null,
-      batchSizes: currentBatches.map(b => ({
+      oldestBatch:
+        currentBatches.length > 0
+          ? Math.min(...currentBatches.map((b) => b.lastUpdated.getTime()))
+          : null,
+      batchSizes: currentBatches.map((b) => ({
         to: b.to,
         size: b.messages.length,
         age: Date.now() - b.lastUpdated.getTime(),
@@ -215,7 +210,7 @@ export class MessageBatcherService implements OnModuleDestroy {
     }
 
     // Check priority - flush if high priority messages are waiting
-    const hasHighPriority = batch.messages.some(m => m.priority === 'high');
+    const hasHighPriority = batch.messages.some((m) => m.priority === 'high');
     if (hasHighPriority && batch.messages.length > 1) {
       return true;
     }
@@ -308,7 +303,7 @@ export class MessageBatcherService implements OnModuleDestroy {
       if (msg.retryCount < 3) {
         msg.retryCount++;
         msg.priority = 'high'; // Elevate priority for retries
-        
+
         // Re-add to batch with delay
         setTimeout(() => {
           this.addMessage(msg.message, { priority: msg.priority });
@@ -323,7 +318,7 @@ export class MessageBatcherService implements OnModuleDestroy {
             reason: 'Max retries exceeded',
           },
         });
-        
+
         this.stats.totalFailed++;
       }
     }
@@ -344,12 +339,12 @@ export class MessageBatcherService implements OnModuleDestroy {
   private calculateBatchDiversity(batch: MessageBatch): number {
     if (batch.messages.length < 2) return 0;
 
-    const types = new Set(batch.messages.map(m => m.message.type || 'text'));
-    const priorities = new Set(batch.messages.map(m => m.priority));
-    
+    const types = new Set(batch.messages.map((m) => m.message.type || 'text'));
+    const priorities = new Set(batch.messages.map((m) => m.priority));
+
     const typeDiversity = types.size / batch.messages.length;
     const priorityDiversity = priorities.size / 3; // 3 priority levels
-    
+
     return (typeDiversity + priorityDiversity) / 2;
   }
 
@@ -391,7 +386,7 @@ export class MessageBatcherService implements OnModuleDestroy {
 
     if (toFlush.length > 0) {
       this.logger.debug(`Auto-flushing ${toFlush.length} old batches`);
-      await Promise.all(toFlush.map(to => this.flushBatch(to)));
+      await Promise.all(toFlush.map((to) => this.flushBatch(to)));
     }
   }
 

@@ -2,7 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { BaseCommandHandler } from '../base/base-command.handler';
 import { CommandCategory } from '../base/command-handler.interface';
 import { CommandContext } from '../base/command-context.interface';
-import { CommandResult, CommandResultBuilder, CommandErrorCode } from '../base/command-result.interface';
+import {
+  CommandResult,
+  CommandResultBuilder,
+  CommandErrorCode,
+} from '../base/command-result.interface';
 // FlashApiService removed - using specific services instead
 import { PaymentService } from '../../../flash-api/services/payment.service';
 import { UsernameService } from '../../../flash-api/services/username.service';
@@ -47,11 +51,15 @@ export class SendCommandHandler extends BaseCommandHandler {
     try {
       // Check for pending confirmation
       const pendingConfirmation = await this.confirmationService.getPendingPayment(
-        context.whatsappId
+        context.whatsappId,
       );
 
       if (pendingConfirmation && commandData.confirmation) {
-        return this.handleConfirmation(context, pendingConfirmation, commandData.confirmation === 'yes');
+        return this.handleConfirmation(
+          context,
+          pendingConfirmation,
+          commandData.confirmation === 'yes',
+        );
       }
 
       // Validate send data
@@ -103,11 +111,12 @@ export class SendCommandHandler extends BaseCommandHandler {
           },
           rawText: context.rawText,
         },
-        context.session?.sessionId
+        context.session?.sessionId,
       );
 
       // Generate confirmation message
-      const confirmationMessage = `🔐 *Payment Confirmation*\n\n` +
+      const confirmationMessage =
+        `🔐 *Payment Confirmation*\n\n` +
         `Send ${this.formatAmount(amountInBTC)} BTC to @${commandData.recipient}?\n\n` +
         `Reply *yes* to confirm or *no* to cancel.`;
 
@@ -136,10 +145,9 @@ export class SendCommandHandler extends BaseCommandHandler {
           { id: 'no', title: 'No, cancel' },
         ])
         .build();
-
     } catch (error) {
       this.logger.error('Error processing send command:', error);
-      
+
       return CommandResultBuilder.error({
         code: CommandErrorCode.INTERNAL_ERROR,
         message: '❌ An error occurred processing your payment. Please try again.',
@@ -183,7 +191,8 @@ export class SendCommandHandler extends BaseCommandHandler {
       }
 
       // Generate success message
-      const successMessage = `✅ *Payment Sent Successfully*\n\n` +
+      const successMessage =
+        `✅ *Payment Sent Successfully*\n\n` +
         `Amount: ${this.formatAmount(pendingTx.amount)} BTC\n` +
         `To: @${pendingTx.recipientUsername}\n` +
         `Status: ${result.status || 'Completed'}`;
@@ -198,16 +207,13 @@ export class SendCommandHandler extends BaseCommandHandler {
         );
         const voiceBuffer = Buffer.from(voiceResponse);
 
-        return CommandResultBuilder.success(successMessage)
-          .withVoice(voiceBuffer, true)
-          .build();
+        return CommandResultBuilder.success(successMessage).withVoice(voiceBuffer, true).build();
       }
 
       return CommandResultBuilder.success(successMessage).build();
-
     } catch (error) {
       this.logger.error('Error executing payment:', error);
-      
+
       return CommandResultBuilder.error({
         code: CommandErrorCode.TRANSACTION_FAILED,
         message: '❌ Payment failed. Please try again later.',
@@ -230,7 +236,7 @@ export class SendCommandHandler extends BaseCommandHandler {
     return this.deduplicator.deduplicate(
       `balance:${flashUserId}`,
       () => this.balanceService.getUserBalance(flashUserId, ''), // TODO: need auth token
-      { ttl: this.getBalanceCacheTTL() }
+      { ttl: this.getBalanceCacheTTL() },
     );
   }
 
@@ -241,7 +247,7 @@ export class SendCommandHandler extends BaseCommandHandler {
         const priceInfo = await this.priceService.getBitcoinPrice(currency);
         return priceInfo.btcPrice;
       },
-      { ttl: this.getExchangeRateCacheTTL() }
+      { ttl: this.getExchangeRateCacheTTL() },
     );
   }
 
@@ -259,13 +265,17 @@ export class SendCommandHandler extends BaseCommandHandler {
 
   async validate(context: CommandContext): Promise<boolean> {
     const { commandData } = context;
-    
+
     // For confirmations, no additional validation needed
     if (commandData.confirmation !== undefined) {
       return true;
     }
 
     // Validate basic send requirements
-    return !!(commandData.recipient && commandData.amount !== undefined && parseFloat(commandData.amount) > 0);
+    return !!(
+      commandData.recipient &&
+      commandData.amount !== undefined &&
+      parseFloat(commandData.amount) > 0
+    );
   }
 }

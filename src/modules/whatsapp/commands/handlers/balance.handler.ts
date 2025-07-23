@@ -3,7 +3,11 @@ import { BaseCommandHandler } from '../base/base-command.handler';
 import { CommandCategory } from '../base/command-handler.interface';
 import { CommandContext } from '../base/command-context.interface';
 import { CommandType } from '../../services/command-parser.service';
-import { CommandResult, CommandResultBuilder, CommandErrorCode } from '../base/command-result.interface';
+import {
+  CommandResult,
+  CommandResultBuilder,
+  CommandErrorCode,
+} from '../base/command-result.interface';
 import { BalanceService } from '../../../flash-api/services/balance.service';
 import { BalanceTemplate } from '../../templates/balance-template';
 import { CacheManagerService } from '../../../common/services/cache-manager.service';
@@ -33,8 +37,12 @@ export class BalanceCommandHandler extends BaseCommandHandler {
       // Get balance with cache
       const balance = await this.cacheManager.get(
         CacheManagerService.keys.balance(context.flashUserId!),
-        () => this.balanceService.getUserBalance(context.flashUserId!, context.session?.flashAuthToken || ''),
-        { ttl: this.getBalanceCacheTTL() / 1000 } // Convert to seconds
+        () =>
+          this.balanceService.getUserBalance(
+            context.flashUserId!,
+            context.session?.flashAuthToken || '',
+          ),
+        { ttl: this.getBalanceCacheTTL() / 1000 }, // Convert to seconds
       );
 
       if (!balance) {
@@ -66,16 +74,13 @@ export class BalanceCommandHandler extends BaseCommandHandler {
         // Convert voice response to buffer (this would need TTS service)
         const voiceBuffer = Buffer.from(voiceResponse);
 
-        return CommandResultBuilder.success(balanceMessage)
-          .withVoice(voiceBuffer, true)
-          .build();
+        return CommandResultBuilder.success(balanceMessage).withVoice(voiceBuffer, true).build();
       }
 
       return CommandResultBuilder.success(balanceMessage).build();
-
     } catch (error) {
       this.logger.error('Error fetching balance:', error);
-      
+
       return CommandResultBuilder.error({
         code: CommandErrorCode.INTERNAL_ERROR,
         message: '❌ An error occurred while fetching your balance. Please try again later.',

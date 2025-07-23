@@ -72,10 +72,7 @@ export class QueueMonitorService implements OnModuleInit {
   /**
    * Monitor a specific queue
    */
-  async monitorQueue(
-    queueName: string,
-    thresholds?: Partial<QueueThresholds>,
-  ): Promise<void> {
+  async monitorQueue(queueName: string, thresholds?: Partial<QueueThresholds>): Promise<void> {
     if (thresholds) {
       this.customThresholds.set(queueName, {
         ...this.defaultThresholds,
@@ -106,7 +103,7 @@ export class QueueMonitorService implements OnModuleInit {
     this.queueStats.delete(queueName);
     this.queueMetrics.delete(queueName);
     this.customThresholds.delete(queueName);
-    
+
     this.logger.log(`Stopped monitoring queue: ${queueName}`);
   }
 
@@ -115,7 +112,7 @@ export class QueueMonitorService implements OnModuleInit {
    */
   getQueueHealth(): Record<string, QueueHealth> {
     const health: Record<string, QueueHealth> = {};
-    
+
     this.queueStats.forEach((stats, name) => {
       health[name] = { ...stats };
     });
@@ -143,17 +140,17 @@ export class QueueMonitorService implements OnModuleInit {
   clearOldAlerts(olderThanHours: number = 24): number {
     const cutoff = new Date(Date.now() - olderThanHours * 60 * 60 * 1000);
     const beforeCount = this.alerts.length;
-    
+
     this.alerts.splice(
       0,
-      this.alerts.findIndex(alert => alert.timestamp > cutoff),
+      this.alerts.findIndex((alert) => alert.timestamp > cutoff),
     );
-    
+
     const removed = beforeCount - this.alerts.length;
     if (removed > 0) {
       this.logger.log(`Cleared ${removed} old alerts`);
     }
-    
+
     return removed;
   }
 
@@ -173,7 +170,7 @@ export class QueueMonitorService implements OnModuleInit {
     if (!this.monitoringEnabled) return;
 
     const queues = Array.from(this.queueStats.keys());
-    
+
     for (const queueName of queues) {
       try {
         await this.checkQueueHealth(queueName);
@@ -207,7 +204,9 @@ export class QueueMonitorService implements OnModuleInit {
 
       // Send metrics to metrics service
       this.metricsService.recordMetric('queue.size', stats.size, { queue: name });
-      this.metricsService.recordMetric('queue.processing_rate', stats.processingRate, { queue: name });
+      this.metricsService.recordMetric('queue.processing_rate', stats.processingRate, {
+        queue: name,
+      });
       this.metricsService.recordMetric('queue.error_rate', stats.errorRate, { queue: name });
     });
 
@@ -266,7 +265,7 @@ export class QueueMonitorService implements OnModuleInit {
     // Log summary
     this.logger.log(
       `Queue health report: ${report.summary.healthy} healthy, ` +
-      `${report.summary.degraded} degraded, ${report.summary.critical} critical`,
+        `${report.summary.degraded} degraded, ${report.summary.critical} critical`,
     );
   }
 
@@ -297,25 +296,55 @@ export class QueueMonitorService implements OnModuleInit {
 
     if (queueSize > thresholds.maxSize) {
       issues.push(`Queue size (${queueSize}) exceeds threshold (${thresholds.maxSize})`);
-      this.createAlert(queueName, 'error', 'Queue size exceeded', 'size', queueSize, thresholds.maxSize);
+      this.createAlert(
+        queueName,
+        'error',
+        'Queue size exceeded',
+        'size',
+        queueSize,
+        thresholds.maxSize,
+      );
     }
 
     if (stats.oldestMessage) {
       const age = Date.now() - stats.oldestMessage.getTime();
       if (age > thresholds.maxAge) {
         issues.push(`Oldest message age (${age}ms) exceeds threshold (${thresholds.maxAge}ms)`);
-        this.createAlert(queueName, 'warning', 'Message age exceeded', 'age', age, thresholds.maxAge);
+        this.createAlert(
+          queueName,
+          'warning',
+          'Message age exceeded',
+          'age',
+          age,
+          thresholds.maxAge,
+        );
       }
     }
 
     if (stats.processingRate < thresholds.minProcessingRate && queueSize > 0) {
-      issues.push(`Processing rate (${stats.processingRate}) below threshold (${thresholds.minProcessingRate})`);
-      this.createAlert(queueName, 'warning', 'Low processing rate', 'processingRate', stats.processingRate, thresholds.minProcessingRate);
+      issues.push(
+        `Processing rate (${stats.processingRate}) below threshold (${thresholds.minProcessingRate})`,
+      );
+      this.createAlert(
+        queueName,
+        'warning',
+        'Low processing rate',
+        'processingRate',
+        stats.processingRate,
+        thresholds.minProcessingRate,
+      );
     }
 
     if (stats.errorRate > thresholds.maxErrorRate) {
       issues.push(`Error rate (${stats.errorRate}) exceeds threshold (${thresholds.maxErrorRate})`);
-      this.createAlert(queueName, 'error', 'High error rate', 'errorRate', stats.errorRate, thresholds.maxErrorRate);
+      this.createAlert(
+        queueName,
+        'error',
+        'High error rate',
+        'errorRate',
+        stats.errorRate,
+        thresholds.maxErrorRate,
+      );
     }
 
     // Update status based on issues
@@ -354,7 +383,7 @@ export class QueueMonitorService implements OnModuleInit {
       const listSize = await this.redis.llen(queueName);
       const setSize = await this.redis.scard(queueName);
       const zsetSize = await this.redis.zcard(queueName);
-      
+
       return Math.max(listSize, setSize, zsetSize);
     } catch (error) {
       this.logger.error(`Failed to get queue size for ${queueName}:`, error);
@@ -380,18 +409,17 @@ export class QueueMonitorService implements OnModuleInit {
         now,
       );
 
-      const errorRate = metrics.processed > 0
-        ? (metrics.errors || 0) / metrics.processed
-        : 0;
+      const errorRate = metrics.processed > 0 ? (metrics.errors || 0) / metrics.processed : 0;
 
-      const avgProcessingTime = metrics.totalProcessingTime > 0 && metrics.processed > 0
-        ? metrics.totalProcessingTime / metrics.processed
-        : 0;
+      const avgProcessingTime =
+        metrics.totalProcessingTime > 0 && metrics.processed > 0
+          ? metrics.totalProcessingTime / metrics.processed
+          : 0;
 
       // Get oldest message
       const oldestTimestamp = await this.redis.lindex(queueName, -1);
       let oldestMessage = null;
-      
+
       if (oldestTimestamp) {
         try {
           const parsed = JSON.parse(oldestTimestamp);
@@ -468,7 +496,7 @@ export class QueueMonitorService implements OnModuleInit {
     };
 
     this.alerts.push(alert);
-    
+
     // Keep only last 1000 alerts
     if (this.alerts.length > 1000) {
       this.alerts.shift();

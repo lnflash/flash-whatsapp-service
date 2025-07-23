@@ -15,7 +15,7 @@ export class CatchAllController {
     '/.git',
     '/backup',
     '/api/users',
-    '/api/export'
+    '/api/export',
   ];
 
   @All('*')
@@ -29,7 +29,7 @@ export class CatchAllController {
     this.logger.warn(`404 Not Found: ${method} ${path} from ${ip} - User-Agent: ${userAgent}`);
 
     // Check if this is a honeypot path (potential attacker)
-    if (this.honeypotPaths.some(honeypot => path.startsWith(honeypot))) {
+    if (this.honeypotPaths.some((honeypot) => path.startsWith(honeypot))) {
       this.logger.warn(`Honeypot triggered: ${path} from ${ip}`);
       // Return a delayed response to slow down attackers
       return new Promise((resolve) => {
@@ -37,19 +37,22 @@ export class CatchAllController {
           resolve({
             statusCode: 404,
             message: 'Not Found',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           });
         }, 3000); // 3 second delay
       });
     }
 
     // Standard 404 response
-    throw new HttpException({
-      statusCode: HttpStatus.NOT_FOUND,
-      message: 'Resource not found',
-      error: 'Not Found',
-      path: request.url,
-      timestamp: new Date().toISOString()
-    }, HttpStatus.NOT_FOUND);
+    throw new HttpException(
+      {
+        statusCode: HttpStatus.NOT_FOUND,
+        message: 'Resource not found',
+        error: 'Not Found',
+        path: request.url,
+        timestamp: new Date().toISOString(),
+      },
+      HttpStatus.NOT_FOUND,
+    );
   }
 }

@@ -59,7 +59,6 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return this.redisClient.get(key);
   }
 
-
   /**
    * Set key with expiry only if it doesn't exist
    */

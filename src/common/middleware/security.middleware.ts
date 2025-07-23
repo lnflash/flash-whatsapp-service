@@ -88,7 +88,7 @@ export class SecurityMiddleware implements NestMiddleware {
     '/..;/',
     '/.%2e/',
     '/%252e%252e',
-    '/\\.\\.\\'
+    '/\\.\\.\\',
   ];
 
   private readonly suspiciousUserAgents = [
@@ -138,7 +138,7 @@ export class SecurityMiddleware implements NestMiddleware {
     'bingpreview',
     'discordbot',
     'telegrambot',
-    'slackbot'
+    'slackbot',
   ];
 
   private readonly blockedIPs = new Map<string, { count: number; timestamp: number }>();
@@ -159,7 +159,7 @@ export class SecurityMiddleware implements NestMiddleware {
       res.status(403).json({
         statusCode: 403,
         message: 'Access forbidden',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
       return;
     }
@@ -174,7 +174,7 @@ export class SecurityMiddleware implements NestMiddleware {
     if (this.isSuspiciousUserAgent(userAgent)) {
       // Log but don't immediately block for user agents
       this.logger.warn(`Suspicious user agent detected: ${userAgent} from IP ${clientIP}`);
-      
+
       // Only block if it's also trying to access sensitive paths
       if (path.includes('/api/admin') || path.includes('/api/auth')) {
         this.handleSuspiciousRequest(clientIP, path, 'suspicious_user_agent', res);
@@ -208,7 +208,7 @@ export class SecurityMiddleware implements NestMiddleware {
     const forwarded = req.get('x-forwarded-for');
     const realIP = req.get('x-real-ip');
     const cfIP = req.get('cf-connecting-ip'); // Cloudflare
-    
+
     return cfIP || realIP || forwarded?.split(',')[0] || req.ip || 'unknown';
   }
 
@@ -227,7 +227,7 @@ export class SecurityMiddleware implements NestMiddleware {
 
   private handleSuspiciousRequest(ip: string, path: string, reason: string, res: Response) {
     this.logger.warn(`Suspicious request from ${ip} to ${path} - Reason: ${reason}`);
-    
+
     // Track attempts
     const blocked = this.blockedIPs.get(ip) || { count: 0, timestamp: Date.now() };
     blocked.count++;
@@ -238,40 +238,38 @@ export class SecurityMiddleware implements NestMiddleware {
     res.status(404).json({
       statusCode: 404,
       message: 'Not Found',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 
   private isSuspiciousPath(path: string): boolean {
-    return this.suspiciousPaths.some(suspicious => 
-      path.includes(suspicious) || path.startsWith(suspicious)
+    return this.suspiciousPaths.some(
+      (suspicious) => path.includes(suspicious) || path.startsWith(suspicious),
     );
   }
 
   private isSuspiciousUserAgent(userAgent: string): boolean {
-    return this.suspiciousUserAgents.some(suspicious => 
-      userAgent.includes(suspicious)
-    );
+    return this.suspiciousUserAgents.some((suspicious) => userAgent.includes(suspicious));
   }
 
   private containsSQLInjection(input: any): boolean {
     if (!input || typeof input !== 'string') return false;
-    
+
     const sqlPatterns = [
       /(\b(union|select|insert|update|delete|drop|create|alter|exec|execute|script|javascript|vbscript|onload|onerror|onclick)\b)/i,
       /(\b(or|and)\b\s*\d+\s*=\s*\d+)/i,
       /(\'|\"|;|--|\||\\)/,
       /(\b(waitfor|delay|benchmark|sleep)\b)/i,
       /(0x[0-9a-f]+)/i,
-      /(\b(concat|substring|ascii|char|length)\b\s*\()/i
+      /(\b(concat|substring|ascii|char|length)\b\s*\()/i,
     ];
 
-    return sqlPatterns.some(pattern => pattern.test(input));
+    return sqlPatterns.some((pattern) => pattern.test(input));
   }
 
   private containsXSS(input: any): boolean {
     if (!input || typeof input !== 'string') return false;
-    
+
     const xssPatterns = [
       /<script[^>]*>.*?<\/script>/gi,
       /<iframe[^>]*>.*?<\/iframe>/gi,
@@ -281,22 +279,22 @@ export class SecurityMiddleware implements NestMiddleware {
       /eval\s*\(/gi,
       /expression\s*\(/gi,
       /<object[^>]*>.*?<\/object>/gi,
-      /<embed[^>]*>.*?<\/embed>/gi
+      /<embed[^>]*>.*?<\/embed>/gi,
     ];
 
-    return xssPatterns.some(pattern => pattern.test(input));
+    return xssPatterns.some((pattern) => pattern.test(input));
   }
 
   private containsCommandInjection(input: any): boolean {
     if (!input || typeof input !== 'string') return false;
-    
+
     const cmdPatterns = [
       /(\||;|&|`|\$\(|\))/,
       /(\b(cat|ls|pwd|echo|rm|mv|cp|chmod|chown|kill|ps|wget|curl|nc|bash|sh|cmd|powershell)\b)/i,
       /(\/etc\/passwd|\/etc\/shadow|\/windows\/system32)/i,
-      /(\.\.\/)|(\.\.\\)/
+      /(\.\.\/)|(\.\.\\)/,
     ];
 
-    return cmdPatterns.some(pattern => pattern.test(input));
+    return cmdPatterns.some((pattern) => pattern.test(input));
   }
 }

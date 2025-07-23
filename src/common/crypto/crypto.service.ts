@@ -7,21 +7,32 @@ export class CryptoService {
   private readonly algorithm = 'aes-256-gcm';
   private readonly encryptionKey: Buffer;
   private readonly saltLength = 32;
+  private readonly hashSalt: string;
 
   constructor(private readonly configService: ConfigService) {
     // Get encryption key from env or generate a secure one
     const keyString = this.configService.get<string>('ENCRYPTION_KEY');
-    
+
     if (!keyString || keyString.length < 32) {
       // Log a warning but use a default key for development
-      console.warn('WARNING: ENCRYPTION_KEY not set or too short. Using default key - DO NOT USE IN PRODUCTION!');
+      console.warn(
+        'WARNING: ENCRYPTION_KEY not set or too short. Using default key - DO NOT USE IN PRODUCTION!',
+      );
       const defaultKey = 'pulse-default-encryption-key-32-chars-minimum!!';
-      const salt = this.configService.get<string>('ENCRYPTION_SALT') || 'flash-connect-salt-default-16chr';
+      const salt =
+        this.configService.get<string>('ENCRYPTION_SALT') || 'flash-connect-salt-default-16chr';
       this.encryptionKey = crypto.pbkdf2Sync(defaultKey, salt, 100000, 32, 'sha256');
     } else {
       // Derive a proper key from the string using PBKDF2
-      const salt = this.configService.get<string>('ENCRYPTION_SALT') || 'flash-connect-salt-default-16chr';
+      const salt =
+        this.configService.get<string>('ENCRYPTION_SALT') || 'flash-connect-salt-default-16chr';
       this.encryptionKey = crypto.pbkdf2Sync(keyString, salt, 100000, 32, 'sha256');
+    }
+
+    // Set hash salt with consistent default
+    this.hashSalt = this.configService.get<string>('HASH_SALT') || 'pulse-hash-salt-default-value';
+    if (!this.configService.get<string>('HASH_SALT')) {
+      console.warn('WARNING: HASH_SALT not set. Using default salt - DO NOT USE IN PRODUCTION!');
     }
   }
 
@@ -84,7 +95,7 @@ export class CryptoService {
   hash(data: string): string {
     return crypto
       .createHash('sha256')
-      .update(data + this.configService.get<string>('HASH_SALT', 'default-salt'))
+      .update(data + this.hashSalt)
       .digest('hex');
   }
 

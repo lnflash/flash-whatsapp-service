@@ -22,7 +22,7 @@ export enum SecurityEventType {
   MFA_FAILURE = 'MFA_FAILURE',
   PASSWORD_CHANGED = 'PASSWORD_CHANGED',
   ACCOUNT_LOCKED = 'ACCOUNT_LOCKED',
-  WEBHOOK_INVALID = 'WEBHOOK_INVALID'
+  WEBHOOK_INVALID = 'WEBHOOK_INVALID',
 }
 
 export interface SecurityEvent {
@@ -46,7 +46,7 @@ export class SecurityAuditService {
     this.isEnabled = this.configService.get<boolean>('AUDIT_LOG_ENABLED', true);
     this.retentionDays = this.configService.get<number>('AUDIT_LOG_RETENTION_DAYS', 90);
     this.auditLogPath = path.join(process.cwd(), 'logs', 'security-audit');
-    
+
     if (this.isEnabled) {
       this.initializeAuditLog();
     }
@@ -57,7 +57,7 @@ export class SecurityAuditService {
 
     const fullEvent: SecurityEvent = {
       ...event,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
 
     // Log to console with appropriate level
@@ -98,35 +98,37 @@ export class SecurityAuditService {
 
     try {
       const content = await fs.readFile(logFile, 'utf-8');
-      const lines = content.split('\n').filter(line => line.trim());
-      
-      let events = lines.map(line => {
-        try {
-          return JSON.parse(line);
-        } catch {
-          return null;
-        }
-      }).filter(Boolean);
+      const lines = content.split('\n').filter((line) => line.trim());
+
+      let events = lines
+        .map((line) => {
+          try {
+            return JSON.parse(line);
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
 
       // Apply filters
       if (filters) {
         if (filters.type) {
-          events = events.filter(e => e.type === filters.type);
+          events = events.filter((e) => e.type === filters.type);
         }
         if (filters.ip) {
-          events = events.filter(e => e.ip === filters.ip);
+          events = events.filter((e) => e.ip === filters.ip);
         }
         if (filters.userId) {
-          events = events.filter(e => e.userId === filters.userId);
+          events = events.filter((e) => e.userId === filters.userId);
         }
         if (filters.severity) {
-          events = events.filter(e => e.severity === filters.severity);
+          events = events.filter((e) => e.severity === filters.severity);
         }
         if (filters.startDate) {
-          events = events.filter(e => new Date(e.timestamp) >= filters.startDate!);
+          events = events.filter((e) => new Date(e.timestamp) >= filters.startDate!);
         }
         if (filters.endDate) {
-          events = events.filter(e => new Date(e.timestamp) <= filters.endDate!);
+          events = events.filter((e) => new Date(e.timestamp) <= filters.endDate!);
         }
       }
 
@@ -154,25 +156,25 @@ export class SecurityAuditService {
       bySeverity: {
         info: 0,
         warning: 0,
-        critical: 0
+        critical: 0,
       },
       byType: {} as Record<string, number>,
       topIPs: [] as { ip: string; count: number }[],
-      recentCritical: [] as SecurityEvent[]
+      recentCritical: [] as SecurityEvent[],
     };
 
     const ipCounts = new Map<string, number>();
 
-    events.forEach(event => {
+    events.forEach((event) => {
       // Count by severity
       summary.bySeverity[event.severity as keyof typeof summary.bySeverity]++;
-      
+
       // Count by type
       summary.byType[event.type] = (summary.byType[event.type] || 0) + 1;
-      
+
       // Count IPs
       ipCounts.set(event.ip, (ipCounts.get(event.ip) || 0) + 1);
-      
+
       // Collect recent critical events
       if (event.severity === 'critical' && summary.recentCritical.length < 10) {
         summary.recentCritical.push(event);
@@ -200,7 +202,7 @@ export class SecurityAuditService {
   private async writeToAuditLog(event: SecurityEvent) {
     const date = event.timestamp.toISOString().split('T')[0];
     const logFile = path.join(this.auditLogPath, `security-${date}.log`);
-    
+
     try {
       const logEntry = JSON.stringify(event) + '\n';
       await fs.appendFile(logFile, logEntry);
@@ -213,12 +215,12 @@ export class SecurityAuditService {
     try {
       const files = await fs.readdir(this.auditLogPath);
       const cutoffDate = new Date(Date.now() - this.retentionDays * 24 * 60 * 60 * 1000);
-      
+
       for (const file of files) {
         if (file.startsWith('security-') && file.endsWith('.log')) {
           const dateStr = file.replace('security-', '').replace('.log', '');
           const fileDate = new Date(dateStr);
-          
+
           if (fileDate < cutoffDate) {
             await fs.unlink(path.join(this.auditLogPath, file));
             this.logger.log(`Cleaned up old audit log: ${file}`);
@@ -236,7 +238,7 @@ export class SecurityAuditService {
     this.logger.error(`🚨 SECURITY ALERT: ${event.type}`, {
       ip: event.ip,
       userId: event.userId,
-      details: event.details
+      details: event.details,
     });
   }
 }

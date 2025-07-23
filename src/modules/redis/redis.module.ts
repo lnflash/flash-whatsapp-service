@@ -29,12 +29,6 @@ import { WhatsAppIdNormalizer } from '../../common/utils/whatsapp/whatsapp-id-no
     RedisPoolService,
     WhatsAppIdNormalizer,
   ],
-  exports: [
-    RedisService,
-    WhatsAppRedisService,
-    RedisBatchService,
-    RedisPoolService,
-    IoRedisModule,
-  ],
+  exports: [RedisService, WhatsAppRedisService, RedisBatchService, RedisPoolService, IoRedisModule],
 })
 export class RedisModule {}

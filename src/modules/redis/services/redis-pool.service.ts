@@ -95,7 +95,7 @@ export class RedisPoolService implements OnModuleInit, OnModuleDestroy {
    */
   private async createConnection(index: number): Promise<Redis> {
     const redisConfig = this.configService.get('redis');
-    
+
     const options: any = {
       host: redisConfig.host,
       port: redisConfig.port,
@@ -148,12 +148,12 @@ export class RedisPoolService implements OnModuleInit, OnModuleDestroy {
         } else {
           client.once('ready', () => resolve());
           client.once('error', (err) => reject(err));
-          
+
           // Timeout after 5 seconds
           setTimeout(() => reject(new Error('Connection timeout')), 5000);
         }
       });
-      
+
       // Test the connection
       await client.ping();
     } catch (error) {
@@ -161,7 +161,7 @@ export class RedisPoolService implements OnModuleInit, OnModuleDestroy {
       client.disconnect();
       throw error;
     }
-    
+
     return client;
   }
 
@@ -197,7 +197,9 @@ export class RedisPoolService implements OnModuleInit, OnModuleDestroy {
 
       // Check timeout
       if (Date.now() - startTime > this.config.acquireTimeout) {
-        throw new Error(`Failed to acquire Redis connection within ${this.config.acquireTimeout}ms`);
+        throw new Error(
+          `Failed to acquire Redis connection within ${this.config.acquireTimeout}ms`,
+        );
       }
 
       // Wait for a connection to become available
@@ -340,7 +342,7 @@ export class RedisPoolService implements OnModuleInit, OnModuleDestroy {
       if (this.isShuttingDown) return;
 
       const stats = this.getStats();
-      
+
       // Remove excess idle connections
       if (stats.idle > this.config.minConnections && stats.total > this.config.minConnections) {
         const toRemove = Math.min(

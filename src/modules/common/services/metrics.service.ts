@@ -30,7 +30,7 @@ export class MetricsService {
   private readonly counters = new Map<string, number>();
   private readonly gauges = new Map<string, number>();
   private readonly timers = new Map<string, number[]>();
-  
+
   constructor(
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
@@ -73,10 +73,10 @@ export class MetricsService {
     if (!this.metrics.has(name)) {
       this.metrics.set(name, []);
     }
-    
+
     const metricArray = this.metrics.get(name)!;
     metricArray.push(metric);
-    
+
     // Keep only last 1000 values per metric
     if (metricArray.length > 1000) {
       metricArray.shift();
@@ -108,10 +108,10 @@ export class MetricsService {
     if (!this.timers.has(name)) {
       this.timers.set(name, []);
     }
-    
+
     const timerArray = this.timers.get(name)!;
     timerArray.push(milliseconds);
-    
+
     // Keep only last 100 timer values
     if (timerArray.length > 100) {
       timerArray.shift();
@@ -147,7 +147,7 @@ export class MetricsService {
       return null;
     }
 
-    const values = metricArray.map(m => m.value).sort((a, b) => a - b);
+    const values = metricArray.map((m) => m.value).sort((a, b) => a - b);
     const sum = values.reduce((a, b) => a + b, 0);
 
     return {
@@ -255,15 +255,15 @@ export class MetricsService {
       if (values.length > 0) {
         const sorted = values.sort((a, b) => a - b);
         const sum = values.reduce((a, b) => a + b, 0);
-        
+
         lines.push(`# TYPE ${name} histogram`);
         lines.push(`${name}_count ${values.length}`);
         lines.push(`${name}_sum ${sum}`);
-        lines.push(`${name}_bucket{le="50"} ${values.filter(v => v <= 50).length}`);
-        lines.push(`${name}_bucket{le="100"} ${values.filter(v => v <= 100).length}`);
-        lines.push(`${name}_bucket{le="250"} ${values.filter(v => v <= 250).length}`);
-        lines.push(`${name}_bucket{le="500"} ${values.filter(v => v <= 500).length}`);
-        lines.push(`${name}_bucket{le="1000"} ${values.filter(v => v <= 1000).length}`);
+        lines.push(`${name}_bucket{le="50"} ${values.filter((v) => v <= 50).length}`);
+        lines.push(`${name}_bucket{le="100"} ${values.filter((v) => v <= 100).length}`);
+        lines.push(`${name}_bucket{le="250"} ${values.filter((v) => v <= 250).length}`);
+        lines.push(`${name}_bucket{le="500"} ${values.filter((v) => v <= 500).length}`);
+        lines.push(`${name}_bucket{le="1000"} ${values.filter((v) => v <= 1000).length}`);
         lines.push(`${name}_bucket{le="+Inf"} ${values.length}`);
       }
     });
@@ -285,9 +285,9 @@ export class MetricsService {
   @Interval(300000) // Every 5 minutes
   private cleanOldMetrics(): void {
     const cutoff = Date.now() - 3600000; // 1 hour ago
-    
+
     this.metrics.forEach((metricArray, name) => {
-      const filtered = metricArray.filter(m => m.timestamp.getTime() > cutoff);
+      const filtered = metricArray.filter((m) => m.timestamp.getTime() > cutoff);
       if (filtered.length !== metricArray.length) {
         this.metrics.set(name, filtered);
       }
@@ -299,8 +299,9 @@ export class MetricsService {
    */
   @Interval(60000) // Every minute
   private logMetricsSummary(): void {
-    const activeMetrics = this.metrics.size + this.counters.size + this.gauges.size + this.timers.size;
-    
+    const activeMetrics =
+      this.metrics.size + this.counters.size + this.gauges.size + this.timers.size;
+
     if (activeMetrics > 0) {
       this.logger.debug(`Active metrics: ${activeMetrics}`);
     }

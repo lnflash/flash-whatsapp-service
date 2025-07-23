@@ -84,7 +84,7 @@ export class SessionService {
         // Return null instead of throwing to prevent repeated errors
         return null;
       }
-      
+
       this.logger.error(`Error getting session: ${error.message}`, error.stack);
       return null;
     }

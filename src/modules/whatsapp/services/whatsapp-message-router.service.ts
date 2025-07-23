@@ -21,7 +21,7 @@ export class WhatsAppMessageRouter {
   @OnEvent('whatsapp.message')
   async handleIncomingMessage(payload: { phoneNumber: string; message: Message }) {
     const { phoneNumber, message } = payload;
-    
+
     try {
       this.logger.debug(`Routing message from instance ${phoneNumber}: ${message.body}`);
 
@@ -48,13 +48,13 @@ export class WhatsAppMessageRouter {
       }
     } catch (error) {
       this.logger.error(`Error handling message from instance ${phoneNumber}:`, error);
-      
+
       // Send error message back to user
       try {
         await this.sendResponse(
           phoneNumber,
           message.from,
-          '❌ Sorry, an error occurred processing your message. Please try again.'
+          '❌ Sorry, an error occurred processing your message. Please try again.',
         );
       } catch (sendError) {
         this.logger.error(`Failed to send error message:`, sendError);
@@ -68,10 +68,10 @@ export class WhatsAppMessageRouter {
   async sendMessage(
     instancePhone: string,
     recipient: string,
-    content: string | { text: string; media?: Buffer; voice?: Buffer }
+    content: string | { text: string; media?: Buffer; voice?: Buffer },
   ): Promise<boolean> {
     const instance = this.instanceManager.getInstance(instancePhone);
-    
+
     if (!instance || instance.status !== 'ready') {
       this.logger.error(`Instance ${instancePhone} not ready for sending`);
       return false;
@@ -88,10 +88,13 @@ export class WhatsAppMessageRouter {
         if (content.text) {
           await client.sendMessage(recipient, content.text);
         }
-        
+
         if (content.voice) {
           // Send voice message
-          const media = new MessageMedia('audio/ogg; codecs=opus', content.voice.toString('base64'));
+          const media = new MessageMedia(
+            'audio/ogg; codecs=opus',
+            content.voice.toString('base64'),
+          );
           await client.sendMessage(recipient, media, { sendAudioAsVoice: true });
         } else if (content.media) {
           // Send regular media
@@ -114,7 +117,7 @@ export class WhatsAppMessageRouter {
   private async sendResponse(
     instancePhone: string,
     recipient: string,
-    response: string | { text: string; media?: Buffer; voice?: Buffer; voiceOnly?: boolean }
+    response: string | { text: string; media?: Buffer; voice?: Buffer; voiceOnly?: boolean },
   ): Promise<void> {
     if (typeof response === 'string') {
       await this.sendMessage(instancePhone, recipient, response);
@@ -135,10 +138,10 @@ export class WhatsAppMessageRouter {
    */
   async findBestInstance(recipient?: string): Promise<string | null> {
     const instances = this.instanceManager.getAllInstances();
-    
+
     // Filter ready instances
-    const readyInstances = instances.filter(i => i.status === 'ready');
-    
+    const readyInstances = instances.filter((i) => i.status === 'ready');
+
     if (readyInstances.length === 0) {
       return null;
     }
@@ -157,7 +160,7 @@ export class WhatsAppMessageRouter {
    */
   async broadcastMessage(
     recipient: string,
-    content: string | { text: string; media?: Buffer; voice?: Buffer }
+    content: string | { text: string; media?: Buffer; voice?: Buffer },
   ): Promise<{ instance: string; success: boolean }[]> {
     const instances = this.instanceManager.getAllInstances();
     const results: { instance: string; success: boolean }[] = [];
@@ -177,10 +180,10 @@ export class WhatsAppMessageRouter {
    */
   getRoutingStats() {
     const instances = this.instanceManager.getAllInstances();
-    
+
     return {
       totalInstances: instances.length,
-      readyInstances: instances.filter(i => i.status === 'ready').length,
+      readyInstances: instances.filter((i) => i.status === 'ready').length,
       messagesRouted: {
         // These would be tracked with counters in production
         total: 0,

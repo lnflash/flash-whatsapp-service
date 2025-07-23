@@ -99,12 +99,12 @@ export class CacheManagerService {
     } catch (error) {
       this.metrics.errors++;
       this.logger.error(`Cache error for key ${cacheKey}:`, error);
-      
+
       // Fallback to factory if available
       if (factory) {
         return await factory();
       }
-      
+
       throw error;
     }
   }
@@ -112,20 +112,12 @@ export class CacheManagerService {
   /**
    * Set a value in cache
    */
-  async set<T>(
-    key: string | CacheKey,
-    value: T,
-    options: CacheOptions = {},
-  ): Promise<void> {
+  async set<T>(key: string | CacheKey, value: T, options: CacheOptions = {}): Promise<void> {
     const cacheKey = this.buildKey(key, options.prefix);
     const ttl = options.ttl || this.getDefaultTTL(key);
 
     try {
-      await this.redisService.set(
-        cacheKey,
-        JSON.stringify(value),
-        ttl,
-      );
+      await this.redisService.set(cacheKey, JSON.stringify(value), ttl);
       this.logger.debug(`Cached key ${cacheKey} with TTL ${ttl}s`);
     } catch (error) {
       this.metrics.errors++;
@@ -173,17 +165,20 @@ export class CacheManagerService {
   /**
    * Get multiple values in a single operation
    */
-  async mget<T>(keys: Array<string | CacheKey>, options: CacheOptions = {}): Promise<Map<string, T | null>> {
-    const cacheKeys = keys.map(key => this.buildKey(key, options.prefix));
+  async mget<T>(
+    keys: Array<string | CacheKey>,
+    options: CacheOptions = {},
+  ): Promise<Map<string, T | null>> {
+    const cacheKeys = keys.map((key) => this.buildKey(key, options.prefix));
     const result = new Map<string, T | null>();
 
     try {
       const values = await this.redisService.mget(...cacheKeys);
-      
+
       keys.forEach((key, index) => {
         const value = values[index];
         const cacheKey = this.buildKey(key, options.prefix);
-        
+
         if (value) {
           this.metrics.hits++;
           result.set(cacheKey, JSON.parse(value));
@@ -217,7 +212,7 @@ export class CacheManagerService {
       for (const entry of entries) {
         const cacheKey = this.buildKey(entry.key, options.prefix);
         const ttl = entry.ttl || options.ttl || this.getDefaultTTL(entry.key);
-        
+
         pipeline.set(cacheKey, JSON.stringify(entry.value), 'EX', ttl);
       }
 
@@ -296,7 +291,7 @@ export class CacheManagerService {
    */
   private getDefaultTTL(key: string | CacheKey): number {
     const keyStr = typeof key === 'string' ? key : key.prefix;
-    
+
     // Check if key matches any default TTL pattern
     for (const [pattern, ttl] of Object.entries(this.defaultTTLs)) {
       if (keyStr.toLowerCase().includes(pattern)) {
@@ -311,9 +306,11 @@ export class CacheManagerService {
   /**
    * Warm cache with frequently accessed data
    */
-  async warmCache(warmupData: Array<{ key: string | CacheKey; factory: () => Promise<any>; ttl?: number }>): Promise<void> {
+  async warmCache(
+    warmupData: Array<{ key: string | CacheKey; factory: () => Promise<any>; ttl?: number }>,
+  ): Promise<void> {
     this.logger.log(`Warming cache with ${warmupData.length} entries...`);
-    
+
     const results = await Promise.allSettled(
       warmupData.map(async ({ key, factory, ttl }) => {
         try {
@@ -327,7 +324,7 @@ export class CacheManagerService {
       }),
     );
 
-    const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+    const successful = results.filter((r) => r.status === 'fulfilled' && r.value.success).length;
     this.logger.log(`Cache warming complete: ${successful}/${warmupData.length} entries loaded`);
   }
 
@@ -340,27 +337,27 @@ export class CacheManagerService {
       identifier: userId,
       suffix: currency,
     }),
-    
+
     price: (currency: string): CacheKey => ({
       prefix: 'price',
       identifier: currency.toUpperCase(),
     }),
-    
+
     username: (username: string): CacheKey => ({
       prefix: 'username',
       identifier: username.toLowerCase(),
     }),
-    
+
     transaction: (txId: string): CacheKey => ({
       prefix: 'transaction',
       identifier: txId,
     }),
-    
+
     session: (sessionId: string): CacheKey => ({
       prefix: 'session',
       identifier: sessionId,
     }),
-    
+
     user: (userId: string, dataType: string): CacheKey => ({
       prefix: 'user',
       identifier: userId,

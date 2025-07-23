@@ -51,10 +51,10 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     // Apply security middleware first (to block malicious requests early)
     consumer.apply(SecurityMiddleware).forRoutes('*');
-    
+
     // Apply rate limiting to API routes
     consumer.apply(ApiRateLimitMiddleware).forRoutes('/api/*');
-    
+
     // Apply metrics middleware to all routes
     consumer.apply(MetricsMiddleware).forRoutes('*');
   }

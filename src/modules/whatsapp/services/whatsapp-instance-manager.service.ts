@@ -37,7 +37,7 @@ export class WhatsAppInstanceManager implements OnModuleDestroy {
    */
   async createInstance(config: InstanceConfig): Promise<WhatsAppInstance> {
     const phoneNumber = config.phoneNumber;
-    
+
     // Check if instance already exists
     if (this.instances.has(phoneNumber)) {
       this.logger.warn(`Instance for ${phoneNumber} already exists`);
@@ -143,7 +143,7 @@ export class WhatsAppInstanceManager implements OnModuleDestroy {
 
     // Remove from map
     this.instances.delete(phoneNumber);
-    
+
     // Free up the port
     this.freePort(instance.client);
   }
@@ -161,7 +161,7 @@ export class WhatsAppInstanceManager implements OnModuleDestroy {
    */
   async restartInstance(phoneNumber: string): Promise<WhatsAppInstance> {
     this.logger.log(`Restarting instance for ${phoneNumber}`);
-    
+
     // Get current config
     const currentInstance = this.instances.get(phoneNumber);
     const config: InstanceConfig = {
@@ -174,7 +174,7 @@ export class WhatsAppInstanceManager implements OnModuleDestroy {
     await this.removeInstance(phoneNumber);
 
     // Wait a bit for cleanup
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
     // Create new instance
     return this.createInstance(config);
@@ -190,10 +190,10 @@ export class WhatsAppInstanceManager implements OnModuleDestroy {
       this.logger.log(`QR code received for ${phoneNumber}`);
       instance.status = 'qr_pending';
       instance.qrCode = qr;
-      
+
       // Display QR in terminal
       qrcode.generate(qr, { small: true });
-      
+
       // Emit event for external handling
       this.eventEmitter.emit('whatsapp.qr', { phoneNumber, qr });
     });
@@ -202,7 +202,7 @@ export class WhatsAppInstanceManager implements OnModuleDestroy {
       this.logger.log(`Authenticated for ${phoneNumber}`);
       instance.status = 'authenticated';
       instance.qrCode = undefined;
-      
+
       this.eventEmitter.emit('whatsapp.authenticated', { phoneNumber });
     });
 
@@ -210,20 +210,20 @@ export class WhatsAppInstanceManager implements OnModuleDestroy {
       this.logger.log(`WhatsApp client ready for ${phoneNumber}`);
       instance.status = 'ready';
       instance.lastActivity = new Date();
-      
+
       this.eventEmitter.emit('whatsapp.ready', { phoneNumber });
     });
 
     client.on('disconnected', (reason) => {
       this.logger.warn(`WhatsApp client disconnected for ${phoneNumber}: ${reason}`);
       instance.status = 'disconnected';
-      
+
       this.eventEmitter.emit('whatsapp.disconnected', { phoneNumber, reason });
     });
 
     client.on('message', async (message) => {
       instance.lastActivity = new Date();
-      
+
       // Emit message with instance information
       this.eventEmitter.emit('whatsapp.message', {
         phoneNumber,
@@ -235,7 +235,7 @@ export class WhatsAppInstanceManager implements OnModuleDestroy {
       // Handle sent messages
       if (message.fromMe) {
         instance.lastActivity = new Date();
-        
+
         this.eventEmitter.emit('whatsapp.message_sent', {
           phoneNumber,
           message,
@@ -264,15 +264,15 @@ export class WhatsAppInstanceManager implements OnModuleDestroy {
    */
   async onModuleDestroy(): Promise<void> {
     this.logger.log('Cleaning up all WhatsApp instances...');
-    
-    const removePromises = Array.from(this.instances.keys()).map(phoneNumber =>
-      this.removeInstance(phoneNumber).catch(err => 
-        this.logger.error(`Error removing instance ${phoneNumber}:`, err)
-      )
+
+    const removePromises = Array.from(this.instances.keys()).map((phoneNumber) =>
+      this.removeInstance(phoneNumber).catch((err) =>
+        this.logger.error(`Error removing instance ${phoneNumber}:`, err),
+      ),
     );
 
     await Promise.all(removePromises);
-    
+
     this.logger.log('All WhatsApp instances cleaned up');
   }
 
@@ -281,13 +281,13 @@ export class WhatsAppInstanceManager implements OnModuleDestroy {
    */
   getMetrics() {
     const instances = Array.from(this.instances.values());
-    
+
     return {
       total: instances.length,
-      ready: instances.filter(i => i.status === 'ready').length,
-      disconnected: instances.filter(i => i.status === 'disconnected').length,
-      failed: instances.filter(i => i.status === 'failed').length,
-      instances: instances.map(i => ({
+      ready: instances.filter((i) => i.status === 'ready').length,
+      disconnected: instances.filter((i) => i.status === 'disconnected').length,
+      failed: instances.filter((i) => i.status === 'failed').length,
+      instances: instances.map((i) => ({
         phoneNumber: i.phoneNumber,
         status: i.status,
         createdAt: i.createdAt,

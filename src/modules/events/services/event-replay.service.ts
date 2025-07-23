@@ -73,10 +73,10 @@ export class EventReplayService {
     try {
       // Get events to replay
       const events = await this.getEventsForReplay(options);
-      
+
       this.logger.log(
         `Starting event replay: ${events.length} events found ` +
-        `(types: ${options.eventTypes?.join(', ') || 'all'})`,
+          `(types: ${options.eventTypes?.join(', ') || 'all'})`,
       );
 
       // Initialize progress
@@ -125,24 +125,24 @@ export class EventReplayService {
 
       this.logger.log(
         `Event replay completed: ${result.eventsProcessed} processed, ` +
-        `${result.eventsSkipped} skipped, ${result.eventsFailed} failed ` +
-        `(${result.duration}ms)`,
+          `${result.eventsSkipped} skipped, ${result.eventsFailed} failed ` +
+          `(${result.duration}ms)`,
       );
 
       return result;
     } catch (error) {
       this.logger.error('Event replay failed:', error);
-      
+
       if (this.currentReplay) {
         this.currentReplay.status = 'failed';
       }
-      
+
       result.success = false;
       result.duration = Date.now() - startTime;
-      
+
       // Emit failure event
       this.eventEmitter.emit('replay.failed', { error: error.message, result });
-      
+
       throw error;
     } finally {
       this.replayAbortController = null;
@@ -198,7 +198,7 @@ export class EventReplayService {
    */
   async getReplayHistory(limit: number = 10): Promise<any[]> {
     const history = await this.redis.lrange(this.replayHistoryKey, 0, limit - 1);
-    return history.map(item => JSON.parse(item));
+    return history.map((item) => JSON.parse(item));
   }
 
   /**
@@ -206,7 +206,7 @@ export class EventReplayService {
    */
   async replayEventById(eventId: string, options: ReplayOptions = {}): Promise<void> {
     const event = await this.getEventById(eventId);
-    
+
     if (!event) {
       throw new Error(`Event not found: ${eventId}`);
     }
@@ -230,39 +230,33 @@ export class EventReplayService {
    */
   private async getEventsForReplay(options: ReplayOptions): Promise<EventPayload[]> {
     const events: EventPayload[] = [];
-    
+
     // Get event IDs from timeline
     const startScore = options.startTime ? options.startTime.getTime() : '-inf';
     const endScore = options.endTime ? options.endTime.getTime() : '+inf';
-    
-    const eventIds = await this.redis.zrangebyscore(
-      'events:timeline',
-      startScore,
-      endScore,
-    );
+
+    const eventIds = await this.redis.zrangebyscore('events:timeline', startScore, endScore);
 
     // Fetch events
     for (const eventId of eventIds) {
       const event = await this.getEventById(eventId);
-      
+
       if (event) {
         // Apply filters
         if (options.eventTypes && !options.eventTypes.includes(event.type)) {
           continue;
         }
-        
+
         if (options.filter && !options.filter(event)) {
           continue;
         }
-        
+
         events.push(event);
       }
     }
 
     // Sort by timestamp
-    events.sort((a, b) => 
-      new Date(a.timestamp!).getTime() - new Date(b.timestamp!).getTime()
-    );
+    events.sort((a, b) => new Date(a.timestamp!).getTime() - new Date(b.timestamp!).getTime());
 
     return events;
   }
@@ -273,7 +267,7 @@ export class EventReplayService {
   private async getEventById(eventId: string): Promise<EventPayload | null> {
     const key = `${this.eventPrefix}${eventId}`;
     const data = await this.redis.get(key);
-    
+
     if (!data) {
       return null;
     }
@@ -301,7 +295,7 @@ export class EventReplayService {
 
       // Wait if paused
       while (this.currentReplay?.status === 'paused') {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
 
       this.currentReplay!.currentEvent = event;
@@ -314,9 +308,10 @@ export class EventReplayService {
             const currentTime = new Date(event.timestamp!).getTime();
             const nextTime = new Date(events[nextEventIndex].timestamp!).getTime();
             const delay = (nextTime - currentTime) / options.speed;
-            
-            if (delay > 0 && delay < 60000) { // Max 1 minute delay
-              await new Promise(resolve => setTimeout(resolve, delay));
+
+            if (delay > 0 && delay < 60000) {
+              // Max 1 minute delay
+              await new Promise((resolve) => setTimeout(resolve, delay));
             }
           }
         }
@@ -357,7 +352,7 @@ export class EventReplayService {
 
     if (rate > 0 && processedEvents < totalEvents) {
       const remaining = totalEvents - processedEvents;
-      const estimatedTime = remaining / rate * 1000;
+      const estimatedTime = (remaining / rate) * 1000;
       this.currentReplay.estimatedCompletion = new Date(Date.now() + estimatedTime);
     }
 
@@ -368,10 +363,7 @@ export class EventReplayService {
   /**
    * Save replay history
    */
-  private async saveReplayHistory(
-    result: ReplayResult,
-    options: ReplayOptions,
-  ): Promise<void> {
+  private async saveReplayHistory(result: ReplayResult, options: ReplayOptions): Promise<void> {
     const historyEntry = {
       timestamp: new Date(),
       result,
@@ -385,7 +377,7 @@ export class EventReplayService {
     };
 
     await this.redis.lpush(this.replayHistoryKey, JSON.stringify(historyEntry));
-    
+
     // Keep only last 100 entries
     await this.redis.ltrim(this.replayHistoryKey, 0, 99);
   }
@@ -393,9 +385,7 @@ export class EventReplayService {
   /**
    * Export events to file
    */
-  async exportEvents(
-    options: ReplayOptions & { format?: 'json' | 'csv' },
-  ): Promise<string> {
+  async exportEvents(options: ReplayOptions & { format?: 'json' | 'csv' }): Promise<string> {
     const events = await this.getEventsForReplay(options);
     const format = options.format || 'json';
 
@@ -404,7 +394,7 @@ export class EventReplayService {
     } else if (format === 'csv') {
       // Convert to CSV
       const headers = ['id', 'type', 'source', 'timestamp', 'data'];
-      const rows = events.map(event => [
+      const rows = events.map((event) => [
         event.id,
         event.type,
         event.source,
@@ -414,7 +404,7 @@ export class EventReplayService {
 
       return [
         headers.join(','),
-        ...rows.map(row => row.map(cell => `"${cell}"`).join(',')),
+        ...rows.map((row) => row.map((cell) => `"${cell}"`).join(',')),
       ].join('\n');
     }
 
@@ -424,10 +414,7 @@ export class EventReplayService {
   /**
    * Import events from data
    */
-  async importEvents(
-    data: string,
-    format: 'json' | 'csv' = 'json',
-  ): Promise<number> {
+  async importEvents(data: string, format: 'json' | 'csv' = 'json'): Promise<number> {
     let events: EventPayload[] = [];
 
     if (format === 'json') {
@@ -436,11 +423,11 @@ export class EventReplayService {
       // Parse CSV
       const lines = data.split('\n');
       const headers = lines[0].split(',');
-      
+
       for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',').map(v => v.replace(/^"|"$/g, ''));
+        const values = lines[i].split(',').map((v) => v.replace(/^"|"$/g, ''));
         const event: any = {};
-        
+
         headers.forEach((header, index) => {
           const value = values[index];
           if (header === 'data') {
@@ -451,7 +438,7 @@ export class EventReplayService {
             event[header] = value;
           }
         });
-        
+
         events.push(event as EventPayload);
       }
     }
@@ -462,16 +449,12 @@ export class EventReplayService {
       if (event.id && event.type && event.source) {
         const key = `${this.eventPrefix}${event.id}`;
         await this.redis.set(key, JSON.stringify(event));
-        
+
         // Add to timeline
         if (event.timestamp) {
-          await this.redis.zadd(
-            'events:timeline',
-            new Date(event.timestamp).getTime(),
-            event.id,
-          );
+          await this.redis.zadd('events:timeline', new Date(event.timestamp).getTime(), event.id);
         }
-        
+
         imported++;
       }
     }

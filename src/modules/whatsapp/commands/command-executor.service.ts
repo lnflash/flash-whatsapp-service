@@ -2,7 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { CommandRegistry } from './command-registry.service';
 import { CommandContextBuilder } from './base/command-context.builder';
 import { CommandContext } from './base/command-context.interface';
-import { CommandResult, CommandResultBuilder, CommandErrorCode } from './base/command-result.interface';
+import {
+  CommandResult,
+  CommandResultBuilder,
+  CommandErrorCode,
+} from './base/command-result.interface';
 import { CommandType, CommandData } from '../services/command-parser.service';
 import { UserSession } from '../../auth/interfaces/user-session.interface';
 import { AdminSettingsService } from '../services/admin-settings.service';
@@ -65,7 +69,7 @@ export class CommandExecutorService {
 
       // Find handler
       const handler = this.commandRegistry.getHandlerByCommandType(params.command);
-      
+
       if (!handler) {
         this.logger.warn(`No handler found for command: ${params.command}`);
         return this.createUnknownCommandResult(context);
@@ -94,7 +98,6 @@ export class CommandExecutorService {
       });
 
       return result;
-
     } catch (error) {
       this.logger.error(`Error executing command ${params.command}:`, error);
 
@@ -123,9 +126,10 @@ export class CommandExecutorService {
     }
 
     // For text commands, provide more detailed help
-    const availableCommands = this.commandRegistry.getAllHandlers()
-      .filter(h => !h.adminOnly || context.isAdmin)
-      .map(h => `/${h.command}`)
+    const availableCommands = this.commandRegistry
+      .getAllHandlers()
+      .filter((h) => !h.adminOnly || context.isAdmin)
+      .map((h) => `/${h.command}`)
       .slice(0, 5)
       .join(', ');
 
@@ -139,8 +143,7 @@ export class CommandExecutorService {
    * Get command suggestions based on partial input
    */
   getCommandSuggestions(partialCommand: string, isAdmin = false): string[] {
-    const handlers = this.commandRegistry.getAllHandlers()
-      .filter(h => !h.adminOnly || isAdmin);
+    const handlers = this.commandRegistry.getAllHandlers().filter((h) => !h.adminOnly || isAdmin);
 
     const suggestions: string[] = [];
     const partial = partialCommand.toLowerCase();
@@ -170,7 +173,7 @@ export class CommandExecutorService {
    */
   isValidCommand(command: string, isAdmin = false): boolean {
     const handler = this.commandRegistry.getHandler(command);
-    
+
     if (!handler) {
       return false;
     }

@@ -3,18 +3,18 @@ export interface CommandResult {
   message?: string;
   data?: any;
   error?: CommandError;
-  
+
   // Response options
   voice?: Buffer;
   voiceOnly?: boolean;
   media?: Buffer;
   mediaCaption?: string;
   buttons?: Array<{ id: string; title: string }>;
-  
+
   // Control flow
   skipFollowUp?: boolean;
   followUpCommands?: string[];
-  
+
   // Metrics
   executionTime?: number;
   apiCallsCount?: number;
@@ -32,18 +32,18 @@ export enum CommandErrorCode {
   INVALID_ARGUMENTS = 'INVALID_ARGUMENTS',
   MISSING_REQUIRED_FIELD = 'MISSING_REQUIRED_FIELD',
   INVALID_FORMAT = 'INVALID_FORMAT',
-  
+
   // Authentication errors
   NOT_AUTHENTICATED = 'NOT_AUTHENTICATED',
   SESSION_EXPIRED = 'SESSION_EXPIRED',
   INSUFFICIENT_PERMISSIONS = 'INSUFFICIENT_PERMISSIONS',
-  
+
   // Business logic errors
   INSUFFICIENT_BALANCE = 'INSUFFICIENT_BALANCE',
   USER_NOT_FOUND = 'USER_NOT_FOUND',
   TRANSACTION_FAILED = 'TRANSACTION_FAILED',
   RATE_LIMITED = 'RATE_LIMITED',
-  
+
   // System errors
   EXTERNAL_API_ERROR = 'EXTERNAL_API_ERROR',
   DATABASE_ERROR = 'DATABASE_ERROR',

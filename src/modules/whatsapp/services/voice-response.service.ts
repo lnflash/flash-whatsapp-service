@@ -77,7 +77,7 @@ export class VoiceResponseService {
    */
   private extractResponseData(response: string): Record<string, any> {
     const data: Record<string, any> = {};
-    
+
     // Check for pending payments in welcome message
     if (response.includes('pending payment') && response.includes('credited')) {
       data.pendingPayments = true;
@@ -154,7 +154,7 @@ export class VoiceResponseService {
       const amount = args?.amount || 'the payment';
       const amountInWords = amount !== 'the payment' ? convertCurrencyToWords(amount) : amount;
       const recipient = args?.username || args?.recipient || 'them';
-      
+
       // Create varied success responses
       const responses = [
         `Perfect! I've sent ${amountInWords} to ${recipient}. They should receive it instantly.`,
@@ -162,7 +162,7 @@ export class VoiceResponseService {
         `Great! Your payment of ${amountInWords} to ${recipient} has been completed. They'll get a notification right away.`,
         `Success! I've transferred ${amountInWords} to ${recipient}'s Flash account. The money is already in their wallet.`,
       ];
-      
+
       // Pick a random response for variety
       return responses[Math.floor(Math.random() * responses.length)];
     } else if (data.isError) {
@@ -314,8 +314,9 @@ export class VoiceResponseService {
     }
 
     // Main help menu - personalized if we have a name
-    const greeting = userName && userName !== 'there' ? `Hey ${userName.split(' ')[0]}!` : `Hey there!`;
-    
+    const greeting =
+      userName && userName !== 'there' ? `Hey ${userName.split(' ')[0]}!` : `Hey there!`;
+
     return `${greeting} Here's what I can help you with today. You can check your balance anytime - just say "balance". Need to send money? Tell me the amount and who to send it to, like "send 20 to mike". Want to receive money? Say "receive" and the amount. I can also show you your transaction history, help you play games to earn sats, and much more. What would you like to do?`;
   }
 
@@ -679,28 +680,31 @@ export class VoiceResponseService {
   /**
    * Generate natural welcome message for voice
    */
-  private generateWelcomeVoiceResponse(data: Record<string, any>, context?: Record<string, any>): string {
+  private generateWelcomeVoiceResponse(
+    data: Record<string, any>,
+    context?: Record<string, any>,
+  ): string {
     const userName = context?.userName || 'there';
     const firstName = userName === 'there' ? '' : userName.split(' ')[0];
-    
+
     let response = '';
-    
+
     if (firstName && firstName !== 'there') {
       response = `Welcome ${firstName}! Great news, your Flash account is now connected. `;
     } else {
       response = `Welcome! Your Flash account is successfully connected. `;
     }
-    
+
     // Check if there were pending payments claimed
     if (data.pendingPayments) {
       response += `Even better, you had some money waiting for you that's now in your account. `;
     }
-    
+
     response += `I'm Pulse, your personal assistant for sending and receiving money through WhatsApp. `;
     response += `You can ask me things like 'what's my balance' or 'send 10 dollars to John'. `;
     response += `To see everything I can do, just say 'help'. `;
     response += `Ready to get started? Try asking for your balance!`;
-    
+
     return response;
   }
 }

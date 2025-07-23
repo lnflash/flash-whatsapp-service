@@ -2,7 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { BaseCommandHandler } from '../base/base-command.handler';
 import { CommandCategory } from '../base/command-handler.interface';
 import { CommandContext } from '../base/command-context.interface';
-import { CommandResult, CommandResultBuilder, CommandErrorCode } from '../base/command-result.interface';
+import {
+  CommandResult,
+  CommandResultBuilder,
+  CommandErrorCode,
+} from '../base/command-result.interface';
 import { AuthService } from '../../../auth/services/auth.service';
 import { UsernameService } from '../../../flash-api/services/username.service';
 import { VoiceResponseService } from '../../services/voice-response.service';
@@ -37,7 +41,7 @@ export class LinkCommandHandler extends BaseCommandHandler {
     if (context.session) {
       return CommandResultBuilder.success(
         `✅ Your WhatsApp is already linked to @${context.username || 'your account'}\n\n` +
-        `To link a different account, first use /unlink`
+          `To link a different account, first use /unlink`,
       ).build();
     }
 
@@ -56,8 +60,9 @@ export class LinkCommandHandler extends BaseCommandHandler {
       if (!user) {
         return CommandResultBuilder.error({
           code: CommandErrorCode.USER_NOT_FOUND,
-          message: `❌ Username @${commandData.username} not found.\n\n` +
-                  `Please check your username and try again.`,
+          message:
+            `❌ Username @${commandData.username} not found.\n\n` +
+            `Please check your username and try again.`,
         }).build();
       }
 
@@ -71,7 +76,8 @@ export class LinkCommandHandler extends BaseCommandHandler {
       };
 
       // Get welcome message
-      const welcomeMessage = `✅ *Account Linked Successfully!*\n\n` +
+      const welcomeMessage =
+        `✅ *Account Linked Successfully!*\n\n` +
         `Your WhatsApp is now connected to Flash account @${commandData.username}\n\n` +
         `You can now:\n` +
         `• Check balance: /balance\n` +
@@ -102,13 +108,10 @@ export class LinkCommandHandler extends BaseCommandHandler {
           .build();
       }
 
-      return CommandResultBuilder.success(fullMessage)
-        .withData({ session })
-        .build();
-
+      return CommandResultBuilder.success(fullMessage).withData({ session }).build();
     } catch (error) {
       this.logger.error('Error linking account:', error);
-      
+
       return CommandResultBuilder.error({
         code: CommandErrorCode.INTERNAL_ERROR,
         message: '❌ Failed to link your account. Please try again later.',
@@ -119,7 +122,7 @@ export class LinkCommandHandler extends BaseCommandHandler {
 
   async validate(context: CommandContext): Promise<boolean> {
     const { commandData } = context;
-    
+
     // Username is required
     if (!commandData.username || commandData.username.trim().length === 0) {
       return false;
@@ -128,7 +131,7 @@ export class LinkCommandHandler extends BaseCommandHandler {
     // Basic username validation
     const username = commandData.username.trim();
     const usernameRegex = /^[a-zA-Z0-9_]{3,30}$/;
-    
+
     return usernameRegex.test(username);
   }
 }

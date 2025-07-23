@@ -8,22 +8,22 @@ export class SanitizeInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest<Request>();
-    
+
     // Sanitize request body
     if (request.body && typeof request.body === 'object') {
       request.body = this.sanitizeObject(request.body);
     }
-    
+
     // Sanitize query parameters
     if (request.query && typeof request.query === 'object') {
       request.query = this.sanitizeObject(request.query);
     }
-    
+
     // Sanitize params
     if (request.params && typeof request.params === 'object') {
       request.params = this.sanitizeObject(request.params);
     }
-    
+
     return next.handle();
   }
 
@@ -33,7 +33,7 @@ export class SanitizeInterceptor implements NestInterceptor {
     }
 
     if (Array.isArray(obj)) {
-      return obj.map(item => this.sanitizeObject(item));
+      return obj.map((item) => this.sanitizeObject(item));
     }
 
     if (typeof obj === 'object') {
@@ -41,13 +41,13 @@ export class SanitizeInterceptor implements NestInterceptor {
       for (const [key, value] of Object.entries(obj)) {
         // Sanitize the key
         const sanitizedKey = this.sanitizeString(key);
-        
+
         // Skip if key contains suspicious patterns
         if (this.isSuspiciousKey(sanitizedKey)) {
           this.logger.warn(`Suspicious key detected and removed: ${key}`);
           continue;
         }
-        
+
         // Sanitize the value
         if (typeof value === 'string') {
           sanitized[sanitizedKey] = this.sanitizeString(value);
@@ -69,35 +69,35 @@ export class SanitizeInterceptor implements NestInterceptor {
 
   private sanitizeString(str: string): string {
     if (typeof str !== 'string') return str;
-    
+
     // Remove null bytes
     let sanitized = str.replace(/\0/g, '');
-    
+
     // Trim whitespace
     sanitized = sanitized.trim();
-    
+
     // Remove or encode dangerous characters for different contexts
     // This is a basic sanitization - adjust based on your needs
-    
+
     // Remove script tags and their content
     sanitized = sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-    
+
     // Remove event handlers
     sanitized = sanitized.replace(/on\w+\s*=\s*["'][^"']*["']/gi, '');
-    
+
     // Remove javascript: protocol
     sanitized = sanitized.replace(/javascript:/gi, '');
-    
+
     // Remove SQL comment indicators
     sanitized = sanitized.replace(/--/g, '');
-    
+
     // Limit string length to prevent DoS
     const maxLength = 10000;
     if (sanitized.length > maxLength) {
       sanitized = sanitized.substring(0, maxLength);
       this.logger.warn('String truncated due to excessive length');
     }
-    
+
     return sanitized;
   }
 
@@ -134,9 +134,9 @@ export class SanitizeInterceptor implements NestInterceptor {
       'findOneAndUpdate',
       'drop',
       'create',
-      'rename'
+      'rename',
     ];
-    
-    return suspiciousPatterns.some(pattern => key.includes(pattern));
+
+    return suspiciousPatterns.some((pattern) => key.includes(pattern));
   }
 }
