@@ -4970,10 +4970,14 @@ ${voiceList}`;
       switch (action) {
         case 'status': {
           const status = this.whatsappWebService.getStatus();
-          if (status.connected) {
-            return `✅ *WhatsApp Status*\n\nConnected: Yes\nNumber: ${status.number}\nName: ${status.name || 'Unknown'}`;
+          const readyInstances = status.instances.filter(i => i.connected);
+          if (readyInstances.length > 0) {
+            const instanceInfo = status.instances.map(i => 
+              `• ${i.phoneNumber}: ${i.connected ? '✅ Connected' : '❌ Disconnected'} (${i.number || 'Unknown'})`
+            ).join('\n');
+            return `✅ *WhatsApp Status*\n\nActive Instances: ${readyInstances.length}/${status.instances.length}\n\n${instanceInfo}`;
           } else {
-            return `❌ *WhatsApp Status*\n\nConnected: No\n\nUse \`admin reconnect\` to connect a new number.`;
+            return `❌ *WhatsApp Status*\n\nNo instances connected\n\nUse \`admin reconnect\` to connect a new number.`;
           }
         }
 
@@ -4989,8 +4993,13 @@ ${voiceList}`;
               // Wait a bit to ensure message is sent
               await new Promise((resolve) => setTimeout(resolve, 3000));
 
-              // Now disconnect with logout
-              await this.whatsappWebService.disconnect(true);
+              // Now disconnect all instances with logout
+              const instances = this.whatsappWebService.getStatus();
+              for (const instance of instances.instances) {
+                if (instance.connected) {
+                  await this.whatsappWebService.disconnect(instance.phoneNumber, true);
+                }
+              }
             }
 
             // This response won't be sent via WhatsApp, but will show in logs
@@ -5002,8 +5011,11 @@ ${voiceList}`;
 
         case 'clear-session': {
           try {
-            // Clear the session - this will handle the messaging internally
-            await this.whatsappWebService.clearSession();
+            // Clear all instance sessions
+            const instances = this.whatsappWebService.getStatus();
+            for (const instance of instances.instances) {
+              await this.whatsappWebService.clearSession(instance.phoneNumber);
+            }
 
             // Return a message for logging purposes only
             // The actual user notification is handled by clearSession()
@@ -5015,8 +5027,14 @@ ${voiceList}`;
 
         case 'reconnect': {
           try {
-            // Use the new prepareReconnect method that handles messaging
-            await this.whatsappWebService.prepareReconnect(whatsappId);
+            // For now, use reconnect on the first instance
+            const instances = this.whatsappWebService.getStatus();
+            if (instances.instances.length > 0) {
+              await this.whatsappWebService.reconnect(instances.instances[0].phoneNumber);
+              return '🔄 Reconnecting WhatsApp... Please scan the QR code that will be displayed.';
+            } else {
+              return '❌ No WhatsApp instances configured';
+            }
 
             // This response won't be sent via WhatsApp, but will show in logs
             return 'WhatsApp reconnection initiated. Check terminal for QR code.';

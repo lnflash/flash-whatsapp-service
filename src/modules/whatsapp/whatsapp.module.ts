@@ -12,6 +12,8 @@ import { CommandValidatorService } from './services/command-validator.service';
 // import { WhatsAppCloudService } from './services/whatsapp-cloud.service';
 import { WhatsAppWebService } from './services/whatsapp-web.service';
 import { WhatsAppMessagingService } from './services/whatsapp-messaging.service';
+import { WhatsAppInstanceManager } from './services/whatsapp-instance-manager.service';
+import { WhatsAppMessageRouter } from './services/whatsapp-message-router.service';
 import { QrCodeService } from './services/qr-code.service';
 import { InvoiceTrackerService } from './services/invoice-tracker.service';
 import { SupportModeService } from './services/support-mode.service';
@@ -66,6 +68,8 @@ import { MESSAGING_PLATFORM } from '../messaging/messaging.constants';
     WhatsappService,
     // WhatsAppCloudService,  // Cloud API Service (disabled for prototype)
     WhatsAppWebService, // WhatsApp Web.js Service
+    WhatsAppInstanceManager, // Multi-instance manager
+    WhatsAppMessageRouter, // Message routing service
     WhatsAppMessagingService,
     {
       provide: MESSAGING_PLATFORM,

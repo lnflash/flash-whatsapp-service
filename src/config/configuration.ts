@@ -13,6 +13,19 @@ export default () => ({
     webhookUrl: process.env.WHATSAPP_WEBHOOK_URL || 'https://whatsapp.flashapp.me/whatsapp/webhook',
   },
 
+  // WhatsApp Web Multi-Instance Configuration
+  whatsappWeb: {
+    instances: process.env.WHATSAPP_INSTANCES ? 
+      process.env.WHATSAPP_INSTANCES.split(',').map(phone => ({
+        phoneNumber: phone.trim(),
+        enabled: true,
+      })) : [],
+    defaultSessionPath: process.env.WHATSAPP_SESSION_PATH || './whatsapp-sessions',
+    chromeDebugPortStart: parseInt(process.env.CHROME_DEBUG_PORT_START || '9222', 10),
+    autoReconnect: process.env.WHATSAPP_AUTO_RECONNECT !== 'false',
+    maxReconnectAttempts: parseInt(process.env.WHATSAPP_MAX_RECONNECT_ATTEMPTS || '5', 10),
+  },
+
   // Redis Configuration
   redis: {
     host: process.env.REDIS_HOST || 'localhost',
