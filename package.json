@@ -91,7 +91,7 @@
     "@types/amqplib": "^0.10.7",
     "@types/express": "^5.0.1",
     "@types/jest": "^29.5.14",
-    "@types/node": "^22.15.2",
+    "@types/node": "^22.16.5",
     "@types/qrcode": "^1.5.5",
     "@types/qrcode-terminal": "^0.12.2",
     "@types/supertest": "^6.0.3",

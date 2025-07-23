@@ -48,7 +48,13 @@ export class RedisPoolService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    await this.initializePool();
+    try {
+      await this.initializePool();
+    } catch (error) {
+      this.logger.error('Failed to initialize Redis pool, disabling pooling:', error);
+      this.config.enablePool = false;
+      // Don't throw error to allow application to start without pooling
+    }
   }
 
   async onModuleDestroy() {
@@ -135,7 +141,26 @@ export class RedisPoolService implements OnModuleInit, OnModuleDestroy {
     });
 
     // Wait for connection to be ready
-    await client.ping();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        if (client.status === 'ready') {
+          resolve();
+        } else {
+          client.once('ready', () => resolve());
+          client.once('error', (err) => reject(err));
+          
+          // Timeout after 5 seconds
+          setTimeout(() => reject(new Error('Connection timeout')), 5000);
+        }
+      });
+      
+      // Test the connection
+      await client.ping();
+    } catch (error) {
+      this.logger.error(`Failed to establish Redis connection ${index}:`, error);
+      client.disconnect();
+      throw error;
+    }
     
     return client;
   }
