@@ -20,45 +20,48 @@ export class VoiceResponseService {
       // Extract key information from the original response
       const responseData = this.extractResponseData(originalResponse);
 
+      // Merge response data with context for richer voice responses
+      const enrichedData = { ...responseData, ...context };
+
       switch (commandType) {
         case CommandType.BALANCE:
-          return this.generateBalanceVoiceResponse(responseData, context);
+          return this.generateBalanceVoiceResponse(enrichedData, context);
 
         case CommandType.SEND:
-          return this.generateSendVoiceResponse(responseData, commandArgs);
+          return this.generateSendVoiceResponse(enrichedData, commandArgs);
 
         case CommandType.RECEIVE:
-          return this.generateReceiveVoiceResponse(responseData, commandArgs);
+          return this.generateReceiveVoiceResponse(enrichedData, commandArgs);
 
         case CommandType.HISTORY:
-          return this.generateHistoryVoiceResponse(responseData);
+          return this.generateHistoryVoiceResponse(enrichedData);
 
         case CommandType.PRICE:
-          return this.generatePriceVoiceResponse(responseData);
+          return this.generatePriceVoiceResponse(enrichedData);
 
         case CommandType.HELP:
-          return this.generateHelpVoiceResponse(responseData, commandArgs);
+          return this.generateHelpVoiceResponse(enrichedData, commandArgs);
 
         case CommandType.LINK:
-          return this.generateLinkVoiceResponse(responseData);
+          return this.generateLinkVoiceResponse(enrichedData);
 
         case CommandType.REQUEST:
-          return this.generateRequestVoiceResponse(responseData, commandArgs);
+          return this.generateRequestVoiceResponse(enrichedData, commandArgs);
 
         case CommandType.CONTACTS:
-          return this.generateContactsVoiceResponse(responseData, commandArgs);
+          return this.generateContactsVoiceResponse(enrichedData, commandArgs);
 
         case CommandType.USERNAME:
-          return this.generateUsernameVoiceResponse(responseData, commandArgs);
+          return this.generateUsernameVoiceResponse(enrichedData, commandArgs);
 
         case CommandType.PENDING:
-          return this.generatePendingVoiceResponse(responseData);
+          return this.generatePendingVoiceResponse(enrichedData);
 
         case CommandType.VOICE:
-          return this.generateVoiceSettingsResponse(responseData, commandArgs);
+          return this.generateVoiceSettingsResponse(enrichedData, commandArgs);
 
         case CommandType.VERIFY:
-          return this.generateWelcomeVoiceResponse(responseData, context);
+          return this.generateWelcomeVoiceResponse(enrichedData, context);
 
         default:
           return this.generateGenericVoiceResponse(originalResponse);
@@ -120,31 +123,27 @@ export class VoiceResponseService {
     context?: Record<string, any>,
   ): string {
     const userName = context?.userName || '';
-    const greeting = userName ? `Hi ${userName}! ` : '';
+    const firstName = userName && userName !== 'there' ? userName.split(' ')[0] : '';
+    const greeting = firstName ? `Hey ${firstName}! ` : 'Alright, ';
 
     if (data.usdAmount !== undefined) {
       const amount = data.usdAmount.toFixed(2);
       const amountInWords = convertCurrencyToWords(amount);
 
       if (data.usdAmount === 0) {
-        return ResponseLengthUtil.shortenResponse(
-          `${greeting}Your balance is empty. Say "receive" to add funds.`,
-          true,
-        );
+        return `${greeting}Your Flash balance is currently empty. Would you like to add some funds? Just say "receive" followed by the amount you want to request, and I'll create a payment link for you.`;
       } else if (data.usdAmount < 5) {
-        return ResponseLengthUtil.shortenResponse(
-          `${greeting}Your balance is ${amountInWords}. Low balance.`,
-          true,
-        );
+        return `${greeting}You have ${amountInWords} in your Flash account. That's getting a bit low. If you need to add more funds, just let me know and I can help you create a payment request.`;
+      } else if (data.usdAmount < 20) {
+        return `${greeting}Your current balance is ${amountInWords}. You're all set for small transactions. Need to send money to someone?`;
+      } else if (data.usdAmount < 100) {
+        return `${greeting}You've got ${amountInWords} in your Flash account. Looking good! What would you like to do today?`;
       } else {
-        return ResponseLengthUtil.shortenResponse(
-          `${greeting}Your balance is ${amountInWords}.`,
-          true,
-        );
+        return `${greeting}Nice! Your balance is ${amountInWords}. You're well funded and ready to go. How can I help you today?`;
       }
     }
 
-    return `${greeting}I'm checking your balance now. It might take a moment.`;
+    return `${greeting}Let me check your Flash balance for you. This should just take a moment...`;
   }
 
   /**
@@ -155,15 +154,28 @@ export class VoiceResponseService {
       const amount = args?.amount || 'the payment';
       const amountInWords = amount !== 'the payment' ? convertCurrencyToWords(amount) : amount;
       const recipient = args?.username || args?.recipient || 'them';
-      return ResponseLengthUtil.shortenResponse(`Sent ${amountInWords} to ${recipient}.`, true);
+      
+      // Create varied success responses
+      const responses = [
+        `Perfect! I've sent ${amountInWords} to ${recipient}. They should receive it instantly.`,
+        `All done! ${recipient} just received ${amountInWords} from you. The payment went through successfully.`,
+        `Great! Your payment of ${amountInWords} to ${recipient} has been completed. They'll get a notification right away.`,
+        `Success! I've transferred ${amountInWords} to ${recipient}'s Flash account. The money is already in their wallet.`,
+      ];
+      
+      // Pick a random response for variety
+      return responses[Math.floor(Math.random() * responses.length)];
     } else if (data.isError) {
       if (data.originalResponse?.includes('Insufficient balance')) {
-        return `Sorry, you don't have enough funds to complete this payment. Please check your balance first.`;
+        return `Oops! It looks like you don't have enough in your balance to send that amount. You can check your current balance by saying "balance", or add funds by saying "receive" followed by the amount you need.`;
       }
-      return `I wasn't able to send that payment. Please check the recipient details and try again.`;
+      if (data.originalResponse?.includes('not found')) {
+        return `Hmm, I couldn't find that recipient. Make sure you've spelled their username correctly, or try using their phone number instead. You can also save them as a contact first to make it easier.`;
+      }
+      return `I ran into a problem sending that payment. Let's try again - make sure to include the amount and the recipient's username or phone number. For example, say "send 10 to john".`;
     }
 
-    return `I'm processing your payment now. This should only take a moment.`;
+    return `Alright, I'm sending that payment now. Just a moment while I process it...`;
   }
 
   /**
@@ -178,15 +190,16 @@ export class VoiceResponseService {
     if (data.isSuccess) {
       if (amount) {
         const amountInWords = convertCurrencyToWords(amount);
-        return ResponseLengthUtil.shortenResponse(
-          `Created payment request for ${amountInWords}.`,
-          true,
-        );
+        return `Perfect! I've created a payment request for ${amountInWords}. You can share this with anyone who has a Lightning wallet - they can pay you from CashApp, Strike, or any other Lightning-enabled app. Just copy and send them the invoice I've generated.`;
       }
-      return ResponseLengthUtil.shortenResponse(`Payment request created.`, true);
+      return `I've created your payment request! Share this Lightning invoice with whoever needs to pay you. They can scan it or paste it into any Lightning wallet to send you money instantly.`;
     }
 
-    return `Creating your payment request now. Remember, all amounts are in US dollars, not Bitcoin.`;
+    if (data.isError) {
+      return `I had trouble creating that payment request. Make sure to specify the amount you want to receive. For example, say "receive 20 dollars" or just "receive 20".`;
+    }
+
+    return `Alright, let me create that payment request for you. This will generate a Lightning invoice that anyone can use to send you money...`;
   }
 
   /**
@@ -201,20 +214,36 @@ export class VoiceResponseService {
     const totalCount = sentCount + receivedCount;
 
     if (totalCount === 0) {
-      return `You don't have any transactions yet. Once you start sending or receiving payments, they'll appear in your history.`;
+      return `It looks like you haven't made any transactions yet. Once you start sending or receiving money through Flash, I'll keep track of everything here for you. Ready to make your first transaction?`;
     }
 
-    let response = `Here's your recent transaction history. `;
+    if (totalCount === 1) {
+      if (sentCount === 1) {
+        return `I found your first transaction - a payment you sent. Great start! As you use Flash more, your transaction history will build up here. Each transaction includes the amount, recipient, and timestamp.`;
+      } else {
+        return `I see you received your first payment - welcome to Flash! Your transaction history will grow as you send and receive more payments. Everything is tracked securely for your records.`;
+      }
+    }
+
+    // Multiple transactions
+    let response = `Looking at your transaction history... `;
 
     if (sentCount > 0 && receivedCount > 0) {
-      response += `You have ${sentCount} sent and ${receivedCount} received transactions. `;
+      response += `You've sent ${sentCount} payment${sentCount > 1 ? 's' : ''} and received ${receivedCount} payment${receivedCount > 1 ? 's' : ''}. `;
+      response += `Nice to see you're actively using Flash for both sending and receiving money! `;
     } else if (sentCount > 0) {
-      response += `You have ${sentCount} sent transaction${sentCount > 1 ? 's' : ''}. `;
+      response += `You've sent ${sentCount} payment${sentCount > 1 ? 's' : ''} so far. `;
+      response += `Looks like you're using Flash to pay people - that's great! `;
     } else {
-      response += `You have ${receivedCount} received transaction${receivedCount > 1 ? 's' : ''}. `;
+      response += `You've received ${receivedCount} payment${receivedCount > 1 ? 's' : ''}. `;
+      response += `People have been sending you money through Flash - excellent! `;
     }
 
-    response += `For more details about a specific transaction, you can say "history" followed by the transaction ID.`;
+    if (totalCount > 10) {
+      response += `You're becoming quite the Flash power user! `;
+    }
+
+    response += `Want me to tell you more about any specific transaction?`;
 
     return response;
   }
@@ -228,18 +257,26 @@ export class VoiceResponseService {
       const price = data.btcPrice.toLocaleString();
       const priceInWords = this.convertLargeNumberToWords(data.btcPrice);
 
-      // Add market context
+      // Add market context with more personality
       let marketContext = '';
       if (data.btcPrice > 100000) {
-        marketContext = ' Bitcoin has reached a significant milestone!';
+        marketContext = ` Wow! Bitcoin has crossed the hundred thousand dollar mark - that's a huge milestone! We're witnessing history here.`;
+      } else if (data.btcPrice > 90000) {
+        marketContext = ` Bitcoin is really strong right now, approaching six figures. The market is looking very bullish!`;
+      } else if (data.btcPrice > 70000) {
+        marketContext = ` That's a solid price point. Bitcoin is holding strong in the market.`;
       } else if (data.btcPrice > 50000) {
-        marketContext = ' The price is quite strong today.';
+        marketContext = ` Bitcoin is doing well today, maintaining a healthy price level.`;
+      } else if (data.btcPrice > 30000) {
+        marketContext = ` The market is in an interesting spot right now. Could be a good time to keep an eye on things.`;
+      } else {
+        marketContext = ` The market is in a consolidation phase. These prices have historically been seen as accumulation opportunities.`;
       }
 
-      return `The current Bitcoin price is ${priceInWords}.${marketContext} Remember, when you send or receive money through Flash, it's always in US dollars, not Bitcoin.`;
+      return `The current Bitcoin price is ${priceInWords}.${marketContext} Just remember, when you use Flash, all your transactions are in US dollars, so you don't have to worry about Bitcoin price fluctuations affecting your payments.`;
     }
 
-    return `I'm checking the current Bitcoin price for you. This will just take a moment.`;
+    return `Let me check the latest Bitcoin price for you. I'll get that information right away...`;
   }
 
   /**
@@ -247,16 +284,39 @@ export class VoiceResponseService {
    */
   private generateHelpVoiceResponse(data: Record<string, any>, args?: Record<string, any>): string {
     const category = args?.category;
+    const isLinked = data.isLinked;
+    const isVerified = data.isVerified;
+    const isGroup = data.isGroup;
+    const userName = data.userName;
 
-    if (category === 'wallet' || category === '1') {
-      return `For wallet commands, you can say "balance" to check how much money you have, or "refresh" to update your balance. You can also say "username" to set up an easy payment address, or "history" to see your past transactions.`;
-    } else if (category === 'send' || category === '2') {
-      return `To send money, just say "send" followed by the amount in dollars and the recipient. For example, "send 10 dollars to john". You can send to usernames, phone numbers, or saved contacts.`;
-    } else if (category === 'receive' || category === '3') {
-      return `To receive money, say "receive" followed by the amount you want. For example, "receive 20 dollars". This creates a payment request that you can share. You can also say "request" to ask someone specific for money.`;
+    // Group help
+    if (isGroup) {
+      return `Hey there! In this group, I can help you play games and have fun. You can play trivia to earn sats, create polls, or even have typing races with Quick Draw. If you've linked your Flash account, you can also send money to other group members. Just say their name and the amount, like "send 5 dollars to john". Want to know more? Just ask me about any specific feature!`;
     }
 
-    return ResponseLengthUtil.shortenResponse(`Say: balance, send, receive, or history.`, true);
+    // Not linked yet
+    if (!isLinked) {
+      return `Hi! I'm Pulse, your friendly assistant for sending and receiving money through WhatsApp. To get started, you'll need to connect your Flash account. Just say "link" and I'll walk you through it. Once you're connected, you can send money to friends, check your balance, and much more. Ready to begin?`;
+    }
+
+    // Linked but not verified
+    if (!isVerified) {
+      return `I see you're almost there! I just need the 6-digit verification code that was sent to your phone. Once you tell me that code, you'll be all set to start using Flash through WhatsApp. If you didn't receive the code, just say "link" again and I'll send you a new one.`;
+    }
+
+    // Handle specific category help
+    if (category === 'wallet' || category === '1') {
+      return `Let me tell you about managing your wallet! You can check how much money you have by saying "balance" or just "bal" for short. If you want to refresh your balance, say "refresh". You can also set up a username to make it easier for people to send you money - just say "username" followed by your desired name. And if you want to see your transaction history, just say "history". What would you like to try first?`;
+    } else if (category === 'send' || category === '2') {
+      return `Sending money is super easy! Just tell me who you want to send to and how much. For example, you can say "send 10 dollars to sarah" or "pay john 5 bucks". You can send to people using their username, phone number, or if they're in your contacts, just their name. I'll always confirm the details with you before sending. Want to try sending some money now?`;
+    } else if (category === 'receive' || category === '3') {
+      return `Getting paid is simple! When you need to receive money, just tell me the amount. For example, say "receive 20 dollars" and I'll create a payment link you can share. You can also request money from specific people by saying something like "request 15 from mike". The person will get a notification and can pay you instantly. Need to receive some money now?`;
+    }
+
+    // Main help menu - personalized if we have a name
+    const greeting = userName && userName !== 'there' ? `Hey ${userName.split(' ')[0]}!` : `Hey there!`;
+    
+    return `${greeting} Here's what I can help you with today. You can check your balance anytime - just say "balance". Need to send money? Tell me the amount and who to send it to, like "send 20 to mike". Want to receive money? Say "receive" and the amount. I can also show you your transaction history, help you play games to earn sats, and much more. What would you like to do?`;
   }
 
   /**

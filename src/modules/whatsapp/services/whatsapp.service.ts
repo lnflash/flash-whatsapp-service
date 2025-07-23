@@ -397,6 +397,9 @@ _Your phone number is hidden for privacy in this group._`;
                   userName: session?.profileName,
                   isVoiceInput: messageData.isVoiceCommand || false,
                   originalResponse: finalText,
+                  isLinked: !!session,
+                  isVerified: session?.isVerified || false,
+                  isGroup: messageData.isGroup || false,
                 },
               );
             } else {
