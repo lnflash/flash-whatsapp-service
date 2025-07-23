@@ -258,7 +258,11 @@ export class AdminDashboardService {
    * Disconnect WhatsApp session
    */
   async disconnectWhatsApp(): Promise<void> {
-    await this.whatsappWebService.clearSession();
+    // Clear sessions for all instances
+    const status = this.whatsappWebService.getStatus();
+    for (const instance of status.instances) {
+      await this.whatsappWebService.clearSession(instance.phoneNumber);
+    }
   }
 
   /**
@@ -353,11 +357,13 @@ export class AdminDashboardService {
   private async getWhatsAppStatus() {
     const status = this.whatsappWebService.getStatus();
     const info = await this.whatsappWebService.getClientInfo();
+    const connectedInstances = status.instances.filter(i => i.connected);
 
     return {
-      connected: status.connected,
+      connected: connectedInstances.length > 0,
       phoneNumber: info?.wid?.user,
       batteryLevel: info?.battery,
+      instances: status.instances,
     };
   }
 
