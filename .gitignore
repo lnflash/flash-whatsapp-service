@@ -94,3 +94,6 @@ whatsapp-sessions-new/
 .pm2/
 pids/
 logs/
+
+# Encryption keys file
+.env.keys
